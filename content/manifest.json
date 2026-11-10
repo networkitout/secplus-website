@@ -28,7 +28,7 @@
         {
           "id": "1.4",
           "title": "Explain the importance of using appropriate cryptographic solutions",
-          "published": false,
+          "published": true,
           "minQuestions": 30
         }
       ]
