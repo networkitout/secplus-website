@@ -9,7 +9,7 @@ type Section = LessonView['sections'][number];
 
 // Typography for the sanitised lesson HTML, which arrives as plain tags without classes.
 const PROSE = [
-  // Wide tables scroll sideways; the padding keeps focus outlines at the edges from being clipped.
+  // Content that is too wide scrolls sideways; the padding keeps focus outlines at the edges from being clipped.
   '-m-1 space-y-4 overflow-x-auto p-1 leading-relaxed',
   '[&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:font-semibold',
   '[&_a]:text-accent [&_a]:underline [&_a]:underline-offset-2',
@@ -27,9 +27,23 @@ const PROSE = [
 
 const scrollsSideways = (el: Element) => el.scrollWidth > el.clientWidth;
 
+const TABLE_BOX = 'data-table-box';
+
+/** Makes `el` a focusable, named region while it scrolls sideways, so that it can be scrolled by keyboard. */
+function markScroller(el: HTMLElement, name: string): void {
+  if (scrollsSideways(el)) {
+    el.tabIndex = 0;
+    el.setAttribute('role', 'region');
+    el.setAttribute('aria-label', name);
+  } else {
+    for (const attribute of ['tabindex', 'role', 'aria-label']) el.removeAttribute(attribute);
+  }
+}
+
 /**
- * Lesson text. A block that is wider than the screen (a wide table) scrolls sideways, and so does a long
- * line of code; whatever scrolls is made a focusable, named region so that it can be scrolled by keyboard.
+ * Lesson text. A table that is wider than the screen scrolls sideways in a box of its own, so that the
+ * text around it stays where it is; so does a long line of code. Anything else that does not fit makes
+ * the whole block scroll. Whatever scrolls is made a focusable, named region.
  */
 function Prose({ html }: { html: string }) {
   const box = useRef<HTMLDivElement>(null);
@@ -38,18 +52,19 @@ function Prose({ html }: { html: string }) {
   useEffect(() => {
     const el = box.current;
     if (!el) return;
+    // The tables and code blocks are inside the inserted HTML, so their boxes and attributes are set here.
+    for (const table of el.querySelectorAll('table')) {
+      if (table.parentElement?.hasAttribute(TABLE_BOX)) continue;
+      const tableBox = document.createElement('div');
+      tableBox.setAttribute(TABLE_BOX, '');
+      tableBox.className = 'overflow-x-auto';
+      table.before(tableBox);
+      tableBox.append(table);
+    }
     const measure = () => {
+      for (const tableBox of el.querySelectorAll<HTMLElement>(`[${TABLE_BOX}]`)) markScroller(tableBox, 'Wide table: scroll sideways to see all of it');
+      for (const pre of el.querySelectorAll('pre')) markScroller(pre, 'Code: scroll sideways to see all of it');
       setScrolls(scrollsSideways(el));
-      // The code blocks are inside the inserted HTML, so their attributes are set here.
-      for (const pre of el.querySelectorAll('pre')) {
-        if (scrollsSideways(pre)) {
-          pre.tabIndex = 0;
-          pre.setAttribute('role', 'region');
-          pre.setAttribute('aria-label', 'Code: scroll sideways to see all of it');
-        } else {
-          for (const name of ['tabindex', 'role', 'aria-label']) pre.removeAttribute(name);
-        }
-      }
     };
     measure();
     if (typeof ResizeObserver === 'undefined') return;
