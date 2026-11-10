@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { StrictMode, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
+import { holdPressClock } from '../../test/pressClock';
+import { SETTLE_MS } from '../../ui/pressGuard';
 import { initialAnswer, isComplete, QuestionView } from './QuestionView';
 
 /**
@@ -713,6 +715,43 @@ describe('questions', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.getByRole('radiogroup', { name: single.prompt })).toBeInTheDocument();
     for (const radio of screen.getAllByRole('radio')) expect(radio).not.toBeChecked();
+  });
+
+  // The second tap of a double tap on "Next" arrives when the next question is on screen, and lands on
+  // whatever that question has put under it. Time stands still here unless the test moves it.
+  it('takes no answer in the moment a question appears: a press that was meant for the screen before changes nothing', async () => {
+    const clock = holdPressClock();
+    const onChange = vi.fn();
+    const { rerender } = render(<Harness question={single} onChange={onChange} />);
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Managerial' }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('radio', { name: 'Managerial' })).not.toBeChecked();
+    clock.advance(SETTLE_MS);
+    await userEvent.click(screen.getByRole('radio', { name: 'Managerial' }));
+    expect(onChange).toHaveBeenCalledWith({ type: 'single', choice: 'b' });
+    expect(screen.getByRole('radio', { name: 'Managerial' })).toBeChecked();
+
+    // Another question takes its place: the pause starts again.
+    onChange.mockClear();
+    rerender(<Harness question={multi} onChange={onChange} />);
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Bollards' }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('checkbox', { name: 'Bollards' })).not.toBeChecked();
+    clock.advance(1);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Bollards' }));
+    expect(onChange).toHaveBeenCalledWith({ type: 'multi', choices: ['a'] });
+
+    onChange.mockClear();
+    rerender(<Harness question={match} onChange={onChange} />);
+    const menu = screen.getByRole('combobox', { name: 'Match for Confidentiality' });
+    await userEvent.selectOptions(menu, 'Encryption');
+    expect(onChange).not.toHaveBeenCalled();
+    expect(menu).toHaveValue('');
+    clock.advance(SETTLE_MS);
+    await userEvent.selectOptions(menu, 'Encryption');
+    expect(onChange).toHaveBeenCalledWith({ type: 'match', pairs: { l1: 'r1' } });
   });
 
   it('reduced motion: no result pulse is rendered and order rows move without a transition', () => {

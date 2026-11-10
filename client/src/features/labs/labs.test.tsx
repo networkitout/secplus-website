@@ -340,10 +340,11 @@ describe('labs', () => {
   });
 
   it('lab: a press that is handled after the result came back, and before the page has shown it, does not submit again', async () => {
-    const clock = holdPressClock();
     const answer = deferred<Response>();
     handlers[SUBMIT] = () => answer.promise;
     await answerAll();
+    // From here on time stands still: the lab has been on screen, and answered, for a while.
+    const clock = holdPressClock();
     clock.advance(SETTLE_MS);
     const submit = button('Submit lab');
     await userEvent.click(submit);

@@ -754,29 +754,51 @@ describe('lesson: review findings', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('makes a block that scrolls sideways reachable by keyboard, and leaves other blocks alone', async () => {
+  it('makes what scrolls sideways reachable by keyboard: a wide table in a region of its own, so the text around it stays put', async () => {
+    // jsdom lays nothing out. Wider than its box here: the box around a table, a code block, and a text
+    // block that holds an image (for anything else that does not fit).
+    const holdsOnlyATable = (el: HTMLElement) => el.children.length === 1 && el.firstElementChild!.tagName === 'TABLE';
     const wide = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) {
-      return this.querySelector('table') || this.tagName === 'PRE' ? 900 : 300;
+      return holdsOnlyATable(this) || this.tagName === 'PRE' || this.querySelector(':scope > img') ? 900 : 300;
     });
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
     const sections = lesson().sections;
     sections[0]!.blocks = [
       { kind: 'html', html: '<p>Plain text.</p>' },
-      { kind: 'html', html: '<table><tbody><tr><td>A wide table</td></tr></tbody></table>' },
+      { kind: 'html', html: '<p>Before the table.</p><table><tbody><tr><td>A wide table</td></tr></tbody></table><p>After the table.</p>' },
       { kind: 'html', html: '<pre><code>a very long line of code</code></pre>' },
+      { kind: 'html', html: '<p>Beside a picture.</p><img alt="A wide picture" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">' },
     ];
     handlers['GET /api/lessons/1.1'] = () => json(200, response([], { sections }));
     renderLesson();
     await sectionHeading('Control categories');
 
-    const table = screen.getByRole('region', { name: 'Wide content: scroll sideways to see all of it' });
+    const table = screen.getByRole('region', { name: 'Wide table: scroll sideways to see all of it' });
     expect(table).toHaveAttribute('tabindex', '0');
-    expect(within(table).getByText('A wide table')).toBeInTheDocument();
+    expect(within(table).getByRole('table')).toHaveTextContent('A wide table');
+    // The text of the same block is outside the part that scrolls.
+    expect(table).not.toHaveTextContent('Before the table.');
+    expect(screen.getByText('Before the table.').closest('[tabindex]')).toBeNull();
+    expect(screen.getByText('After the table.').closest('[tabindex]')).toBeNull();
     const code = screen.getByRole('region', { name: 'Code: scroll sideways to see all of it' });
     expect(code.tagName).toBe('PRE');
     expect(code).toHaveAttribute('tabindex', '0');
+    const other = screen.getByRole('region', { name: 'Wide content: scroll sideways to see all of it' });
+    expect(other).toHaveAttribute('tabindex', '0');
+    expect(other).toHaveTextContent('Beside a picture.');
     expect(screen.getByText('Plain text.').closest('[tabindex]')).toBeNull();
     wide.mockRestore();
+  });
+
+  it('a table that fits is not a region and takes no keyboard focus', async () => {
+    const sections = lesson().sections;
+    sections[0]!.blocks = [{ kind: 'html', html: '<p>Text.</p><table><tbody><tr><td>A small table</td></tr></tbody></table>' }];
+    handlers['GET /api/lessons/1.1'] = () => json(200, response([], { sections }));
+    renderLesson();
+    await sectionHeading('Control categories');
+    expect(screen.getByRole('table')).toHaveTextContent('A small table');
+    expect(screen.queryByRole('region', { name: /scroll sideways/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('table').closest('[tabindex]')).toBeNull();
   });
 });
 

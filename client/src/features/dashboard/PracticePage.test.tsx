@@ -181,8 +181,10 @@ describe('practice', () => {
     const clock = holdPressClock();
     handlers[ANSWERS] = () => json(200, answered(true, 'A hash shows that data has changed.', 10));
     renderPractice();
-    await userEvent.click(await screen.findByRole('radio', { name: 'Integrity' }));
+    const option = await screen.findByRole('radio', { name: 'Integrity' });
+    // The question has been on screen for a while when it is answered.
     clock.advance(SETTLE_MS);
+    await userEvent.click(option);
     await userEvent.click(button('Check'));
 
     // "Next" is now where "Check" was.
@@ -216,8 +218,10 @@ describe('practice', () => {
     const clock = holdPressClock();
     handlers[ANSWERS] = () => json(404, { error: 'Question not found' });
     renderPractice();
-    await userEvent.click(await screen.findByRole('radio', { name: 'Integrity' }));
+    const option = await screen.findByRole('radio', { name: 'Integrity' });
+    // The question has been on screen for a while when it is answered.
     clock.advance(SETTLE_MS);
+    await userEvent.click(option);
     await userEvent.click(button('Check'));
 
     // "Skip this question" is now where "Check" was.

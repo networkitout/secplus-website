@@ -700,6 +700,17 @@ describe('exam', () => {
     expect(await heading('Question 3 of 5')).toHaveFocus();
   });
 
+  // jsdom lays nothing out, so this can only hold the rule that keeps the layout in the window: below the
+  // two-column width the one column may shrink under its content (a match menu is as wide as its longest
+  // answer, and an `auto` column would grow to it and push the page sideways on a phone).
+  it('exam: the question column cannot be made wider than the screen by what is in it', async () => {
+    handlers['GET /api/assessments/30'] = () => json(200, exam());
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    const columns = nav().parentElement!;
+    expect(columns).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)]', 'lg:grid-cols-[minmax(0,1fr)_18rem]');
+  });
+
   it('exam: flag toggles and shows in the navigator', async () => {
     handlers['GET /api/assessments/30'] = () => json(200, exam());
     handlers[SAVE] = () => json(200, { saved: true });
@@ -1350,6 +1361,39 @@ describe('exam', () => {
     expect(writes()).toEqual([SAVE, SUBMIT]);
   });
 
+  // On a phone the page scrolls to the new question, and the second tap of a double tap on "Next" lands on
+  // its "Flag for review" button or on one of its options.
+  it('a press that arrives with a new question neither flags it nor answers it', async () => {
+    const clock = holdPressClock();
+    handlers['GET /api/assessments/30'] = () => json(200, exam());
+    handlers[SAVE] = () => json(200, { saved: true });
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    clock.advance(SETTLE_MS);
+
+    await userEvent.click(button('Next'));
+    await heading('Question 2 of 5');
+    await userEvent.click(flagToggle());
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    expect(flagToggle()).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('radio', { name: 'Alpha' })).not.toBeChecked();
+    expect(within(nav()).getByText('0 of 5 answered, 0 flagged')).toBeInTheDocument();
+    expect(writes()).toEqual([]);
+
+    // A moment later the question takes both.
+    clock.advance(1);
+    await userEvent.click(flagToggle());
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    expect(flagToggle()).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radio', { name: 'Alpha' })).toBeChecked();
+    await waitFor(() => expect(writes()).toEqual([SAVE, SAVE]));
+    expect(bodies(SAVE)).toEqual([
+      { questionId: 'q-1.1-002', flagged: true },
+      { questionId: 'q-1.1-002', answer: pick('a') },
+    ]);
+  });
+
   it('a press straight after a prompt appeared is ignored: "Submit now", "Submit anyway", "Keep working" and "Try again" need a moment first', async () => {
     const clock = holdPressClock();
     const open = exam();
@@ -1360,10 +1404,12 @@ describe('exam', () => {
     };
     renderAt('/exam/30');
     await heading('Question 1 of 5');
+    // The question has been on screen for a while when it is answered.
+    clock.advance(SETTLE_MS);
     await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
     await screen.findByText("Couldn't save one of your answers.");
 
-    // The exam has been on screen for a while: what counts from here on is when the dialog opened.
+    // What counts from here on is when the dialog opened.
     clock.advance(SETTLE_MS);
     // The dialog opens over the page; a second press that lands on "Submit now" does not submit.
     await userEvent.click(button('Submit exam'));

@@ -6,6 +6,7 @@ import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { formatInstant } from '../../lib/dates';
+import { usePressGuard } from '../../ui/pressGuard';
 import { QueryStatus } from '../../ui/QueryStatus';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -94,6 +95,7 @@ export function AdminPage() {
   // The link that is being made: for an account (a reset link) or for nobody yet (an invite).
   const [makingLink, setMakingLink] = useState<{ target?: AdminUser } | null>(null);
   const linkBusy = useRef(false);
+  const linkGuard = usePressGuard();
   const [linkError, setLinkError] = useState('');
   // The accounts whose change is on its way.
   const [updating, setUpdating] = useState<AdminUser[]>([]);
@@ -106,15 +108,20 @@ export function AdminPage() {
   const accountsHeadingId = useId();
   const timeZone = user?.timeZone ?? 'UTC';
 
-  /** One link at a time: the page shows one link, and a second one would be made without ever being seen. */
+  /**
+   * One link at a time: the page shows one link, and a second one would be made without ever being seen.
+   * That holds for a moment after a link has appeared too: the second press of a double click or double
+   * tap arrives then, and would put a new link over the one that has not been read.
+   */
   async function makeLink(target?: AdminUser) {
-    if (linkBusy.current) return;
+    if (linkBusy.current || !linkGuard.settled()) return;
     linkBusy.current = true;
     setMakingLink({ target });
     linkOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setLinkError('');
     try {
       const made = await api.post<AdminLink>('admin/invites', target ? { purpose: 'reset', userId: target.id } : { purpose: 'invite' });
+      linkGuard.restart();
       setLink({
         title: target ? `Password reset link for ${target.name}` : 'Invite link',
         reset: target !== undefined,
