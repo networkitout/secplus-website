@@ -25,19 +25,19 @@ const STEPS: DiagramStep[] = [
   {
     title: 'One attack on each goal',
     description:
-      'Confidentiality: eavesdropping, where an attacker captures unencrypted traffic and reads it. Integrity: tampering, where an attacker changes a record or a message in transit. Availability: a distributed denial-of-service (DDoS) attack, where a flood of requests leaves no capacity for real users.',
+      'Confidentiality: eavesdropping, where an attacker captures unencrypted traffic and reads it. Integrity: tampering, where an attacker changes a record or a message in transit. Availability: a denial-of-service (DoS) attack, where a flood of junk traffic leaves no capacity for real users.',
   },
   {
     title: 'One control for each goal',
     description:
-      'Confidentiality: encryption, so that captured data cannot be read without the key. Integrity: hashing, so that any change to the data produces a different hash and is noticed. Availability: redundancy, such as a second server or site that takes over when the first one fails.',
+      'Confidentiality: encryption, so that captured data cannot be read without the key. Integrity: hashing, so that any change to the data produces a different hash, which shows up when the hashes are compared. Availability: redundancy, such as a second server or site that takes over when the first one fails.',
   },
 ];
 
 const CORNERS = [
   { name: 'Confidentiality', x: 160, box: 8, text: 48, attack: 'Attack: eavesdropping', control: 'Control: encryption', means: ['Only authorized', 'eyes can read it'] },
   { name: 'Integrity', x: 62, box: 196, text: 236, attack: 'Attack: tampering', control: 'Control: hashing', means: ['Accurate and', 'unaltered'] },
-  { name: 'Availability', x: 258, box: 196, text: 236, attack: 'Attack: DDoS flood', control: 'Control: redundancy', means: ['There when it', 'is needed'] },
+  { name: 'Availability', x: 258, box: 196, text: 236, attack: 'Attack: DoS flood', control: 'Control: redundancy', means: ['There when it', 'is needed'] },
 ] as const;
 
 function Drawing({ step }: { step: number }) {
@@ -52,10 +52,10 @@ function Drawing({ step }: { step: number }) {
         <g key={c.name}>
           <Box x={c.x - 54} y={c.box} w={108} h={28} lines={[c.name]} state={state(i)} size={11} />
           <Layer state={step >= 4 ? 'off' : 'hidden'}>
-            <Label x={c.x} y={c.text} lines={[c.attack]} size={9.5} />
+            <Label x={c.x} y={c.text} lines={[c.attack]} size={10} />
           </Layer>
           <Layer state={step >= 5 ? 'off' : 'hidden'}>
-            <Label x={c.x} y={c.text + 13} lines={[c.control]} size={9.5} tone="accent" bold />
+            <Label x={c.x} y={c.text + 13} lines={[c.control]} size={10} tone="accent" bold />
           </Layer>
         </g>
       ))}

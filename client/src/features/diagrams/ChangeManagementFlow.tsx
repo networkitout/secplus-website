@@ -2,7 +2,7 @@ import { Arrow, Box, Canvas, Label, Layer, type Emphasis } from './parts';
 import { StepDiagram, type DiagramStep } from './StepDiagram';
 
 const STAGES: { name: string; notes: string[] }[] = [
-  { name: 'Request', notes: ['What, why and when', 'Systems affected', 'A named owner'] },
+  { name: 'Request', notes: ['What, why and when', 'Systems affected', 'One accountable owner'] },
   { name: 'Impact analysis', notes: ['Dependencies', 'Downtime needed', 'Risk if it fails'] },
   { name: 'Test', notes: ['Tried away from', 'production', 'Results recorded'] },
   { name: 'Approval', notes: ['Decided by others,', 'using the analysis', 'and the test results'] },
@@ -16,7 +16,7 @@ const STEPS: DiagramStep[] = [
   {
     title: 'Request',
     description:
-      'A change starts as a written request: what will change, why, which systems it touches and when it is proposed to happen. The request names an owner, the person or team responsible for the change from start to finish, and lists the stakeholders who are affected by it.',
+      'A change starts as a written request: what will change, why, which systems it touches and when it is proposed to happen. The request names one owner, the person or department that is accountable for the change from start to finish, and lists the stakeholders who are affected by it.',
   },
   {
     title: 'Impact analysis',
@@ -31,7 +31,7 @@ const STEPS: DiagramStep[] = [
   {
     title: 'Approval',
     description:
-      'The request, the impact analysis and the test results go through the approval process, often a change advisory board. People other than the requester approve the change, reject it or ask for more detail. Nothing is changed in production before approval. Some organizations approve the change first and then test it before go-live.',
+      'The request, the impact analysis and the test results go through the approval process, often a change advisory board (CAB), a group that reviews change requests. People other than the requester approve the change, reject it or ask for more detail. Nothing is changed in production before approval. Some organizations approve the change first and then test it before go-live.',
   },
   {
     title: 'Maintenance window',
@@ -41,12 +41,12 @@ const STEPS: DiagramStep[] = [
   {
     title: 'Implement',
     description:
-      'During the window the change is made by following the approved plan and the standard operating procedure, step by step. Only what was approved is changed; an extra improvement added on the spot is an unapproved change.',
+      'During the window the change is made by following the approved plan and the standard operating procedure (the written step-by-step instructions for the task). Only what was approved is changed; an extra improvement added on the spot is an unapproved change.',
   },
   {
     title: 'Verify or back out',
     description:
-      'After the change, check that the system works and that the systems that depend on it still work. If it does not, use the backout plan to return to the last known good state before the window ends, then go back to analysis with what was learned.',
+      'After the change, check that the system works and that the systems that depend on it still work. If it does not, use the backout plan to return to the last known good state before the window ends, then go back to analysis with what was learned. The outcome is still recorded in the change record.',
   },
   {
     title: 'Update documentation',
@@ -61,7 +61,8 @@ const BOX_H = 22;
 const PITCH = 30;
 const TOP = 8;
 const NOTES_X = X + BOX_W + 16;
-const LINE = 9.5 * 1.25;
+const NOTE_SIZE = 10;
+const LINE = NOTE_SIZE * 1.25;
 
 const middle = (i: number) => TOP + i * PITCH + BOX_H / 2;
 
@@ -86,7 +87,7 @@ function Drawing({ step }: { step: number }) {
       {/* Notes for the current stage slide down beside its box. */}
       <g className="transition-transform duration-300 ease-out" style={{ transform: `translateY(${middle(step)}px)` }}>
         <line x1={X + BOX_W} x2={NOTES_X - 4} y1={0} y2={0} stroke="var(--accent)" strokeWidth={1.25} />
-        <Label x={NOTES_X} y={(-(notes.length - 1) * LINE) / 2} lines={notes} size={9.5} anchor="start" />
+        <Label x={NOTES_X} y={(-(notes.length - 1) * LINE) / 2} lines={notes} size={NOTE_SIZE} anchor="start" />
       </g>
 
       {/* A failed change is backed out and returns to analysis. */}

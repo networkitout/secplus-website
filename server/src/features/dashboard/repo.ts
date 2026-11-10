@@ -5,6 +5,7 @@ import { studyPlan } from '../../services/studyPlan.js';
 import { localDate } from '../../services/time.js';
 import { BADGES, xpForLevel } from '../../services/xp.js';
 import { unlockedDomains } from '../access.js';
+import { mockSpec, openAssessments } from '../assessments/repo.js';
 import { dueCount } from '../review/repo.js';
 import { totals } from '../xp/repo.js';
 
@@ -50,7 +51,9 @@ function objectiveStats(content: Content, latest: Map<string, boolean>): Map<str
   return stats;
 }
 
-export async function pathFor(db: Db, content: Content, user: User) {
+export async function pathFor(db: Db, content: Content, user: User, now: Date) {
+  // First: an exam whose deadline has passed is scored here, and may change what is passed and unlocked.
+  const openExams = await openAssessments(db, content, user, 'domain', now);
   const [latest, unlocked, examPassed, quizPassed, lessons] = await Promise.all([
     latestCorrect(db, content, user.id),
     unlockedDomains(db, content, user.id),
@@ -68,6 +71,7 @@ export async function pathFor(db: Db, content: Content, user: User) {
       unlocked: unlocked.includes(d.id),
       examPassed: examPassed.has(String(d.id)),
       hasContent: d.objectives.some((o) => o.published),
+      openExam: openExams.get(String(d.id)) ?? null,
       objectives: d.objectives.map((o) => ({
         id: o.id,
         title: o.title,
@@ -86,6 +90,8 @@ const DOMAIN_IDS = [1, 2, 3, 4, 5];
 
 export async function dashboardFor(db: Db, content: Content, user: User, now: Date) {
   const today = localDate(now, user.timeZone);
+  // First: a mock whose deadline has passed is scored here, and belongs in the history and the totals below.
+  const openMock = (await openAssessments(db, content, user, 'mock', now)).get(null) ?? null;
   const [latest, unlocked, quizPassed, tot, reviewsDue, mocks, badgeRows, examRow] = await Promise.all([
     latestCorrect(db, content, user.id),
     unlockedDomains(db, content, user.id),
@@ -140,6 +146,8 @@ export async function dashboardFor(db: Db, content: Content, user: User, now: Da
     domains,
     weakest,
     mockHistory,
+    openMock,
+    mockSpec: mockSpec(content),
     readiness: readiness({
       domainMastery: masteryByDomain,
       lastMockScores: mockHistory

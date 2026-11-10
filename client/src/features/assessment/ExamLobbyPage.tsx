@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api, isUnavailable } from '../../api/client';
@@ -41,6 +41,7 @@ function HistoryRow({ exam }: { exam: MockHistoryEntry }) {
 
 export function ExamLobbyPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const path = useQuery({ queryKey: ['path'], queryFn: () => api.get<PathResponse>('path') });
   const dashboard = useQuery({
     queryKey: ['dashboard'],
@@ -52,15 +53,15 @@ export function ExamLobbyPage() {
 
   // Oldest first from the server; the newest is the most useful one to see first.
   const history = dashboard.data ? [...dashboard.data.mockHistory].reverse() : undefined;
-  // A mock draws on every domain that has published content. The path says which do; when it cannot be
-  // read, the latest practice exam says whether exams are still partial.
-  const domains = path.data?.domains;
-  const covered = domains?.filter((d) => d.hasContent).map((d) => d.id) ?? [];
-  const nothingPublished = domains !== undefined && covered.length === 0;
-  const partial = domains
-    ? covered.length > 0 && covered.length < domains.length
-    : path.isError && history?.[0]?.partial === true;
-  const lengthKnown = path.data !== undefined || path.isError;
+  // What an exam started now would be, as the server would assemble it.
+  const spec = dashboard.data?.mockSpec;
+  const nothingPublished = spec?.questions === 0;
+  const partial = spec !== undefined && spec.partial && !nothingPublished;
+  // The path names the domains that a partial exam covers.
+  const covered = path.data?.domains.filter((d) => d.hasContent).map((d) => d.id) ?? [];
+  const open = dashboard.data?.openMock ?? null;
+  // Shown to the minute and not ticking, so the device clock is good enough; the exam page keeps exact time.
+  const minutesLeft = open ? Math.ceil((Date.parse(open.deadlineAt) - Date.now()) / 60_000) : 0;
 
   async function start() {
     // The button is not disabled meanwhile: a disabled button would drop keyboard focus.
@@ -69,6 +70,8 @@ export function ExamLobbyPage() {
     setError('');
     try {
       const { id } = await api.post<AssessmentStarted>('assessments', { kind: 'mock' });
+      // An exam is now in progress: this page says "Resume" on the next visit.
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       navigate(`/exam/${id}`);
     } catch (err) {
       setError(isUnavailable(err) ? "Can't reach the server. Try again in a moment." : "Couldn't start the exam. Try again.");
@@ -89,7 +92,9 @@ export function ExamLobbyPage() {
             <span aria-hidden="true">⚠ </span>
             {covered.length > 0
               ? `Partial practice exam — covers ${domainList(covered)} only`
-              : 'Partial practice exam — it does not cover all five domains yet'}
+              : path.isPending
+                ? 'Partial practice exam'
+                : 'Partial practice exam — it does not cover all five domains yet'}
           </p>
           <p className="mt-1 text-sm text-muted">
             It is shorter than the full exam, and its score says less than a full exam would.
@@ -101,11 +106,11 @@ export function ExamLobbyPage() {
         <h2 className="text-lg font-semibold">How it works</h2>
         <ul aria-label="Exam rules" className="list-disc space-y-2 pl-5">
           <li>
-            {!lengthKnown
+            {spec === undefined || nothingPublished
               ? 'One minute per question.'
               : partial
-                ? `The full exam has ${FULL_EXAM}. A partial exam is shorter and keeps the same pace: one minute per question.`
-                : `${FULL_EXAM}: one minute per question.`}
+                ? `This exam has ${spec.questions} questions in ${spec.minutes} minutes: one minute per question. The full exam has ${FULL_EXAM}.`
+                : `${spec.questions} questions in ${spec.minutes} minutes: one minute per question.`}
           </li>
           <li>No feedback until the end. After you submit you see every answer with its explanation.</li>
           <li>The score is on a scale from 100 to 900. You need 750 to pass. It is an estimate: CompTIA does not publish its scaling.</li>
@@ -117,10 +122,18 @@ export function ExamLobbyPage() {
         </ul>
         {nothingPublished ? (
           <p>Practice exams open once the first lessons are published.</p>
+        ) : open ? (
+          <div className="space-y-2">
+            <p>
+              {minutesLeft > 0
+                ? `You have a practice exam in progress, with about ${minutesLeft} ${minutesLeft === 1 ? 'minute' : 'minutes'} left. Its clock is running.`
+                : 'You have a practice exam in progress. Its clock is running.'}
+            </p>
+            <Button onClick={() => navigate(`/exam/${open.id}`)}>Resume practice exam</Button>
+          </div>
         ) : (
           <div className="space-y-2">
             <Button onClick={() => void start()}>Start practice exam</Button>
-            <p className="text-sm text-muted">If you have a practice exam in progress, this takes you back to it.</p>
             {error && (
               <p role="alert" className="text-sm text-bad">
                 {error}

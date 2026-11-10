@@ -6,11 +6,11 @@ import { assertObjectiveOpen } from '../access.js';
 import { dashboardFor, pathFor, practiceIds } from './repo.js';
 
 export function pathRouter(deps: AppDeps): Router {
-  const { db, content } = deps;
+  const { db, content, now } = deps;
   const router = Router();
   router.use(requireAuth);
   router.get('/', async (req, res) => {
-    res.json(await pathFor(db, content, req.user!));
+    res.json(await pathFor(db, content, req.user!, now()));
   });
   return router;
 }

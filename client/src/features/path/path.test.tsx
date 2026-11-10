@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router';
@@ -14,7 +14,7 @@ const objective = (id: string, over: Partial<PathObjective> = {}): PathObjective
 });
 
 const domain = (id: number, title: string, over: Partial<PathDomain> = {}): PathDomain => ({
-  id, title, weight: 20, unlocked: false, examPassed: false, hasContent: false,
+  id, title, weight: 20, unlocked: false, examPassed: false, hasContent: false, openExam: null,
   objectives: [objective(`${id}.1`, { published: false }), objective(`${id}.2`, { published: false })],
   ...over,
 });
@@ -75,6 +75,11 @@ function renderPath() {
 
 const domainCard = (n: number) => screen.findByRole('region', { name: new RegExp(`^Domain ${n}:`) });
 const node = (card: HTMLElement, id: string) => within(card).getByText(`Objective ${id} title`).closest('li')!;
+/** Presses "Domain exam" and confirms in the dialog that asks first. */
+async function confirmStart(button: HTMLElement) {
+  await userEvent.click(button);
+  await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start exam' }));
+}
 const calls = (key: string) => fetchMock.mock.calls.filter(([u, i]) => `${i?.method ?? 'GET'} ${u}` === key);
 
 describe('path', () => {
@@ -157,15 +162,49 @@ describe('path', () => {
     expect(open.querySelector('img, b')).toBeNull();
   });
 
-  it('"Domain exam" starts a domain assessment and opens it', async () => {
+  it('"Domain exam" asks first and states the rules; Cancel creates nothing; "Start exam" creates the exam and opens it', async () => {
     handlers['POST /api/assessments'] = () => json(201, { id: 7 });
     renderPath();
     const open = await domainCard(1);
-    await userEvent.click(within(open).getByRole('button', { name: /^Domain exam/ }));
+    const button = within(open).getByRole('button', { name: 'Domain exam, Domain 1' });
+    await userEvent.click(button);
 
+    const dialog = screen.getByRole('dialog', { name: 'Start the Domain 1 exam?' });
+    // The rules as the server applies them.
+    expect(dialog).toHaveAccessibleDescription(/Up to 25 questions/);
+    expect(dialog).toHaveAccessibleDescription(/25 minutes/);
+    expect(dialog).toHaveAccessibleDescription(/75% to pass/);
+    expect(dialog).toHaveAccessibleDescription(/no feedback until the end/i);
+    expect(dialog).toHaveAccessibleDescription(/clock starts/);
+    expect(calls('POST /api/assessments')).toHaveLength(0);
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(button).toHaveFocus();
+    expect(calls('POST /api/assessments')).toHaveLength(0);
+
+    await userEvent.click(button);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start exam' }));
     expect(await screen.findByText('exam screen 7')).toBeInTheDocument();
     const [, init] = calls('POST /api/assessments')[0]!;
     expect(JSON.parse(String(init.body))).toEqual({ kind: 'domain', scope: '1' });
+    // The path now has an exam in progress: it is read again for the next visit.
+    await waitFor(() => expect(calls('GET /api/path')).toHaveLength(2));
+  });
+
+  it('offers "Resume domain exam" for an exam in progress and opens it without asking or creating anything', async () => {
+    const data = path();
+    data.domains[0]!.openExam = { id: 44, deadlineAt: '2026-11-10T12:25:00.000Z' };
+    handlers['GET /api/path'] = () => json(200, data);
+    renderPath();
+    const open = await domainCard(1);
+    expect(within(open).queryByRole('button', { name: /^Domain exam/ })).not.toBeInTheDocument();
+    expect(within(open).getByText('You have an exam in progress. Its clock is running.')).toBeInTheDocument();
+
+    await userEvent.click(within(open).getByRole('button', { name: 'Resume domain exam, Domain 1' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByText('exam screen 44')).toBeInTheDocument();
+    expect(calls('POST /api/assessments')).toHaveLength(0);
   });
 
   it('keeps the learner on the path with a message when the exam cannot be started', async () => {
@@ -173,13 +212,14 @@ describe('path', () => {
     renderPath();
     const open = await domainCard(1);
     const start = within(open).getByRole('button', { name: /^Domain exam/ });
-    await userEvent.click(start);
+    await confirmStart(start);
 
     expect(await within(open).findByRole('alert')).toHaveTextContent("Can't reach the server. Try again in a moment.");
     expect(start).toBeEnabled();
+    expect(start).toHaveFocus();
 
     handlers['POST /api/assessments'] = () => json(200, { id: 9 });
-    await userEvent.click(start);
+    await confirmStart(start);
     expect(await screen.findByText('exam screen 9')).toBeInTheDocument();
   });
 
@@ -203,5 +243,62 @@ describe('path', () => {
     renderPath();
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load your study path.");
     expect(screen.getByRole('heading', { level: 1, name: 'Study path' })).toBeInTheDocument();
+  });
+
+  it('two presses on "Domain exam" while it is being created post once, and say that it is starting', async () => {
+    let release!: () => void;
+    handlers['POST /api/assessments'] = () => new Promise<Response>((resolve) => (release = () => resolve(json(201, { id: 7 }))));
+    renderPath();
+    const open = await domainCard(1);
+    const start = within(open).getByRole('button', { name: /^Domain exam/ });
+
+    await userEvent.click(start);
+    await userEvent.dblClick(screen.getByRole('button', { name: 'Start exam' }));
+    expect(calls('POST /api/assessments')).toHaveLength(1);
+    // While the exam is being created the button neither asks again nor starts another.
+    await userEvent.click(start);
+    start.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(calls('POST /api/assessments')).toHaveLength(1);
+    expect(start).toHaveAttribute('aria-busy', 'true');
+    expect(start).toBeEnabled();
+    expect(within(open).getByText('Starting the exam…')).toHaveAttribute('role', 'status');
+
+    release();
+    expect(await screen.findByText('exam screen 7')).toBeInTheDocument();
+    expect(calls('POST /api/assessments')).toHaveLength(1);
+  });
+
+  it('does not open the exam when the learner has gone elsewhere before it was created', async () => {
+    let release!: () => void;
+    handlers['POST /api/assessments'] = () => new Promise<Response>((resolve) => (release = () => resolve(json(201, { id: 7 }))));
+    renderPath();
+    const open = await domainCard(1);
+    await confirmStart(within(open).getByRole('button', { name: /^Domain exam/ }));
+    await userEvent.click(within(open).getByRole('link', { name: '1.2 Objective 1.2 title' }));
+    expect(await screen.findByText('lesson screen 1.2')).toBeInTheDocument();
+
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByText('lesson screen 1.2')).toBeInTheDocument();
+    expect(screen.queryByText(/exam screen/)).not.toBeInTheDocument();
+  });
+
+  it('says that it is loading while "Try again" fetches the path once more', async () => {
+    handlers['GET /api/path'] = () => json(500, { error: 'Internal error' });
+    renderPath();
+    await screen.findByRole('alert');
+
+    let release!: () => void;
+    handlers['GET /api/path'] = () => new Promise<Response>((resolve) => (release = () => resolve(json(200, path()))));
+    const again = screen.getByRole('button', { name: 'Try again' });
+    await userEvent.click(again);
+    expect(again).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading your study path…')).toHaveAttribute('role', 'status');
+
+    release();
+    expect(await domainCard(1)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

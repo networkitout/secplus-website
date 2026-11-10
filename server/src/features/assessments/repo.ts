@@ -79,6 +79,37 @@ export async function settleIfExpired(db: Db, content: Content, user: User, row:
   return loadOwned(db, user.id, row.id);
 }
 
+export type OpenAssessment = { id: number; deadlineAt: string };
+
+/**
+ * The learner's timed assessments of one kind that can still be resumed, by scope (`null` for a mock).
+ * One whose deadline has passed is finalized here, as on any other access, and is not reported.
+ */
+export async function openAssessments(
+  db: Db,
+  content: Content,
+  user: User,
+  kind: 'domain' | 'mock',
+  now: Date,
+): Promise<Map<string | null, OpenAssessment>> {
+  const rows = await db.query<Row>(
+    'SELECT * FROM assessments WHERE user_id = ? AND kind = ? AND submitted_at IS NULL AND deadline_at IS NOT NULL ORDER BY id',
+    [user.id, kind],
+  );
+  const open = new Map<string | null, OpenAssessment>();
+  for (const row of rows) {
+    if (isExpired(row, now)) await finalize(db, content, user, row.id, now);
+    else if (!open.has(row.scope)) open.set(row.scope, { id: row.id, deadlineAt: new Date(row.deadline_at!).toISOString() });
+  }
+  return open;
+}
+
+/** What a mock exam started now would be: its length, its time limit and whether it leaves domains out. */
+export function mockSpec(content: Content): { questions: number; minutes: number; partial: boolean } {
+  const { questionIds, minutes, partial } = pickMock(content, new Map(), seededRng('spec'));
+  return { questions: questionIds.length, minutes, partial };
+}
+
 // ------------------------------------------------------------------ start
 
 export async function startAssessment(
@@ -175,6 +206,8 @@ export type AssessmentView = {
   feedback: Record<string, Feedback>;
   deadlineAt: string | null;
   submittedAt: string | null;
+  /** The server's clock when this view was made: what the client measures `deadlineAt` against. */
+  serverNow: string;
   result?: AssessmentResult;
 };
 
@@ -192,7 +225,7 @@ function resultOf(row: Row): AssessmentResult {
   return result;
 }
 
-export function viewOf(content: Content, row: Row): AssessmentView {
+export function viewOf(content: Content, row: Row, now: Date): AssessmentView {
   const present = idsOf(row).filter((id) => content.questions.has(id));
   const stored = answersOf(row);
   const answers: Record<string, Answer> = {};
@@ -217,6 +250,7 @@ export function viewOf(content: Content, row: Row): AssessmentView {
     feedback,
     deadlineAt: row.deadline_at ? new Date(row.deadline_at).toISOString() : null,
     submittedAt: row.submitted_at ? new Date(row.submitted_at).toISOString() : null,
+    serverNow: now.toISOString(),
     ...(submitted ? { result: resultOf(row) } : {}),
   };
 }
@@ -252,13 +286,19 @@ export async function saveAnswer(
     if (isExpired(locked, now)) return 'expired' as const;
     const answers = answersOf(locked);
     let feedback: Feedback | undefined;
+    let breakdown = locked.breakdown === null ? null : breakdownOf(locked);
 
     if (answer && locked.kind === 'objective') {
       if (answers[questionId]) throw new HttpError(409, 'This question was already answered');
       try {
-        feedback = (
-          await recordAnswer(tx, content, { user, question, answer, context: 'quiz', assessmentId: id, now })
-        ).feedback;
+        const rec = await recordAnswer(tx, content, { user, question, answer, context: 'quiz', assessmentId: id, now });
+        feedback = rec.feedback;
+        // A quiz is marked answer by answer, so what its answers earn is kept with it for the result.
+        breakdown = {
+          ...breakdown,
+          xp: (breakdown?.xp ?? 0) + rec.xp,
+          newBadges: [...new Set([...(breakdown?.newBadges ?? []), ...rec.newBadges])],
+        };
       } catch (err) {
         if (err instanceof DuplicateAttemptError) throw new HttpError(409, 'This question was already answered');
         throw err;
@@ -268,9 +308,10 @@ export async function saveAnswer(
     const flags = new Set(flagsOf(locked));
     if (flagged === true) flags.add(questionId);
     if (flagged === false) flags.delete(questionId);
-    await tx.exec('UPDATE assessments SET answers = ?, flags = ? WHERE id = ?', [
+    await tx.exec('UPDATE assessments SET answers = ?, flags = ?, breakdown = ? WHERE id = ?', [
       JSON.stringify(answers),
       JSON.stringify([...flags]),
+      breakdown === null ? null : JSON.stringify(breakdown),
       id,
     ]);
     return feedback ? { feedback } : { saved: true as const };
@@ -311,6 +352,10 @@ export async function finalize(db: Db, content: Content, user: User, id: number,
         [id],
       );
       for (const a of attempts) if (a.correct) correctIds.add(a.question_id);
+      // Awarded as each answer was marked (see saveAnswer).
+      const soFar = breakdownOf(row);
+      xp += soFar.xp ?? 0;
+      soFar.newBadges?.forEach((b) => newBadges.add(b));
     } else {
       for (const q of questions) {
         const answer = answers[q.id];
