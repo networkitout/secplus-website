@@ -63,3 +63,12 @@ export type LessonBlock =
   | { kind: 'check'; questionId: string };
 export type LessonSection = { id: string; title: string; blocks: LessonBlock[] };
 export type Lesson = { objective: string; title: string; minutes: number; sections: LessonSection[] };
+
+/** Lesson as served to a learner: check blocks carry the (answer-free) question instead of its id. */
+export type LessonViewBlock =
+  | Exclude<LessonBlock, { kind: 'check' }>
+  | { kind: 'check'; question: PublicQuestion };
+export type LessonView = Omit<Lesson, 'sections'> & {
+  sections: (Omit<LessonSection, 'blocks'> & { blocks: LessonViewBlock[] })[];
+};
+export type LessonProgressView = { sectionsDone: string[]; completedAt: string | null };

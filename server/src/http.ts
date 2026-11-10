@@ -12,6 +12,17 @@ export const SESSION_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TOUCH_INTERVAL_MS = 60_000;
 
+/** Thrown by handlers/services to answer with `status` and `{error: message}`. */
+export class HttpError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
 export type AuthUser = { id: number; login: string; name: string; role: 'learner' | 'admin'; timeZone: string };
 
 declare global {

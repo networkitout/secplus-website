@@ -5,8 +5,10 @@ import type { Content } from './content/loader.js';
 import type { Db } from './db/db.js';
 import { adminRouter } from './features/admin/routes.js';
 import { authRouter } from './features/auth/routes.js';
+import { answersRouter } from './features/answers/routes.js';
+import { lessonsRouter } from './features/lessons/routes.js';
 import { reviewRouter } from './features/review/routes.js';
-import { requireCsrfHeader } from './http.js';
+import { HttpError, requireCsrfHeader } from './http.js';
 
 export type AppDeps = {
   db: Db;
@@ -58,6 +60,8 @@ export function createApp(deps: AppDeps): Express {
   app.use('/api/auth', authRouter(deps));
   app.use('/api/admin', adminRouter(deps));
   app.use('/api/review', reviewRouter(deps));
+  app.use('/api/lessons', lessonsRouter(deps));
+  app.use('/api/answers', answersRouter(deps));
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });
@@ -76,6 +80,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) return next(err);
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     if (err?.type === 'entity.parse.failed' || err?.type === 'entity.too.large') {
       return res.status(err.status === 413 ? 413 : 400).json({ error: 'Bad request' });
     }
