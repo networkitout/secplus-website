@@ -1,4 +1,7 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router';
+import { ExamLobbyPage } from './features/assessment/ExamLobbyPage';
+import { ExamPage } from './features/assessment/ExamPage';
+import { QuizPage } from './features/assessment/QuizPage';
 import { InvitePage } from './features/auth/InvitePage';
 import { LoginPage } from './features/auth/LoginPage';
 import { RequireAdmin, RequireAuth } from './features/auth/AuthProvider';
@@ -13,9 +16,6 @@ function Placeholder({ title }: { title: string }) {
 }
 
 const screens: Array<{ path: string; title: string }> = [
-  { path: 'quiz/:id', title: 'Quiz' },
-  { path: 'exam', title: 'Exams' },
-  { path: 'exam/:id', title: 'Exam' },
   { path: 'review', title: 'Review' },
   { path: 'labs', title: 'Labs' },
   { path: 'labs/:id', title: 'Lab' },
@@ -41,6 +41,9 @@ export function AppRoutes() {
       >
         <Route index element={<PathPage />} />
         <Route path="lesson/:objective" element={<LessonPage />} />
+        <Route path="quiz/:id" element={<QuizPage />} />
+        <Route path="exam" element={<ExamLobbyPage />} />
+        <Route path="exam/:id" element={<ExamPage />} />
         {screens.map((s) => (
           <Route key={s.path} path={s.path} element={<Placeholder title={s.title} />} />
         ))}
