@@ -3,25 +3,25 @@
     "id": "f-1.3-001",
     "objective": "1.3",
     "term": "Change management",
-    "definition": "The formal process for controlling changes to systems: each change is requested, assessed, approved, tested, scheduled, implemented, verified and documented."
+    "definition": "The formal process for controlling changes to systems: each change is requested, assessed, tested, approved, scheduled, implemented, verified and documented."
   },
   {
     "id": "f-1.3-002",
     "objective": "1.3",
     "term": "Approval process",
-    "definition": "The formal review in which someone other than the implementer, often a change advisory board, decides whether a requested change may go ahead."
+    "definition": "The formal review in which approvers, often a change advisory board, weigh the impact analysis and test results and decide whether a change may proceed."
   },
   {
     "id": "f-1.3-003",
     "objective": "1.3",
     "term": "Change advisory board (CAB)",
-    "definition": "A group from IT, security and the business that reviews change requests and approves, rejects or returns them."
+    "definition": "A group from IT, security and the business that reviews change requests and approves, rejects or returns them. Also called a change control board."
   },
   {
     "id": "f-1.3-004",
     "objective": "1.3",
     "term": "Ownership (of a change)",
-    "definition": "Accountability for a change from request to sign-off. The owner needs the change and follows it through, but often does not perform or approve it."
+    "definition": "Accountability for a change from request to sign-off. The owner usually owns the affected system or data, and need not perform the change. The approval body decides."
   },
   {
     "id": "f-1.3-005",
@@ -39,7 +39,7 @@
     "id": "f-1.3-007",
     "objective": "1.3",
     "term": "Test results",
-    "definition": "Recorded evidence from trying a change in a test environment, showing that it works and has not broken function or security settings."
+    "definition": "Recorded evidence from trying a change in a test environment, showing that it works and leaves security settings intact. Approvers expect it before deciding."
   },
   {
     "id": "f-1.3-008",
@@ -75,7 +75,7 @@
     "id": "f-1.3-013",
     "objective": "1.3",
     "term": "Restricted activities",
-    "definition": "The limit an approval places on a change: only the approved actions, on the approved systems, in the approved window. Anything else needs its own approval."
+    "definition": "The limit an approval places on a change: only the approved actions, on the approved systems, in the approved window. Anything else must go back through the change process."
   },
   {
     "id": "f-1.3-014",
@@ -129,6 +129,6 @@
     "id": "f-1.3-022",
     "objective": "1.3",
     "term": "Emergency change",
-    "definition": "An urgent change that takes a faster approval route and is documented straight afterwards. It is still approved and recorded."
+    "definition": "An urgent change that takes a faster approval route and is documented right afterward. It is still approved and recorded."
   }
 ]
