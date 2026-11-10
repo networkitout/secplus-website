@@ -31,7 +31,7 @@ export function InlineCheck({
 
   async function check() {
     const answer = value ?? initialAnswer(question);
-    // A second press while the first answer is on its way must not send it again.
+    // A second press while the first answer is on its way, or after it has been marked, must not send it again.
     if (inFlight.current || !answer) return;
     inFlight.current = true;
     setSending(true);
@@ -42,9 +42,11 @@ export function InlineCheck({
       if (container.current?.contains(document.activeElement)) container.current.focus();
       onAnswered({ answer, feedback, xp, newBadges });
     } catch (err) {
+      // Only a failed attempt may be sent again. After a marked answer the guard stays shut: the button is
+      // still there until the page has stored the result, and a press in that moment must not post again.
+      inFlight.current = false;
       setError(isTransient(err) ? 'retry' : 'reload');
     } finally {
-      inFlight.current = false;
       setSending(false);
     }
   }

@@ -7,6 +7,7 @@ import type { Feedback, LessonProgressView, LessonView, PublicQuestion } from '.
 import type { LessonResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { PathPage } from '../path/PathPage';
+import { InlineCheck } from './InlineCheck';
 import { LessonPage } from './LessonPage';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
@@ -726,5 +727,90 @@ describe('lesson: review findings', () => {
     expect(code).toHaveAttribute('tabindex', '0');
     expect(screen.getByText('Plain text.').closest('[tabindex]')).toBeNull();
     wide.mockRestore();
+  });
+});
+
+describe('lesson: second review round', () => {
+  it('a marked check never sends its answer again, even before the page has stored the result', async () => {
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: [] });
+    const onAnswered = vi.fn();
+    // The parent here never passes `result` back, which holds the check in the moment between the
+    // response and the page's next render: the button is still there.
+    render(<InlineCheck question={single} onAnswered={onAnswered} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
+    const button = screen.getByRole('button', { name: 'Check answer' });
+    await userEvent.click(button);
+    await waitFor(() => expect(onAnswered).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(button);
+    await userEvent.dblClick(button);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(requests('POST /api/answers')).toHaveLength(1);
+    expect(onAnswered).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed check can be sent again', async () => {
+    handlers['POST /api/answers'] = () => json(503, { error: 'Service unavailable' });
+    render(<InlineCheck question={single} onAnswered={vi.fn()} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(requests('POST /api/answers')).toHaveLength(2));
+  });
+
+  it('a marked check only marks the study path as out of date; a saved section fetches it again', async () => {
+    const client = createQueryClient();
+    handlers['GET /api/path'] = () => json(200, { domains: [] });
+    await client.fetchQuery({ queryKey: ['path'], queryFn: () => fetch('/api/path').then((r) => r.json()) });
+    expect(requests('GET /api/path')).toHaveLength(1);
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: [] });
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1']));
+    renderLesson(client);
+    await sectionHeading('Control categories');
+
+    await answerCheck('Technical');
+    await waitFor(() => expect(client.getQueryState(['path'])!.isInvalidated).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(requests('GET /api/path')).toHaveLength(1);
+
+    await userEvent.click(next());
+    await sectionHeading('The CIA triad');
+    await waitFor(() => expect(requests('GET /api/path')).toHaveLength(2));
+  });
+
+  it('forgets a retry that was under way when the address changes to another lesson', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(500, { error: 'Internal error' });
+    renderLesson();
+    await screen.findByRole('alert');
+    handlers['GET /api/lessons/1.1'] = () => new Promise<Response>(() => {});
+    handlers['GET /api/lessons/1.2'] = () => new Promise<Response>(() => {});
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.getByRole('button', { name: 'Try again' })).toHaveAttribute('aria-busy', 'true');
+
+    await userEvent.click(screen.getByRole('link', { name: 'Other lesson' }));
+    // The other lesson is simply loading: no "Try again" left over from the first one.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent('Loading lesson…');
+    expect(requests('GET /api/lessons/1.2')).toHaveLength(1);
+  });
+
+  it('puts focus on the lesson title when "Try again" has loaded the lesson', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(500, { error: 'Internal error' });
+    renderLesson();
+    await screen.findByRole('alert');
+    handlers['GET /api/lessons/1.1'] = () => json(200, response());
+    const button = screen.getByRole('button', { name: 'Try again' });
+    button.focus();
+    await userEvent.keyboard('{Enter}');
+
+    await sectionHeading('Control categories');
+    // The button that had focus is gone; focus must not fall back to the top of the page.
+    expect(screen.getByRole('heading', { level: 1, name: 'Security controls' })).toHaveFocus();
+  });
+
+  it('leaves focus alone when a lesson loads normally', async () => {
+    renderLesson();
+    await sectionHeading('Control categories');
+    expect(document.body).toHaveFocus();
   });
 });

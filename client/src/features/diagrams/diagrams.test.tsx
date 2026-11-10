@@ -1,3 +1,4 @@
+import { createHash, pbkdf2Sync } from 'node:crypto';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
@@ -144,6 +145,8 @@ describe('diagram content', () => {
     expect(all).not.toMatch(/guard/i);
     expect(steps[5]!.text).toContain('a firm with one bookkeeper cannot separate duties, so the owner checks the bank statement against the invoices every week');
     expect(steps[6]!.text).toContain('a sign that says "All visitors must sign in at reception"');
+    // A deterrent warns of a consequence, as the lesson's own examples do.
+    expect(steps[2]!.text).toContain('Technical: a login message warns that unauthorized use will be prosecuted.');
   });
 
   it('zero-trust-planes: threat scope reduction is shown in the control plane, at the policy engine', async () => {
@@ -179,6 +182,9 @@ describe('diagram content', () => {
       'Data plane: implicit trust zone',
     ]);
     expect(steps[2]!.text).toContain('policy-driven access control');
+    // Location is one of the inputs to the decision (step 5), so the text must not say that it is ignored.
+    expect(steps[2]!.text).toContain("not from the request's place on the network.");
+    expect(steps[2]!.text).not.toContain('where the request comes from');
     expect(steps.map((s) => s.text).join(' ')).not.toMatch(/policy decision point|to shut/);
   });
 
@@ -203,11 +209,73 @@ describe('diagram content', () => {
   });
 
   it('hashing-salting: names all four key-stretching functions and shows the salt stored with the hash', async () => {
-    const steps = await walk('hashing-salting');
-    expect(steps[4]!.text).toContain('Functions such as bcrypt, PBKDF2, scrypt and Argon2 do this');
-    expect(within(image()).getByText('each guess is slow (bcrypt, PBKDF2, scrypt, Argon2)')).toBeInTheDocument();
+    const Hashing = DIAGRAMS['hashing-salting'];
+    render(<Hashing />);
+    for (let n = 0; n < 3; n++) await userEvent.click(button('Next'));
+    expect(image()).toHaveAttribute('aria-label', 'Salting');
     expect(within(image()).getByText('stored salt + hash')).toBeInTheDocument();
     expect(within(image()).getByText('k9Qz : 6308…82e3')).toBeInTheDocument();
+
+    await userEvent.click(button('Next'));
+    expect(live().textContent).toContain('Functions such as bcrypt, PBKDF2, scrypt and Argon2 do this');
+    expect(live().textContent).toContain('The picture uses PBKDF2 with 600,000 rounds');
+    expect(within(image()).getByText('each guess is slow (bcrypt, PBKDF2, scrypt, Argon2)')).toBeInTheDocument();
+    expect(within(image()).getByText('Shown here: PBKDF2, 600,000 rounds')).toBeInTheDocument();
+    // The box says "slow hash", so the values are those of the slow function, not the single hash of the step before.
+    expect(within(image()).getByText('k9Qz : 8470…6e34')).toBeInTheDocument();
+    expect(within(image()).getByText('T4mw : ffb3…8116')).toBeInTheDocument();
+    expect(within(image()).queryByText('k9Qz : 6308…82e3')).not.toBeInTheDocument();
+  });
+
+  it('hashing-salting: every stored value is the real digest of exactly the input its row shows', async () => {
+    const Hashing = DIAGRAMS['hashing-salting'];
+    render(<Hashing />);
+    const short = (hex: string) => `${hex.slice(0, 4)}…${hex.slice(-4)}`;
+    const sha256 = (input: string) => short(createHash('sha256').update(input, 'utf8').digest('hex'));
+    const rowsShown = () =>
+      [...image().querySelectorAll('text[data-input]')].filter(shown).map((input) => ({
+        input: input.textContent!,
+        salt: input.querySelector('[data-salt]')?.textContent ?? '',
+        password: input.querySelector('[data-password]')!.textContent!,
+        stored: input.closest('g[style]')!.querySelector('text[data-stored]')!.textContent!,
+      }));
+
+    // Steps 1 to 3: no salt; what is stored is SHA-256 of the input as drawn.
+    for (const count of [1, 3, 2]) {
+      const rows = rowsShown();
+      expect(rows).toHaveLength(count);
+      for (const row of rows) {
+        expect(row.salt).toBe('');
+        expect(row.stored).toBe(sha256(row.input));
+      }
+      await userEvent.click(button('Next'));
+    }
+
+    // Step 4, salting: the input is the salt directly followed by the password, with nothing between them.
+    expect(image()).toHaveAttribute('aria-label', 'Salting');
+    const salted = rowsShown();
+    expect(salted.map((r) => r.input)).toEqual(['k9QzSummer2026!', 'T4mwSummer2026!']);
+    for (const row of salted) {
+      expect(row.input).toBe(row.salt + row.password);
+      expect(row.stored).toBe(`${row.salt} : ${sha256(row.input)}`);
+    }
+    // The salt is marked without relying on colour: it is underlined and heavier, and labelled.
+    for (const salt of image().querySelectorAll('[data-salt]')) {
+      expect(salt).toHaveAttribute('text-decoration', 'underline');
+      expect(salt).toHaveAttribute('font-weight', '700');
+    }
+    expect(within(image()).getAllByText('salt').filter(shown)).toHaveLength(2);
+    expect(within(image()).getAllByText('password').filter(shown)).toHaveLength(2);
+
+    // Step 5, key stretching: PBKDF2-HMAC-SHA256, 600,000 iterations, 32 bytes; salt and password are two inputs.
+    await userEvent.click(button('Next'));
+    expect(image()).toHaveAttribute('aria-label', 'Key stretching');
+    const stretched = rowsShown();
+    expect(stretched.map((r) => r.input)).toEqual(['k9Qz Summer2026!', 'T4mw Summer2026!']);
+    for (const row of stretched) {
+      expect(row.stored).toBe(`${row.salt} : ${short(pbkdf2Sync(row.password, row.salt, 600_000, 32, 'sha256').toString('hex'))}`);
+    }
+    expect(image().textContent).not.toContain('+Summer');
   });
 
   it('pki-trust-chain: the request is signed with the new private key, and a root certificate is self-signed too', async () => {
@@ -215,6 +283,7 @@ describe('diagram content', () => {
     expect(steps[0]!.text).toContain('it is the root of trust');
     expect(steps[1]!.text).toContain('The request is signed with the new private key, which shows that the applicant holds it.');
     expect(steps[5]!.text).toContain("A root CA's certificate is itself self-signed; it is trusted only because it is preinstalled in the trust store.");
+    expect(steps[5]!.text).toContain('a browser cannot walk a chain from it to a root that it trusts, so it proves no identity and the browser shows a warning.');
   });
 
   it('change-management-flow: the change is tested before it is approved', async () => {
@@ -235,6 +304,7 @@ describe('diagram content', () => {
     ]);
     const all = steps.map((s) => s.text).join(' ');
     expect(all).toContain('TLS 1.3 sends the key share in the hello messages, before the certificate, and finishes in one round trip.');
+    expect(all).toContain('this is perfect forward secrecy (PFS), also called forward secrecy.');
     // RSA key transport may only appear as the method that TLS 1.3 removed.
     expect(all).toMatch(/older method[^.]*RSA public key[^.]*TLS 1\.3 removed it in favor of ephemeral Diffie-Hellman\./);
   });

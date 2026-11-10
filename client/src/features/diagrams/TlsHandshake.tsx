@@ -20,7 +20,7 @@ const STEPS: DiagramStep[] = [
   {
     title: 'Key exchange (TLS 1.2)',
     description:
-      "The server sends a one-time (ephemeral) Diffie-Hellman public value, signed with the private key of its certificate; the signature proves that the server holds that key. The client answers with a one-time value of its own. Each side combines its own private value with the other side's public value and reaches the same secret, which is never sent. Because the values are thrown away afterwards, a server key stolen later cannot unlock recorded sessions: this is forward secrecy. The older method, in which the client encrypted a secret with the server's RSA public key, has no forward secrecy; TLS 1.3 removed it in favor of ephemeral Diffie-Hellman.",
+      "The server sends a one-time (ephemeral) Diffie-Hellman public value, signed with the private key of its certificate; the signature proves that the server holds that key. The client answers with a one-time value of its own. Each side combines its own private value with the other side's public value and reaches the same secret, which is never sent. Because the values are thrown away afterwards, a server key stolen later cannot unlock recorded sessions: this is perfect forward secrecy (PFS), also called forward secrecy. The older method, in which the client encrypted a secret with the server's RSA public key, has no forward secrecy; TLS 1.3 removed it in favor of ephemeral Diffie-Hellman.",
   },
   {
     title: 'Session keys, Finished (TLS 1.2)',

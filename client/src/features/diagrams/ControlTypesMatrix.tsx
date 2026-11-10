@@ -13,7 +13,7 @@ const TYPES = [
   {
     name: 'Deterrent',
     aim: 'discourages an attempt',
-    examples: ['Login banner warns that use is monitored', 'Policy states the penalties for misuse', 'Announced random bag checks at the exit', '"Video surveillance in use" sign'],
+    examples: ['Login message: misuse will be prosecuted', 'Policy states the penalties for misuse', 'Announced random bag checks at the exit', '"Video surveillance in use" sign'],
   },
   {
     name: 'Detective',
@@ -51,7 +51,7 @@ const STEPS: DiagramStep[] = [
   {
     title: 'Deterrent controls',
     description:
-      'A deterrent control discourages an attempt but does not block it; the attacker can still choose to go ahead. Technical: a login banner warns that use is monitored. Managerial: a policy states the penalties for misuse (it warns of consequences; it does not give an instruction). Operational: staff carry out random bag checks at the exit, and everyone is told in advance that they happen. Physical: a sign says that video surveillance is in use.',
+      'A deterrent control discourages an attempt but does not block it; the attacker can still choose to go ahead. Technical: a login message warns that unauthorized use will be prosecuted. Managerial: a policy states the penalties for misuse (it warns of consequences; it does not give an instruction). Operational: staff carry out random bag checks at the exit, and everyone is told in advance that they happen. Physical: a sign says that video surveillance is in use.',
   },
   {
     title: 'Detective controls',

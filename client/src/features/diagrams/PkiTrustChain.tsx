@@ -30,7 +30,7 @@ const STEPS: DiagramStep[] = [
   {
     title: 'Self-signed certificates',
     description:
-      "A self-signed certificate is signed with its own private key, so no CA vouches for it. A root CA's certificate is itself self-signed; it is trusted only because it is preinstalled in the trust store. A self-signed certificate that is not in the trust store can still encrypt, but it proves no identity, so a browser cannot walk a chain to a root that it trusts and shows a warning. Such certificates suit labs and internal devices whose users install them deliberately.",
+      "A self-signed certificate is signed with its own private key, so no CA vouches for it. A root CA's certificate is itself self-signed; it is trusted only because it is preinstalled in the trust store. A self-signed certificate that is not in the trust store can still encrypt, but a browser cannot walk a chain from it to a root that it trusts, so it proves no identity and the browser shows a warning. Such certificates suit labs and internal devices, where the people who use them choose to trust them.",
   },
 ];
 

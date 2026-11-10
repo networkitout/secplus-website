@@ -15,7 +15,7 @@ const STEPS: DiagramStep[] = [
   {
     title: 'Control plane: the policy engine decides',
     description:
-      'The enforcement point holds the request and passes its details up. The policy engine makes the decision to grant, deny or revoke access. The policy engine applies policy-driven access control: it decides from written policy rules and from what it knows about the subject and its device, not from where the request comes from.',
+      "The enforcement point holds the request and passes its details up. The policy engine makes the decision to grant, deny or revoke access. The policy engine applies policy-driven access control: it decides from written policy rules and from what it knows about the subject and its device, not from the request's place on the network.",
   },
   {
     title: 'Control plane: the policy administrator acts',

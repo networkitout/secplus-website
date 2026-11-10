@@ -36,18 +36,24 @@ export function LessonPage() {
   });
 
   // The query forgets a failure as soon as it fetches again; remember the retry, so that "Try again" stays
-  // where it is (and keeps keyboard focus) until the answer arrives.
-  const [retrying, setRetrying] = useState(false);
+  // where it is (and keeps keyboard focus) until the answer arrives. It is remembered for one objective:
+  // when the address changes to another lesson, that lesson starts without it.
+  const [retried, setRetried] = useState<{ objective: string; pending: boolean } | null>(null);
+  const mine = retried?.objective === objective ? retried : null;
+  const retrying = mine?.pending === true;
 
-  if (lesson.data) return <LessonPlayer key={objective} lesson={lesson.data.lesson} progress={lesson.data.progress} />;
+  if (lesson.data) {
+    // After a retry the pressed button is gone, so the player takes keyboard focus (see `takeFocus`).
+    return <LessonPlayer key={objective} lesson={lesson.data.lesson} progress={lesson.data.progress} takeFocus={mine !== null} />;
+  }
 
   if (lesson.isError || retrying) {
     const status = lesson.error instanceof ApiError ? lesson.error.status : 0;
     const final = status === 403 || status === 404;
     const retry = () => {
       if (retrying) return;
-      setRetrying(true);
-      void lesson.refetch().finally(() => setRetrying(false));
+      setRetried({ objective, pending: true });
+      void lesson.refetch().finally(() => setRetried((r) => (r?.objective === objective ? { objective, pending: false } : r)));
     };
     return (
       <div className="mx-auto max-w-3xl space-y-4">
@@ -77,7 +83,16 @@ export function LessonPage() {
   );
 }
 
-function LessonPlayer({ lesson, progress }: { lesson: LessonView; progress: LessonProgressView }) {
+function LessonPlayer({
+  lesson,
+  progress,
+  takeFocus = false,
+}: {
+  lesson: LessonView;
+  progress: LessonProgressView;
+  /** Put focus on the lesson title when the player appears, unless something else already has it. */
+  takeFocus?: boolean;
+}) {
   const { sections } = lesson;
   const total = sections.length;
   const navigate = useNavigate();
@@ -100,6 +115,7 @@ function LessonPlayer({ lesson, progress }: { lesson: LessonView; progress: Less
   const [startingQuiz, setStartingQuiz] = useState(false);
   const [quizError, setQuizError] = useState('');
 
+  const title = useRef<HTMLHeadingElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const celebrationBox = useRef<HTMLDivElement>(null);
   const hintId = useId();
@@ -114,6 +130,13 @@ function LessonPlayer({ lesson, progress }: { lesson: LessonView; progress: Less
     return () => {
       mounted.current = false;
     };
+  }, []);
+
+  // The lesson was loaded by "Try again", and that button went away with the error screen. Focus would
+  // otherwise fall back to the document; it is not taken from anything the learner has moved it to.
+  useLayoutEffect(() => {
+    if (takeFocus && (document.activeElement === null || document.activeElement === document.body)) title.current?.focus();
+    // Only when the player first appears, so there are no dependencies.
   }, []);
 
   /** False while a request of this screen is on its way, and for a moment after the screen changed. */
@@ -144,7 +167,10 @@ function LessonPlayer({ lesson, progress }: { lesson: LessonView; progress: Less
     if (xp > 0 || newBadges.length > 0) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   }
 
-  /** Lesson progress and mastery changed: fetch the study path again now, so the map is current on return. */
+  /**
+   * A saved section changes the study path: fetch it again now (the query is not on screen, so a plain
+   * invalidation would wait), so that the map is current when the learner returns.
+   */
   function refreshPath() {
     void queryClient.invalidateQueries({ queryKey: ['path'], refetchType: 'all' });
   }
@@ -215,7 +241,9 @@ function LessonPlayer({ lesson, progress }: { lesson: LessonView; progress: Less
     <article className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-3">
         <p className="font-mono text-sm text-muted">{`Objective ${lesson.objective} · about ${lesson.minutes} min`}</p>
-        <h1 className="text-2xl font-semibold">{lesson.title}</h1>
+        <h1 ref={title} tabIndex={-1} className="text-2xl font-semibold">
+          {lesson.title}
+        </h1>
         <div className="space-y-1">
           <div
             role="progressbar"
@@ -242,7 +270,9 @@ function LessonPlayer({ lesson, progress }: { lesson: LessonView; progress: Less
             onAnswered={(questionId, { answer, feedback, xp, newBadges }) => {
               setResults((r) => ({ ...r, [questionId]: { answer, feedback } }));
               earned({ xp, newBadges });
-              refreshPath();
+              // An answer changes mastery on the study path. Marking it out of date is enough: it is fetched
+              // when the learner next opens the path, or with the next saved section.
+              void queryClient.invalidateQueries({ queryKey: ['path'] });
             }}
           />
           <div className="space-y-3 border-t border-border pt-4">
