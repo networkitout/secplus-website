@@ -5,8 +5,9 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Feedback, PublicQuestion } from '../../../../shared/types';
 import type { ReviewCard, ReviewDueResponse, ReviewResponse } from '../../api/types';
+import { formatDay } from '../../lib/dates';
 import { createQueryClient } from '../../queryClient';
-import { formatDay, ReviewPage } from './ReviewPage';
+import { ReviewPage } from './ReviewPage';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
 
