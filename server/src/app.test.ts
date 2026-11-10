@@ -26,6 +26,15 @@ async function capturingErrors(fn: () => Promise<void>): Promise<string[]> {
   }
 }
 
+test('with production defaults Express itself runs in production mode, whatever NODE_ENV says', async () => {
+  // Express and its final handler read NODE_ENV on their own and fall back to development, where the
+  // final handler writes stack traces into its error pages.
+  const production = await testApp({ secureCookies: true });
+  expect(production.app.get('env')).toBe('production');
+  const development = await testApp();
+  expect(development.app.get('env')).not.toBe('production');
+});
+
 test('health endpoint', async () => {
   const { app } = await testApp();
   const res = await request(app).get('/api/health');

@@ -38,6 +38,9 @@ export function createApp(deps: AppDeps): Express {
   const app = express();
   app.locals.deps = deps;
   app.set('trust proxy', deps.trustProxy);
+  // Express and its final handler take their mode from NODE_ENV and fall back to development, where the
+  // final handler puts stack traces in its error pages. Production is this app's default, so say so.
+  if (deps.secureCookies) app.set('env', 'production');
   app.use(
     helmet({
       contentSecurityPolicy: {
