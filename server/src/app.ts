@@ -8,6 +8,7 @@ import { assessmentsRouter } from './features/assessments/routes.js';
 import { authRouter } from './features/auth/routes.js';
 import { answersRouter } from './features/answers/routes.js';
 import { dashboardRouter, pathRouter, practiceRouter } from './features/dashboard/routes.js';
+import { leaderboardRouter } from './features/leaderboard/routes.js';
 import { lessonsRouter } from './features/lessons/routes.js';
 import { reviewRouter } from './features/review/routes.js';
 import { settingsRouter } from './features/settings/routes.js';
@@ -70,6 +71,7 @@ export function createApp(deps: AppDeps): Express {
   app.use('/api/dashboard', dashboardRouter(deps));
   app.use('/api/practice', practiceRouter(deps));
   app.use('/api/settings', settingsRouter(deps));
+  app.use('/api/leaderboard', leaderboardRouter(deps));
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });

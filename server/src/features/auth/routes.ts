@@ -9,7 +9,6 @@ import {
   requireAuth,
   startSession,
   validate,
-  type AuthUser,
 } from '../../http.js';
 import { findInvite, loadAccountUser, LOGIN_PATTERN, MIN_PASSWORD_LENGTH } from './repo.js';
 import { hashToken } from './tokens.js';
@@ -51,14 +50,6 @@ function validTimeZone(tz: string | undefined): string {
 }
 
 type UserRow = { id: number; login: string; name: string; role: 'learner' | 'admin'; time_zone: string; password_hash: string };
-
-const publicUser = (u: { id: number; login: string; name: string; role: 'learner' | 'admin'; time_zone: string }): AuthUser => ({
-  id: u.id,
-  login: u.login,
-  name: u.name,
-  role: u.role,
-  timeZone: u.time_zone,
-});
 
 export function authRouter(deps: AppDeps): Router {
   const { db, now } = deps;
@@ -127,7 +118,7 @@ export function authRouter(deps: AppDeps): Router {
     }
     failures.delete(login);
     await startSession(req, res, usable.id);
-    res.json({ user: publicUser(usable) });
+    res.json({ user: await loadAccountUser(db, usable.id) });
   });
 
   router.post('/logout', async (req, res) => {
@@ -198,10 +189,7 @@ export function authRouter(deps: AppDeps): Router {
       return;
     }
     await startSession(req, res, result.userId);
-    const rows = await db.query<UserRow>('SELECT id, login, name, role, time_zone, password_hash FROM users WHERE id = ?', [
-      result.userId,
-    ]);
-    res.json({ user: publicUser(rows[0]!) });
+    res.json({ user: await loadAccountUser(db, result.userId) });
   });
 
   router.post('/reset', inviteLimiter, validate(resetBody), async (req, res) => {

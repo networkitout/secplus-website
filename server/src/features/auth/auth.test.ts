@@ -21,7 +21,15 @@ describe('login', () => {
     const u = await createUser(db, { login: 'alice', name: 'Alice', timeZone: 'America/Chicago' });
     const res = await post(app, '/api/auth/login', { login: 'ALICE', password: u.password });
     expect(res.status).toBe(200);
-    expect(res.body.user).toEqual({ id: u.id, login: 'alice', name: 'Alice', role: 'learner', timeZone: 'America/Chicago' });
+    expect(res.body.user).toEqual({
+      id: u.id,
+      login: 'alice',
+      name: 'Alice',
+      role: 'learner',
+      timeZone: 'America/Chicago',
+      examDate: null,
+      hideFromLeaderboard: false,
+    });
     expect(JSON.stringify(res.body)).not.toContain('password');
     const cookie = (res.headers['set-cookie'] as unknown as string[])[0];
     expect(cookie).toMatch(/^sid=/);
@@ -153,7 +161,14 @@ describe('invites', () => {
     const agent = request.agent(app).set(CSRF_HEADER, CSRF_VALUE);
     const res = await agent.post('/api/auth/accept-invite').send(body(token));
     expect(res.status).toBe(200);
-    expect(res.body.user).toMatchObject({ login: 'newbie', name: 'New Person', role: 'learner', timeZone: 'Europe/Paris' });
+    expect(res.body.user).toMatchObject({
+      login: 'newbie',
+      name: 'New Person',
+      role: 'learner',
+      timeZone: 'Europe/Paris',
+      examDate: null,
+      hideFromLeaderboard: false,
+    });
     const users = await db.query('SELECT * FROM users WHERE login = ?', ['newbie']);
     expect(users[0].active).toBe(1);
     const inv = await db.query('SELECT used_at FROM invites WHERE token_hash = ?', [hashToken(token)]);
