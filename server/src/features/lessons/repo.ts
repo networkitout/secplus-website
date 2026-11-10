@@ -24,12 +24,21 @@ export async function getProgress(db: Db, userId: number, objective: string): Pr
  * the lesson XP once and adds the objective's flashcards to the learner's review cards, due today.
  * Runs under a row lock so parallel requests cannot lose a section or complete the lesson twice.
  */
-export async function markSection(
-  db: Db,
-  a: { userId: number; objective: string; sectionId: string; allSectionIds: string[]; flashcardIds: string[]; today: string; now: Date },
-): Promise<Progress & { xp: number }> {
+export async function markSection(db: Db, a: MarkArgs): Promise<Progress & { xp: number }> {
+  try {
+    return await markOnce(db, a);
+  } catch (err: any) {
+    if (err?.code !== 'ER_LOCK_DEADLOCK') throw err;
+    return markOnce(db, a); // the victim transaction was rolled back; retry once
+  }
+}
+
+type MarkArgs = { userId: number; objective: string; sectionId: string; allSectionIds: string[]; flashcardIds: string[]; today: string; now: Date };
+
+async function markOnce(db: Db, a: MarkArgs): Promise<Progress & { xp: number }> {
   return db.tx(async (tx) => {
-    await tx.exec("INSERT IGNORE INTO lesson_progress (user_id, objective, sections_done) VALUES (?, ?, '[]')", [
+    // ON DUPLICATE KEY UPDATE takes the exclusive row lock straight away (INSERT IGNORE would take a shared one).
+    await tx.exec("INSERT INTO lesson_progress (user_id, objective, sections_done) VALUES (?, ?, '[]') ON DUPLICATE KEY UPDATE objective = objective", [
       a.userId,
       a.objective,
     ]);

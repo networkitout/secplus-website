@@ -82,18 +82,20 @@ test('marking the same section twice is a no-op; unknown sectionId is 400', asyn
   expect(rows).toHaveLength(1);
 });
 
-test('parallel completion requests award the lesson XP exactly once', async () => {
+test('parallel progress posts never fail and award the lesson XP exactly once', async () => {
   const { agent, db, user } = await setup();
-  await agent.post('/api/lessons/1.1/progress').send({ sectionId: 's1' });
-  const rs = await Promise.all([
-    agent.post('/api/lessons/1.1/progress').send({ sectionId: 's2' }),
-    agent.post('/api/lessons/1.1/progress').send({ sectionId: 's2' }),
-  ]);
-  expect(rs.map((r) => r.status)).toEqual([200, 200]);
-  expect(rs.reduce((n, r) => n + r.body.xp, 0)).toBe(50);
-  const [{ n }] = await db.query("SELECT COUNT(*) AS n FROM xp_events WHERE user_id = ? AND reason = 'lesson'", [user.id]);
-  expect(Number(n)).toBe(1);
-});
+  for (let round = 0; round < 30; round++) {
+    await db.exec('DELETE FROM lesson_progress WHERE user_id = ?', [user.id]);
+    await db.exec('DELETE FROM xp_events WHERE user_id = ?', [user.id]);
+    const rs = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => agent.post('/api/lessons/1.1/progress').send({ sectionId: i % 2 ? 's1' : 's2' })),
+    );
+    expect(rs.map((r) => r.status)).toEqual(Array(10).fill(200));
+    expect(rs.reduce((n, r) => n + r.body.xp, 0)).toBe(50);
+    const [{ n }] = await db.query("SELECT COUNT(*) AS n FROM xp_events WHERE user_id = ? AND reason = 'lesson'", [user.id]);
+    expect(Number(n)).toBe(1);
+  }
+}, 60_000);
 
 test('lessons require sign-in', async () => {
   const { app } = await setup();

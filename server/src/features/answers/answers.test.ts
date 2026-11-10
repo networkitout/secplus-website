@@ -61,11 +61,12 @@ test('answer whose type does not match the question returns 400; unknown questio
 });
 
 test('question in a locked domain returns 403', async () => {
-  const { agent, content } = await setup();
+  const { agent, content, db, user } = await setup();
   content.manifest.domains[1]!.objectives[0]!.published = true;
   content.questions.set('q-2.1-001', { ...content.questions.get('q-1.1-001')!, id: 'q-2.1-001', objective: '2.1' });
   const res = await agent.post('/api/answers').send({ questionId: 'q-2.1-001', answer: RIGHT.answer });
   expect(res.status).toBe(403);
+  expect(await db.query('SELECT 1 FROM attempts WHERE user_id = ?', [user.id])).toHaveLength(0);
 });
 
 test('two identical POSTs in parallel (Promise.all) leave first-correct XP awarded exactly once', async () => {

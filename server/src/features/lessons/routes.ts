@@ -4,7 +4,7 @@ import type { LessonView } from '../../../../shared/types.js';
 import type { AppDeps } from '../../app.js';
 import { HttpError, requireAuth, validate } from '../../http.js';
 import { toPublicQuestion } from '../../services/scoring.js';
-import { localDate } from '../../services/time.js';
+import { localDate, safeTimeZone } from '../../services/time.js';
 import { evaluateBadges } from '../xp/repo.js';
 import { assertObjectiveOpen } from '../access.js';
 import { getProgress, markSection } from './repo.js';
@@ -56,10 +56,10 @@ export function lessonsRouter(deps: AppDeps): Router {
       sectionId,
       allSectionIds,
       flashcardIds: content.flashcards.filter((f) => f.objective === objective).map((f) => f.id),
-      today: localDate(t, user.timeZone),
+      today: localDate(t, safeTimeZone(user.timeZone)),
       now: t,
     });
-    const newBadges = await evaluateBadges(db, user.id, user.timeZone, t);
+    const newBadges = await evaluateBadges(db, user.id, safeTimeZone(user.timeZone), t);
     res.json({ sectionsDone: p.sectionsDone, completedAt: p.completedAt?.toISOString() ?? null, xp: p.xp, newBadges });
   });
 
