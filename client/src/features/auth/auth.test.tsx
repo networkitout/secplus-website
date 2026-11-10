@@ -1,9 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { User } from '../../api/types';
+import { ApiError } from '../../api/client';
+import { saveQueue } from '../../api/saveQueue';
+import type { DashboardResponse, User } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { AppRoutes } from '../../routes';
 import { AuthContext, AuthProvider, RequireAdmin, type AuthValue } from './AuthProvider';
@@ -39,9 +41,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function renderAt(path: string) {
+function renderAt(path: string, client: QueryClient = createQueryClient()) {
   return render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <AuthProvider>
           <AppRoutes />
@@ -49,6 +51,19 @@ function renderAt(path: string) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+/** What the dashboard answers for a learner with this much XP. */
+const totals = (xp: number, level: number): DashboardResponse => ({
+  xp, level, nextLevelXp: 99_999, streak: 0, reviewsDue: 0, domains: [], weakest: [], mockHistory: [],
+  readiness: { ready: false, missing: [] }, studyPlan: null, badges: [],
+  openMock: null, mockSpec: { questions: 11, minutes: 11, partial: true },
+});
+
+async function signIn(name: string) {
+  await userEvent.type(await screen.findByLabelText('Login name'), name);
+  await userEvent.type(screen.getByLabelText('Password'), 'correct horse battery');
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 }
 
 const postBody = (key: string) => JSON.parse(String(fetchMock.mock.calls.find(([u, i]) => `${i?.method ?? 'GET'} ${u}` === key)![1].body));
@@ -167,6 +182,82 @@ describe('sign out', () => {
   });
 });
 
+describe('a change of account on the same page', () => {
+  const other: User = { ...learner, id: 3, login: 'kim', name: 'Kim' };
+
+  beforeEach(() => {
+    handlers['GET /api/auth/me'] = () => json(200, { user: learner });
+  });
+
+  it('after a session ends with a 401 and another learner signs in, nothing of the earlier account is shown and no level-up is celebrated', async () => {
+    handlers['GET /api/dashboard'] = () => json(200, totals(120, 2));
+    renderAt('/dashboard');
+    expect(await screen.findByText('120 XP')).toBeInTheDocument();
+
+    // The session has ended on the server (it expired, or the account was deactivated): the next request is refused.
+    handlers['GET /api/path'] = () => json(401, { error: 'Not signed in' });
+    await userEvent.click(screen.getByRole('link', { name: 'Path' }));
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+
+    // Another learner signs in. Their own numbers are slow to arrive, and they are on a higher level.
+    let arrive!: (r: Response) => void;
+    handlers['POST /api/auth/login'] = () => json(200, { user: other });
+    handlers['GET /api/path'] = () => json(200, { domains: [] });
+    handlers['GET /api/dashboard'] = () => new Promise<Response>((resolve) => (arrive = resolve));
+    await signIn('kim');
+    expect(await screen.findByRole('heading', { name: 'Study path' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Kim' })).toBeInTheDocument();
+    expect(screen.queryByText('120 XP')).not.toBeInTheDocument();
+    expect(screen.queryByText('Level 2')).not.toBeInTheDocument();
+
+    await act(async () => arrive(json(200, totals(5000, 7))));
+    expect(await screen.findByText('5000 XP')).toBeInTheDocument();
+    expect(screen.getByText('Level 7')).toBeInTheDocument();
+    // Level 7 is where this learner starts, not a step up from the level of the one before.
+    expect(screen.queryByText('Level up')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Rewards' })).toBeEmptyDOMElement();
+  });
+
+  it('a notice about a dropped save does not outlive the account it was for: it goes on sign-out and on sign-in', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    handlers['POST /api/auth/logout'] = () => json(200, { ok: true });
+    renderAt('/dashboard');
+    await screen.findByRole('button', { name: 'Sign out' });
+    act(() => saveQueue.enqueue('answer', () => Promise.reject(new ApiError(400, 'Bad input'))));
+    expect(await screen.findByText("Couldn't save one of your answers.")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(saveQueue.state()).toBe('idle');
+
+    // A save that was still on its way at sign-out is refused afterwards.
+    act(() => saveQueue.enqueue('answer', () => Promise.reject(new ApiError(401, 'Not signed in'))));
+    await waitFor(() => expect(saveQueue.state()).toBe('failed'));
+    handlers['POST /api/auth/login'] = () => json(200, { user: other });
+    await signIn('kim');
+    expect(await screen.findByRole('link', { name: 'Kim' })).toBeInTheDocument();
+    expect(saveQueue.state()).toBe('idle');
+    expect(screen.queryByText(/Couldn't save/)).not.toBeInTheDocument();
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
+  it('keeps what is cached while the same learner stays signed in', async () => {
+    handlers['GET /api/dashboard'] = () => json(200, totals(120, 2));
+    const client = createQueryClient();
+    renderAt('/settings', client);
+    expect(await screen.findByText('120 XP')).toBeInTheDocument();
+    client.setQueryData(['kept'], 'still here');
+    // The settings screen reads the user again after a save.
+    handlers['PUT /api/settings'] = () => json(200, { user: { ...learner, hideFromLeaderboard: true } });
+    handlers['GET /api/auth/me'] = () => json(200, { user: { ...learner, hideFromLeaderboard: true } });
+    await userEvent.click(screen.getByRole('checkbox', { name: /Hide me from the leaderboard/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Save/ }));
+    expect(await screen.findByText(/Settings saved/)).toBeInTheDocument();
+    expect(client.getQueryData(['kept'])).toBe('still here');
+  });
+});
+
 describe('RequireAdmin', () => {
   it('sends a learner back to the study path', async () => {
     handlers['GET /api/auth/me'] = () => json(200, { user: learner });
@@ -231,6 +322,28 @@ describe('invite page', () => {
     expect(screen.getByText('Password must be at least 12 characters')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toHaveAttribute('aria-invalid', 'true');
     expect(fetchMock.mock.calls.some(([, i]) => i?.method === 'POST')).toBe(false);
+  });
+
+  it('starts the new account with nothing cached from whoever used the page before', async () => {
+    let signedIn = false;
+    handlers['GET /api/auth/me'] = () => (signedIn ? json(200, { user: learner }) : json(401, { error: 'Not signed in' }));
+    handlers['POST /api/auth/accept-invite'] = () => {
+      signedIn = true;
+      return json(200, { user: learner });
+    };
+    handlers['GET /api/dashboard'] = () => new Promise<Response>(() => {});
+    const client = createQueryClient();
+    renderAt('/invite/tok', client);
+    await screen.findByLabelText('Login name');
+    client.setQueryData(['dashboard'], totals(120, 2));
+
+    await userEvent.type(screen.getByLabelText('Login name'), 'sam');
+    await userEvent.type(screen.getByLabelText('Display name'), 'Sam');
+    await userEvent.type(screen.getByLabelText('Password'), 'a long enough password');
+    await userEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(await screen.findByRole('heading', { name: 'Study path' })).toBeInTheDocument();
+    expect(screen.queryByText('120 XP')).not.toBeInTheDocument();
+    expect(client.getQueryData(['dashboard'])).toBeUndefined();
   });
 
   it('sends Intl time zone, then refreshes auth and goes to the path', async () => {

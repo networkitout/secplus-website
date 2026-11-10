@@ -5,7 +5,7 @@ import { ExamPage } from './features/assessment/ExamPage';
 import { QuizPage } from './features/assessment/QuizPage';
 import { InvitePage } from './features/auth/InvitePage';
 import { LoginPage } from './features/auth/LoginPage';
-import { RequireAdmin, RequireAuth } from './features/auth/AuthProvider';
+import { RequireAdmin, RequireAuth, useAuth } from './features/auth/AuthProvider';
 import { ResetPage } from './features/auth/ResetPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { PracticePage } from './features/dashboard/PracticePage';
@@ -20,6 +20,7 @@ import { SettingsPage } from './features/settings/SettingsPage';
 import { AppShell } from './ui/AppShell';
 
 export function AppRoutes() {
+  const { user } = useAuth();
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -28,7 +29,8 @@ export function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <RewardsProvider>
+            {/* One per account: the level and the badges it has seen belong to one learner. */}
+            <RewardsProvider key={user?.id}>
               <AppShell>
                 <Outlet />
               </AppShell>

@@ -7,6 +7,7 @@ const TEXT: Record<SaveState, string> = {
   unsaved: 'Not saved yet. Retrying…',
   failed: "Couldn't save one of your answers.",
 };
+const SEVERAL_FAILED = "Couldn't save some of your answers.";
 
 const TONE: Record<SaveState, string> = {
   idle: 'text-muted',
@@ -17,6 +18,8 @@ const TONE: Record<SaveState, string> = {
 
 export function SaveIndicator({ queue = saveQueue }: { queue?: SaveQueue }) {
   const state = useSyncExternalStore(queue.subscribe, queue.state);
+  // The count only changes while the queue is at work, so it is always current when `failed` is shown.
+  const dropped = useSyncExternalStore(queue.subscribe, queue.dropped);
   const container = useRef<HTMLSpanElement>(null);
 
   function dismiss() {
@@ -29,7 +32,7 @@ export function SaveIndicator({ queue = saveQueue }: { queue?: SaveQueue }) {
   return (
     <span ref={container} tabIndex={-1} className="inline-flex items-center gap-2 text-sm">
       <span role="status" aria-live="polite" className={TONE[state]}>
-        {TEXT[state]}
+        {state === 'failed' && dropped > 1 ? SEVERAL_FAILED : TEXT[state]}
       </span>
       {state === 'failed' && (
         <button

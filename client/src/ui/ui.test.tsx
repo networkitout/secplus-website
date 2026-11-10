@@ -91,7 +91,7 @@ describe('ui', () => {
     expect(stats).not.toHaveAttribute('aria-label');
   });
 
-  it('AppShell shows the new totals after a page reports XP, and the level-up above the page', async () => {
+  it('AppShell shows the new totals after a page reports XP, and the level-up in the banner that follows the header', async () => {
     let stats = { ...STATS, xp: 390, level: 2, nextLevelXp: 400 };
     function Page() {
       const { report } = useRewards();
@@ -106,7 +106,8 @@ describe('ui', () => {
     await waitFor(() => expect(screen.getByText('4-day streak').closest('p')).toHaveTextContent('410 XP · Level 3 · 4-day streak'));
     const celebration = (await screen.findByText('Level up')).closest('[role="status"]');
     expect(celebration).toHaveTextContent('Level 3');
-    // Between the header and the page, so that it is read before the page content.
+    // It lies over the bottom of the window, but it follows the header and comes before the page in the
+    // order of reading and of Tab.
     expect(celebration!.compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(celebration!.compareDocumentPosition(screen.getByRole('banner')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
@@ -150,6 +151,26 @@ describe('ui', () => {
       expect(screen.getByRole('status')).toBeEmptyDOMElement();
       expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
       expect(queue.state()).toBe('idle');
+    });
+
+    it('says "some" when more than one answer was dropped, and "one" again when only one is left', async () => {
+      const queue = createSaveQueue();
+      render(<SaveIndicator queue={queue} />);
+      act(() => {
+        queue.enqueue('a', () => Promise.reject(new ApiError(400, 'Bad input')));
+        queue.enqueue('b', () => Promise.reject(new ApiError(400, 'Bad input')));
+      });
+      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("Couldn't save some of your answers."));
+      expect(queue.dropped()).toBe(2);
+
+      // A later save of one of them goes through: one answer is still missing.
+      act(() => queue.enqueue('a', () => Promise.resolve()));
+      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("Couldn't save one of your answers."));
+      expect(queue.dropped()).toBe(1);
+
+      await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+      expect(screen.getByRole('status')).toBeEmptyDOMElement();
+      expect(queue.dropped()).toBe(0);
     });
 
     it('keeps keyboard focus in place when the message is dismissed', async () => {

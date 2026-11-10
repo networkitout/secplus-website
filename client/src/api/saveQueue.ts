@@ -1,3 +1,5 @@
+import { isTransient } from './client';
+
 export type SaveState = 'idle' | 'saving' | 'unsaved' | 'failed';
 
 type Run = () => Promise<unknown>;
@@ -15,6 +17,8 @@ export interface SaveQueue {
   flush(): Promise<void>;
   /** Leaves the `failed` state, once the learner has been told that a save was dropped. */
   dismiss(): void;
+  /** How many keys have a dropped save that no later save for the same key has made good. */
+  dropped(): number;
 }
 
 export interface SaveQueueOptions {
@@ -23,12 +27,6 @@ export interface SaveQueueOptions {
   /** Called when an item is dropped because of a non-retryable error. */
   onError?: (key: string, error: unknown) => void;
 }
-
-/** Transient failures: no response at all (0), or a gateway/unavailable answer while the host restarts the app. */
-const RETRYABLE_STATUSES: ReadonlySet<unknown> = new Set([0, 502, 503, 504]);
-
-const retryable = (err: unknown) =>
-  typeof err === 'object' && err !== null && 'status' in err && RETRYABLE_STATUSES.has((err as { status: unknown }).status);
 
 /**
  * Saves one item at a time, in the order the keys were enqueued.
@@ -99,7 +97,7 @@ export function createSaveQueue(
           dropped.delete(item.key);
         } catch (err) {
           item.inFlight = false;
-          if (retryable(err)) {
+          if (isTransient(err)) {
             item.failures += 1;
             // A payload enqueued for this key during the failed attempt supersedes the one that failed.
             const newer = waiting.get(item.key);
@@ -144,6 +142,7 @@ export function createSaveQueue(
       dropped.clear();
       notify();
     },
+    dropped: () => dropped.size,
   };
 }
 

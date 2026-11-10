@@ -2,13 +2,14 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { Link, MemoryRouter, Route, Routes, useParams } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { Feedback, LessonProgressView, LessonView, PublicQuestion } from '../../../../shared/types';
 import type { LessonResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { holdPressClock } from '../../test/pressClock';
 import { SETTLE_MS } from '../../ui/pressGuard';
 import { PathPage } from '../path/PathPage';
+import { RewardsContext, type RewardsValue } from '../rewards/RewardsProvider';
 import { InlineCheck } from './InlineCheck';
 import { LessonPage } from './LessonPage';
 
@@ -77,6 +78,8 @@ const saved = (sectionsDone: string[], xp = 0): LessonProgressView & { xp: numbe
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 let handlers: Record<string, Handler>;
 let fetchMock: ReturnType<typeof vi.fn>;
+/** Stands in for the rewards provider: what the lesson reports to it. */
+let report: Mock<RewardsValue['report']>;
 
 beforeEach(() => {
   handlers = { 'GET /api/lessons/1.1': () => json(200, response()) };
@@ -87,6 +90,7 @@ beforeEach(() => {
     return h(url, init);
   });
   vi.stubGlobal('fetch', fetchMock);
+  report = vi.fn<RewardsValue['report']>();
 
   // The player ignores presses for a moment after the screen changes (so that the second click of a
   // double click cannot act on the next screen). Here that moment only passes when a test says so, with
@@ -119,16 +123,18 @@ function Stub({ name }: { name: string }) {
 function renderLesson(client: QueryClient = createQueryClient(), start = '/lesson/1.1') {
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[start]}>
-        <Link to="/elsewhere">Elsewhere</Link>
-        <Link to="/lesson/1.2">Other lesson</Link>
-        <Routes>
-          <Route path="/" element={<Stub name="path screen" />} />
-          <Route path="/elsewhere" element={<Stub name="another screen" />} />
-          <Route path="/lesson/:objective" element={<LessonPage />} />
-          <Route path="/quiz/:id" element={<Stub name="quiz screen" />} />
-        </Routes>
-      </MemoryRouter>
+      <RewardsContext.Provider value={{ report }}>
+        <MemoryRouter initialEntries={[start]}>
+          <Link to="/elsewhere">Elsewhere</Link>
+          <Link to="/lesson/1.2">Other lesson</Link>
+          <Routes>
+            <Route path="/" element={<Stub name="path screen" />} />
+            <Route path="/elsewhere" element={<Stub name="another screen" />} />
+            <Route path="/lesson/:objective" element={<LessonPage />} />
+            <Route path="/quiz/:id" element={<Stub name="quiz screen" />} />
+          </Routes>
+        </MemoryRouter>
+      </RewardsContext.Provider>
     </QueryClientProvider>,
   );
 }
@@ -643,12 +649,14 @@ describe('lesson: review findings', () => {
     };
     render(
       <QueryClientProvider client={createQueryClient()}>
-        <MemoryRouter initialEntries={['/']}>
-          <Routes>
-            <Route path="/" element={<PathPage />} />
-            <Route path="/lesson/:objective" element={<LessonPage />} />
-          </Routes>
-        </MemoryRouter>
+        <RewardsContext.Provider value={{ report }}>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route path="/" element={<PathPage />} />
+              <Route path="/lesson/:objective" element={<LessonPage />} />
+            </Routes>
+          </MemoryRouter>
+        </RewardsContext.Provider>
       </QueryClientProvider>,
     );
     await userEvent.click(await screen.findByRole('link', { name: '1.1 Security controls' }));
@@ -674,33 +682,33 @@ describe('lesson: review findings', () => {
     expect(progress()).toHaveAttribute('aria-valuetext', '1 of 3 sections complete');
   });
 
-  it('marks the header totals for a refresh when XP is earned, and not when nothing is earned', async () => {
+  it('reports what each response earned to the rewards provider, once, and leaves the header totals to it', async () => {
     const client = createQueryClient();
     client.setQueryData(['dashboard'], { xp: 0, level: 1, nextLevelXp: 100, streak: 0 });
-    handlers['POST /api/answers'] = () => json(200, { feedback: wrong, xp: 0, newBadges: [] });
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: ['hundred-correct'] });
     handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1']));
     renderLesson(client);
     await sectionHeading('Control categories');
-    await answerCheck('Physical');
+    expect(report).not.toHaveBeenCalled();
+
+    // An answer to an inline check.
+    await answerCheck('Technical');
     await waitFor(() => expect(next()).toBeEnabled());
+    expect(report.mock.calls).toEqual([[{ xp: 10, newBadges: ['hundred-correct'] }]]);
+
+    // A saved section that earned nothing is reported as it came; the provider does nothing with it.
     await userEvent.click(next());
     await sectionHeading('The CIA triad');
-    expect(client.getQueryState(['dashboard'])!.isInvalidated).toBe(false);
+    expect(report.mock.calls.slice(1)).toEqual([[{ xp: 0, newBadges: [] }]]);
 
-    handlers['POST /api/lessons/1.1/progress'] = () => json(200, { ...saved(['s1', 's2']), xp: 0, newBadges: ['first-lesson'] });
+    // The section that completes the lesson.
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, { ...saved(['s1', 's2', 's3'], 50), newBadges: ['first-lesson'] });
     await userEvent.click(next());
     await sectionHeading('Summary');
-    expect(client.getQueryState(['dashboard'])!.isInvalidated).toBe(true);
-  });
-
-  it('marks the header totals for a refresh when an answer earns XP', async () => {
-    const client = createQueryClient();
-    client.setQueryData(['dashboard'], { xp: 0, level: 1, nextLevelXp: 100, streak: 0 });
-    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: [] });
-    renderLesson(client);
-    await sectionHeading('Control categories');
-    await answerCheck('Technical');
-    await waitFor(() => expect(client.getQueryState(['dashboard'])!.isInvalidated).toBe(true));
+    expect(report.mock.calls.slice(2)).toEqual([[{ xp: 50, newBadges: ['first-lesson'] }]]);
+    expect(report).toHaveBeenCalledTimes(3);
+    // Reading the totals again is the provider's work: the lesson does not ask for it a second time.
+    expect(client.getQueryState(['dashboard'])!.isInvalidated).toBe(false);
   });
 
   it('shows the other lesson when the objective in the address changes', async () => {

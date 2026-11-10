@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, ApiError, setUnauthorizedHandler } from './client';
+import { api, ApiError, isTransient, isUnavailable, setUnauthorizedHandler } from './client';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -56,5 +56,23 @@ describe('api client', () => {
     await expect(api.get('path')).rejects.toMatchObject({ name: 'ApiError', status: 0 });
     fetchMock.mockResolvedValueOnce(new Response('<html>down</html>', { status: 503 }));
     await expect(api.get('path')).rejects.toMatchObject({ status: 503 });
+  });
+});
+
+describe('isTransient', () => {
+  it.each([0, 502, 503, 504])('is true for %i: the same request may work later', (status) => {
+    expect(isTransient(new ApiError(status, 'failed'))).toBe(true);
+    // Anything that carries the status counts: the save queue is handed errors of other kinds too.
+    expect(isTransient({ status })).toBe(true);
+  });
+
+  it.each([400, 401, 403, 404, 409, 429, 500])('is false for %i: the same request would fail again', (status) => {
+    expect(isTransient(new ApiError(status, 'failed'))).toBe(false);
+  });
+
+  it('is false for what is not a failed request, and is a wider set than "the server is unavailable"', () => {
+    for (const other of [new TypeError('boom'), 'offline', null, undefined, { status: '503' }]) expect(isTransient(other)).toBe(false);
+    expect(isUnavailable(new ApiError(502, 'Bad gateway'))).toBe(false);
+    expect(isUnavailable(new ApiError(503, 'Service unavailable'))).toBe(true);
   });
 });

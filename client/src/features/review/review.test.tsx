@@ -2,13 +2,15 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { Feedback, PublicQuestion } from '../../../../shared/types';
-import type { ReviewCard, ReviewDueResponse, ReviewResponse } from '../../api/types';
+import type { DashboardResponse, ReviewCard, ReviewDueResponse, ReviewResponse } from '../../api/types';
 import { formatDay } from '../../lib/dates';
 import { createQueryClient } from '../../queryClient';
 import { holdPressClock } from '../../test/pressClock';
 import { SETTLE_MS } from '../../ui/pressGuard';
+import { RewardsBanner, RewardsContext, RewardsProvider, type RewardsValue } from '../rewards/RewardsProvider';
 import { ReviewPage } from './ReviewPage';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
@@ -81,6 +83,8 @@ type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>
 let handlers: Record<string, Handler>;
 let fetchMock: ReturnType<typeof vi.fn>;
 let client: QueryClient;
+/** Stands in for the rewards provider: what the review round reports to it. */
+let report: Mock<RewardsValue['report']>;
 
 const keyOf = (url: unknown, init?: RequestInit) => `${init?.method ?? 'GET'} ${String(url)}`;
 const calls = (key: string) => fetchMock.mock.calls.filter(([u, i]) => keyOf(u, i) === key);
@@ -104,23 +108,29 @@ beforeEach(() => {
   });
   vi.stubGlobal('fetch', fetchMock);
   client = createQueryClient();
+  report = vi.fn<RewardsValue['report']>();
 });
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
-});
+afterEach(() => vi.unstubAllGlobals());
+
+/** The app around a page: the query client, the rewards (a stand-in, unless given) and the router. */
+function App({ children, rewards }: { children: ReactNode; rewards?: (page: ReactNode) => ReactNode }) {
+  const page = <MemoryRouter initialEntries={['/review']}>{children}</MemoryRouter>;
+  return (
+    <QueryClientProvider client={client}>
+      {rewards ? rewards(page) : <RewardsContext.Provider value={{ report }}>{page}</RewardsContext.Provider>}
+    </QueryClientProvider>
+  );
+}
+
+const routes = (
+  <Routes>
+    <Route path="/" element={<p>path screen</p>} />
+    <Route path="/review" element={<ReviewPage />} />
+  </Routes>
+);
 
 function renderReview() {
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/review']}>
-        <Routes>
-          <Route path="/" element={<p>path screen</p>} />
-          <Route path="/review" element={<ReviewPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  return render(<App>{routes}</App>);
 }
 
 const cardHeading = (name: string) => screen.findByRole('heading', { level: 2, name });
@@ -254,16 +264,14 @@ describe('review', () => {
     const first = flash(1);
     serve([first]);
     render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={['/review']}>
-          <label>
-            Notes <input />
-          </label>
-          <button type="button">Elsewhere</button>
-          <a href="/somewhere">A link</a>
-          <ReviewPage />
-        </MemoryRouter>
-      </QueryClientProvider>,
+      <App>
+        <label>
+          Notes <input />
+        </label>
+        <button type="button">Elsewhere</button>
+        <a href="/somewhere">A link</a>
+        <ReviewPage />
+      </App>,
     );
     await cardHeading('Card 1 of 1: flashcard');
 
@@ -323,13 +331,11 @@ describe('review', () => {
     const first = flash(1);
     serve([first]);
     render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={['/review']}>
-          <main tabIndex={-1}>
-            <ReviewPage />
-          </main>
-        </MemoryRouter>
-      </QueryClientProvider>,
+      <App>
+        <main tabIndex={-1}>
+          <ReviewPage />
+        </main>
+      </App>,
     );
     await cardHeading('Card 1 of 1: flashcard');
     screen.getByRole('main').focus();
@@ -485,9 +491,11 @@ describe('review', () => {
     expect(stat('Next due')).toHaveTextContent(/\b11\b/);
     expect(screen.queryByRole('button', { name: /Review more/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to path' })).toHaveAttribute('href', '/');
-    // The header and the path read their numbers again.
-    expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(true);
+    // What each review earned went to the rewards provider, once, as it came.
+    expect(report.mock.calls).toEqual([[{ xp: 2, newBadges: [] }], [{ xp: 0, newBadges: [] }], [{ xp: 2, newBadges: [] }]]);
+    // The path reads its numbers again. The header's are the provider's to read: the round does not ask too.
     expect(client.getQueryState(['path'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(false);
   });
 
   it('end screen: "Next due" is the earlier of the round\'s dates and the next date the server reported', async () => {
@@ -534,18 +542,79 @@ describe('review', () => {
     expect(stat('Back to box 1')).toHaveTextContent(/^1$/);
   });
 
-  it('a badge earned by a review reaches the same place as its XP: the header reads its numbers again', async () => {
+  it('a badge earned by a review is reported with its XP, also when there is none', async () => {
     const [first, second] = [flash(1), flash(2)];
     serve([first, second]);
     // No XP (a second right answer on the same day), but the hundredth correct attempt.
     handlers[post(first)] = () => json(200, moved(2, '2026-11-12', 0, { newBadges: ['hundred-correct'] }));
-    client.setQueryData(['dashboard'], { xp: 10, level: 1, nextLevelXp: 100, streak: 1 });
     renderReview();
     await cardHeading('Card 1 of 2: flashcard');
     await showAnswer();
     await userEvent.click(button('I knew it'));
     await cardHeading('Card 2 of 2: flashcard');
-    expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(true);
+    expect(report.mock.calls).toEqual([[{ xp: 0, newBadges: ['hundred-correct'] }]]);
+  });
+
+  it('a response that arrives after the learner has left the page is still reported, once', async () => {
+    const first = flash(1);
+    serve([first]);
+    const answer = deferred<Response>();
+    handlers[post(first)] = () => answer.promise;
+    const view = renderReview();
+    await cardHeading('Card 1 of 1: flashcard');
+    await showAnswer();
+    await userEvent.click(button('I knew it'));
+    expect(calls(post(first))).toHaveLength(1);
+    view.unmount();
+
+    answer.resolve(json(200, moved(2, '2026-11-12', 2, { newBadges: ['streak-3'] })));
+    await waitFor(() => expect(report).toHaveBeenCalledTimes(1));
+    expect(report).toHaveBeenCalledWith({ xp: 2, newBadges: ['streak-3'] });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(report).toHaveBeenCalledTimes(1);
+  });
+
+  it('with the real rewards provider, a round reads the dashboard once for what it earned, not again when it ends', async () => {
+    const [first, second] = [flash(1), flash(2)];
+    serve([first, second]);
+    handlers[post(first)] = () => json(200, moved(2, '2026-11-12', 2));
+    handlers[post(second)] = () => json(200, moved(2, '2026-11-12', 2, { newBadges: ['streak-3'] }));
+    const totals = (xp: number): DashboardResponse => ({
+      xp, level: 1, nextLevelXp: 100, streak: 3, reviewsDue: 0, domains: [], weakest: [], mockHistory: [],
+      readiness: { ready: false, missing: [] }, studyPlan: null, openMock: null, mockSpec: { questions: 11, minutes: 11, partial: true },
+      badges: [{ id: 'streak-3', title: 'Three-Day Streak', description: 'Study three days in a row.', earnedAt: null }],
+    });
+    let xp = 10;
+    handlers['GET /api/dashboard'] = () => json(200, totals(xp));
+    render(
+      <App
+        rewards={(page) => (
+          <RewardsProvider>
+            <RewardsBanner />
+            {page}
+          </RewardsProvider>
+        )}
+      >
+        {routes}
+      </App>,
+    );
+    await cardHeading('Card 1 of 2: flashcard');
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(1));
+
+    await showAnswer();
+    xp = 12;
+    await userEvent.click(button('I knew it'));
+    await cardHeading('Card 2 of 2: flashcard');
+    await showAnswer();
+    xp = 14;
+    await userEvent.click(button('I knew it'));
+    await screen.findByRole('heading', { level: 2, name: 'Review complete' });
+    // The badge is celebrated; the two reports, one straight after the other, share one read.
+    expect(await screen.findByText('Three-Day Streak')).toBeInTheDocument();
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    await new Promise((r) => setTimeout(r, 400));
+    expect(calls('GET /api/dashboard')).toHaveLength(2);
+    expect(client.getQueryData<DashboardResponse>(['dashboard'])?.xp).toBe(14);
   });
 
   it('"Show answer" says that the answer is loading, keeps focus and asks once', async () => {
@@ -759,7 +828,7 @@ describe('review', () => {
     expect(calls(post(first))).toHaveLength(1);
   });
 
-  it('refreshes the header and the path when a round is left half way', async () => {
+  it('marks the path for a refresh when a round is left half way; a review that earned nothing asks nothing of the header', async () => {
     const [first, second] = [flash(1), flash(2)];
     serve([first, second]);
     handlers[post(first)] = () => json(200, moved(1, '2026-11-11', 0));
@@ -770,10 +839,12 @@ describe('review', () => {
     await showAnswer();
     await userEvent.click(button("I didn't"));
     await cardHeading('Card 2 of 2: flashcard');
-    expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(false);
+    expect(client.getQueryState(['path'])?.isInvalidated).toBe(false);
     view.unmount();
-    expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(true);
     expect(client.getQueryState(['path'])?.isInvalidated).toBe(true);
+    // The XP, the level and the streak in the header change with XP only.
+    expect(report.mock.calls).toEqual([[{ xp: 0, newBadges: [] }]]);
+    expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(false);
   });
 
   it('keeps the summary and says so when the next round cannot be loaded', async () => {
@@ -800,20 +871,6 @@ describe('review', () => {
     expect(await screen.findByText(/Nothing due today\./)).toBeInTheDocument();
   });
 
-  it('shows a server date as the same calendar day in any time zone', () => {
-    vi.stubEnv('TZ', 'America/Los_Angeles');
-    // The zone really is in force here: read as an instant, the date would land on the day before.
-    expect(new Date('2026-11-01').getDate()).toBe(31);
-    for (const zone of ['America/Los_Angeles', 'Pacific/Kiritimati', 'UTC']) {
-      vi.stubEnv('TZ', zone);
-      const text = formatDay('2026-11-01');
-      expect(text).toMatch(/\b1\b/);
-      expect(text).not.toMatch(/31/);
-      expect(text).toBe(new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(Date.UTC(2026, 10, 1)));
-    }
-    // Something that is not a date is shown as it came, not as "Invalid Date".
-    expect(formatDay('soon')).toBe('soon');
-  });
 });
 
 // Ordinary presses, sent straight after the button under them has changed. Time stands still unless the

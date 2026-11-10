@@ -44,6 +44,11 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/* While a celebration lies over the bottom of the window, what is scrolled into view stops above it. */
+html {
+  scroll-padding-bottom: var(--celebration-cover, 0px);
+}
+
 body {
   background: var(--bg);
   color: var(--text);

@@ -4,10 +4,10 @@ import { api, ApiError, isUnavailable } from '../../api/client';
 import type { AdminLink, AdminUser, AdminUsersResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
-import { formatInstant } from '../../ui/dates';
+import { ConfirmDialog } from '../../ui/ConfirmDialog';
+import { formatInstant } from '../../lib/dates';
 import { QueryStatus } from '../../ui/QueryStatus';
 import { useAuth } from '../auth/AuthProvider';
-import { ConfirmDialog } from './ConfirmDialog';
 
 /** An invite or reset link that was just made. It lives in this state only: the server cannot show it again. */
 type ShownLink = { title: string; reset: boolean; url: string; expiresAt: string };

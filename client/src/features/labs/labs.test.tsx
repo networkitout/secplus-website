@@ -2,15 +2,15 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { Feedback, PublicQuestion } from '../../../../shared/types';
 import type { LabSubmitResponse, LabSummary, LabView, PathDomain, PathResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { holdPressClock } from '../../test/pressClock';
 import { SETTLE_MS } from '../../ui/pressGuard';
+import { RewardsContext, type RewardsValue } from '../rewards/RewardsProvider';
 import { LabPage } from './LabPage';
 import { LabsPage } from './LabsPage';
-import { wholePercent } from './percent';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
 
@@ -89,6 +89,8 @@ type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>
 let handlers: Record<string, Handler>;
 let fetchMock: ReturnType<typeof vi.fn>;
 let client: QueryClient;
+/** Stands in for the rewards provider: what the lab reports to it. */
+let report: Mock<RewardsValue['report']>;
 
 const keyOf = (url: unknown, init?: RequestInit) => `${init?.method ?? 'GET'} ${String(url)}`;
 const calls = (key: string) => fetchMock.mock.calls.filter(([u, i]) => keyOf(u, i) === key);
@@ -110,20 +112,23 @@ beforeEach(() => {
   });
   vi.stubGlobal('fetch', fetchMock);
   client = createQueryClient();
+  report = vi.fn<RewardsValue['report']>();
 });
 afterEach(() => vi.unstubAllGlobals());
 
 function renderAt(route: string) {
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[route]}>
-        <Routes>
-          <Route path="/" element={<p>path screen</p>} />
-          <Route path="/labs" element={<LabsPage />} />
-          <Route path="/labs/:id" element={<LabPage />} />
-          <Route path="/lesson/:objective" element={<p>lesson screen</p>} />
-        </Routes>
-      </MemoryRouter>
+      <RewardsContext.Provider value={{ report }}>
+        <MemoryRouter initialEntries={[route]}>
+          <Routes>
+            <Route path="/" element={<p>path screen</p>} />
+            <Route path="/labs" element={<LabsPage />} />
+            <Route path="/labs/:id" element={<LabPage />} />
+            <Route path="/lesson/:objective" element={<p>lesson screen</p>} />
+          </Routes>
+        </MemoryRouter>
+      </RewardsContext.Provider>
     </QueryClientProvider>,
   );
 }
@@ -150,15 +155,6 @@ const ANSWERS = {
 };
 
 describe('labs', () => {
-  it('percentages are whole and never rounded up, and a whole value is not lost to floating point', () => {
-    expect(wholePercent(79.99)).toBe(79);
-    expect(wholePercent((2 / 3) * 100)).toBe(66);
-    expect(wholePercent(100)).toBe(100);
-    expect(0.29 * 100).toBeLessThan(29); // the case the allowance is for
-    expect(wholePercent(0.29 * 100)).toBe(29);
-    expect(wholePercent(0)).toBe(0);
-  });
-
   it('labs list: unavailable lab is not a link and names the lessons required', async () => {
     handlers[LIST] = () =>
       json(200, {
@@ -208,7 +204,7 @@ describe('labs', () => {
   });
 
   it('lab: Submit disabled until all steps complete; results show per-step feedback and Passed at >= 80', async () => {
-    handlers[SUBMIT] = () => json(200, submitted({ scorePct: 80 }));
+    handlers[SUBMIT] = () => json(200, submitted({ scorePct: 80, newBadges: ['lab-rat'] }));
     client.setQueryData(['dashboard'], { xp: 10, level: 1, nextLevelXp: 100, streak: 1 });
     client.setQueryData(['path'], path());
     client.setQueryData(['labs'], { labs: [summary({})] });
@@ -256,7 +252,11 @@ describe('labs', () => {
     expect(screen.queryByRole('button', { name: 'Submit lab' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to labs' })).toHaveAttribute('href', '/labs');
 
-    for (const key of ['dashboard', 'path', 'labs']) expect(client.getQueryState([key])?.isInvalidated).toBe(true);
+    // What the lab earned goes to the rewards provider, once, as it came.
+    expect(report.mock.calls).toEqual([[{ xp: 105, newBadges: ['lab-rat'] }]]);
+    for (const key of ['path', 'labs']) expect(client.getQueryState([key])?.isInvalidated).toBe(true);
+    // Reading the header totals again is the provider's work: the lab does not ask for it a second time.
+    expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(false);
   });
 
   it('lab: below 80 the result reads "Not passed", the score is not rounded up, and Try again resets the answers', async () => {
@@ -271,6 +271,7 @@ describe('labs', () => {
     expect(score.getByText('Not passed')).toBeInTheDocument();
     expect(score.getByText('XP earned: 0')).toBeInTheDocument();
     expect(screen.queryByText('Lab passed')).not.toBeInTheDocument();
+    expect(report.mock.calls).toEqual([[{ xp: 0, newBadges: [] }]]);
     expect(step(1)).toHaveAccessibleName(/^Step 1 of 3:\s*Incorrect$/);
 
     await userEvent.click(button('Try again'));

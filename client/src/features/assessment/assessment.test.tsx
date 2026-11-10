@@ -1,15 +1,16 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, useQuery, type QueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
 import { api } from '../../api/client';
 import type { AssessmentResult, AssessmentView, DashboardMocks, MockHistoryEntry, PathDomain, PathResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { holdPressClock } from '../../test/pressClock';
 import { SETTLE_MS } from '../../ui/pressGuard';
+import { RewardsBanner, RewardsContext, RewardsProvider, useRewards, type RewardsValue } from '../rewards/RewardsProvider';
 import { ExamLobbyPage } from './ExamLobbyPage';
 import { examSaves } from './examSaves';
 import { ExamPage } from './ExamPage';
@@ -140,6 +141,8 @@ const dashboard = (mockHistory: MockHistoryEntry[] = [], over: Partial<Dashboard
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 let handlers: Record<string, Handler>;
 let fetchMock: ReturnType<typeof vi.fn>;
+/** Every report that a screen makes to the rewards provider, which then deals with it as it does in the app. */
+let reported: Mock<RewardsValue['report']>;
 
 const keyOf = (url: unknown, init?: RequestInit) => `${init?.method ?? 'GET'} ${String(url)}`;
 const calls = (key: string) => fetchMock.mock.calls.filter(([u, i]) => keyOf(u, i) === key);
@@ -161,11 +164,36 @@ beforeEach(() => {
     return h(url, init);
   });
   vi.stubGlobal('fetch', fetchMock);
+  reported = vi.fn<RewardsValue['report']>();
 });
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
+
+/** The real rewards provider and its banner, with a note taken of each report on its way in. */
+function Rewards({ children }: { children: ReactNode }) {
+  return (
+    <RewardsProvider>
+      <RewardsBanner />
+      <Noted>{children}</Noted>
+    </RewardsProvider>
+  );
+}
+
+function Noted({ children }: { children: ReactNode }) {
+  const { report } = useRewards();
+  const noting = useMemo<RewardsValue>(
+    () => ({
+      report(r) {
+        reported(r);
+        report(r);
+      },
+    }),
+    [report],
+  );
+  return <RewardsContext.Provider value={noting}>{children}</RewardsContext.Provider>;
+}
 
 /** Stands in for the app shell and the path map: screens that show data an assessment changes. */
 function Observers() {
@@ -194,11 +222,13 @@ function renderAt(url: string, client: QueryClient = createQueryClient()) {
   return render(
     <QueryClientProvider client={client}>
       <Observers />
-      <MemoryRouter initialEntries={[url]}>
-        <Link to="/">leave</Link>
-        <Link to={url}>come back</Link>
-        <Screens />
-      </MemoryRouter>
+      <Rewards>
+        <MemoryRouter initialEntries={[url]}>
+          <Link to="/">leave</Link>
+          <Link to={url}>come back</Link>
+          <Screens />
+        </MemoryRouter>
+      </Rewards>
     </QueryClientProvider>,
   );
 }
@@ -237,6 +267,8 @@ const button = (name: string) => screen.getByRole('button', { name });
 const submission = () => screen.getByRole('status', { name: 'Submission' });
 const assessmentReads = (id: number) => calls(`GET /api/assessments/${id}`).length;
 const reviewItems = () => within(screen.getByRole('list', { name: 'Questions' })).getAllByRole('button');
+/** Where the rewards provider shows a new badge or level. */
+const rewardsBanner = () => screen.getByRole('status', { name: 'Rewards' });
 
 describe('quiz', () => {
   it('quiz: Check is disabled until isComplete; shows feedback then Next; last question leads to results', async () => {
@@ -295,6 +327,10 @@ describe('quiz', () => {
     expect(screen.queryByText('Not yet')).not.toBeInTheDocument();
     // Opened later, not finished just now: no celebration, and focus is left alone.
     expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
+    // What it earned, it earned then: nothing is reported for a result the learner has come back to.
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    expect(reported).not.toHaveBeenCalled();
+    expect(rewardsBanner()).toBeEmptyDOMElement();
     first.unmount();
 
     handlers['GET /api/assessments/12'] = () => json(200, finished(quiz(10), 7));
@@ -336,12 +372,58 @@ describe('quiz', () => {
     const title = await heading('Objective 1.1 quiz results', 1);
     const banner = screen.getByText('Quiz passed').closest('[role="status"]') as HTMLElement;
     expect(banner).toHaveTextContent('+100 XP');
+    // The result is reported to the rewards provider once, and the header's numbers are read once for it.
+    expect(reported.mock.calls).toEqual([[{ xp: 100, newBadges: [] }]]);
     await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
     await waitFor(() => expect(calls('GET /api/path')).toHaveLength(2));
+    await new Promise((r) => setTimeout(r, 400));
+    expect(calls('GET /api/dashboard')).toHaveLength(2);
 
     await userEvent.click(within(banner).getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
     expect(title).toHaveFocus();
+  });
+
+  it('a passed quiz that also earns a badge and a level shows its own celebration first, then the badge, then the level', async () => {
+    const open = quiz(1, { answers: { 'q-1.1-001': pick('a') }, feedback: { 'q-1.1-001': marked(single(1), true) } });
+    const done = finished(open, 1, { passed: true, xp: 130, newBadges: ['first-quiz-pass'] });
+    const badges = [{ id: 'first-quiz-pass', title: 'Quiz Passer', description: 'Pass an objective quiz.', earnedAt: null }];
+    let totals = { ...dashboard(), xp: 390, level: 2, nextLevelXp: 400, badges };
+    handlers['GET /api/dashboard'] = () => json(200, totals);
+    handlers['GET /api/assessments/12'] = () => json(200, open);
+    handlers['POST /api/assessments/12/submit'] = () => json(200, { result: done.result });
+    const client = createQueryClient();
+    renderAt('/quiz/12', client);
+    await heading('Question 1 of 1');
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(1));
+
+    totals = { ...totals, xp: 520, level: 3, nextLevelXp: 900 };
+    handlers['GET /api/assessments/12'] = () => json(200, done);
+    await userEvent.click(button('See results'));
+    const title = await heading('Objective 1.1 quiz results', 1);
+    expect(title).toHaveFocus();
+    const own = screen.getByText('Quiz passed').closest('[role="status"]') as HTMLElement;
+    expect(own).toHaveTextContent('+130 XP');
+    expect(reported.mock.calls).toEqual([[{ xp: 130, newBadges: ['first-quiz-pass'] }]]);
+
+    // The header's numbers are read once; the badge and the new level are known, and wait.
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    await waitFor(() => expect(client.getQueryData<{ level: number }>(['dashboard'])?.level).toBe(3));
+    expect(rewardsBanner()).toBeEmptyDOMElement();
+    expect(screen.getAllByRole('button', { name: 'Dismiss' })).toHaveLength(1);
+
+    await userEvent.click(within(own).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
+    expect(rewardsBanner()).toHaveTextContent('Badge earned');
+    expect(rewardsBanner()).toHaveTextContent('Quiz Passer');
+    // Focus stays with the results: the banner does not take it.
+    expect(title).toHaveFocus();
+    await userEvent.click(within(rewardsBanner()).getByRole('button', { name: 'Dismiss' }));
+    expect(rewardsBanner()).toHaveTextContent('Level up');
+    expect(rewardsBanner()).toHaveTextContent('Level 3');
+    await userEvent.click(within(rewardsBanner()).getByRole('button', { name: 'Dismiss' }));
+    expect(rewardsBanner()).toBeEmptyDOMElement();
+    expect(calls('GET /api/dashboard')).toHaveLength(2);
   });
 
   it('celebrates a pass that reaches the page while it is reading the quiz again, before that read has been handled', async () => {
@@ -835,8 +917,13 @@ describe('exam', () => {
     expect(await heading('Domain 1 exam results', 1)).toHaveFocus();
     expect(calls(SUBMIT)).toHaveLength(1);
     expect(screen.getByText('Not yet')).toBeInTheDocument();
+    // Nothing was earned, and that is reported as it is. The exam history has changed all the same: the
+    // totals are read again once.
+    expect(reported.mock.calls).toEqual([[{ xp: 0, newBadges: [] }]]);
     await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
     expect(calls('GET /api/path')).toHaveLength(2);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(calls('GET /api/dashboard')).toHaveLength(2);
   });
 
   it('exam: while saves are failing the SaveIndicator reads "Not saved yet" and Submit waits for flush', async () => {
@@ -884,13 +971,15 @@ describe('exam', () => {
     await heading('Question 2 of 5');
 
     // The server closed the exam at its deadline and scored what it had saved.
-    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1, {}, 4));
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1, { xp: 12, newBadges: ['hundred-correct'] }, 4));
     await userEvent.click(screen.getByRole('radio', { name: 'Bravo' }));
 
     expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
     expect(screen.getByText('1 of 5 correct')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(writes()).toEqual([SAVE]);
+    // The server closed it, not this page; its result is news here all the same, and is reported once.
+    expect(reported.mock.calls).toEqual([[{ xp: 12, newBadges: ['hundred-correct'] }]]);
   });
 
   it('shows the results straight away when the exam was finalized while the page was closed, and refreshes the totals once', async () => {
@@ -910,7 +999,38 @@ describe('exam', () => {
     await userEvent.click(screen.getByRole('link', { name: 'leave' }));
     await userEvent.click(screen.getByRole('link', { name: 'come back' }));
     await heading('Domain 1 exam results', 1);
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => setTimeout(r, 400));
+    expect(calls('GET /api/dashboard')).toHaveLength(2);
+    // This app never saw the exam open: for all it knows the result is an old one, and it reports nothing.
+    expect(reported).not.toHaveBeenCalled();
+    expect(rewardsBanner()).toBeEmptyDOMElement();
+  });
+
+  it('reports an exam that the server closed while the learner was on another screen, once, when its results are first seen', async () => {
+    const open = exam({ answers: { [q1.id]: pick('a') } });
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    renderAt('/exam/30');
+    await heading('Question 2 of 5');
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(1));
+    await userEvent.click(screen.getByRole('link', { name: 'leave' }));
+    expect(screen.getByText('path screen')).toBeInTheDocument();
+
+    // The time runs out meanwhile, and the server scores what it has.
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1, { xp: 12, newBadges: ['hundred-correct'] }, 4));
+    await userEvent.click(screen.getByRole('link', { name: 'come back' }));
+    const title = await heading('Domain 1 exam results', 1);
+    expect(reported.mock.calls).toEqual([[{ xp: 12, newBadges: ['hundred-correct'] }]]);
+    await waitFor(() => expect(rewardsBanner()).toHaveTextContent('Badge earned'));
+    // It was not finished on this visit: the results do not take focus.
+    expect(title).not.toHaveFocus();
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+
+    // Looked at again, it is an old result.
+    await userEvent.click(screen.getByRole('link', { name: 'leave' }));
+    await userEvent.click(screen.getByRole('link', { name: 'come back' }));
+    await heading('Domain 1 exam results', 1);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(reported).toHaveBeenCalledTimes(1);
     expect(calls('GET /api/dashboard')).toHaveLength(2);
   });
 
@@ -978,11 +1098,12 @@ describe('exam', () => {
     await userEvent.click(button('Next'));
     await heading('Question 2 of 5');
     await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
-    await screen.findByText("Couldn't save one of your answers.");
+    // Two answers were dropped, and the indicator does not make one of them.
+    await screen.findByText("Couldn't save some of your answers.");
 
     // The indicator's own Dismiss button: the warning goes, the answers are still not on the server.
     await userEvent.click(button('Dismiss'));
-    expect(screen.queryByText("Couldn't save one of your answers.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Couldn't save/)).not.toBeInTheDocument();
     expect(navButtons().slice(0, 2)).toEqual(['Question 1, answered', 'Question 2, answered']);
 
     await userEvent.click(button('Submit exam'));

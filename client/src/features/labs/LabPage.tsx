@@ -4,12 +4,12 @@ import { Link, useParams } from 'react-router';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
 import { api, ApiError, isUnavailable } from '../../api/client';
 import type { LabSubmitResponse, LabView } from '../../api/types';
+import { wholePercent } from '../../lib/percent';
 import { Button } from '../../ui/Button';
-import { Celebration } from '../../ui/Celebration';
 import { usePressGuard } from '../../ui/pressGuard';
 import { Mark } from '../questions/FeedbackPanel';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
-import { wholePercent } from './percent';
+import { ScreenCelebration, useRewards } from '../rewards/RewardsProvider';
 import { Scenario } from './Scenario';
 
 const PASS_PCT = 80;
@@ -105,6 +105,7 @@ function problemOf(err: unknown): Problem {
 
 function LabRunner({ lab }: { lab: LabView }) {
   const queryClient = useQueryClient();
+  const { report } = useRewards();
   const { steps } = lab;
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   // What was sent, with what the server made of it.
@@ -137,12 +138,13 @@ function LabRunner({ lab }: { lab: LabView }) {
   const incomplete = steps.flatMap((step, i) => (isComplete(step, answers[step.id] ?? null) ? [] : [`step ${i + 1}`]));
 
   /**
-   * The outcome of a submission arrives here, once. Its `xp` and `newBadges` are for Task 20's rewards
-   * provider; until then the screens that show totals re-read them.
+   * The outcome of a submission arrives here, once. What it earned goes to the rewards provider, which
+   * reads the header's totals again; the path and the list of labs are read again when they are next shown.
    */
   function submitted(result: LabSubmitResponse) {
     setCelebrating(result.passed);
-    for (const key of ['dashboard', 'path', 'labs']) void queryClient.invalidateQueries({ queryKey: [key] });
+    report({ xp: result.xp, newBadges: result.newBadges });
+    for (const key of ['path', 'labs']) void queryClient.invalidateQueries({ queryKey: [key] });
   }
 
   async function submit() {
@@ -204,7 +206,7 @@ function LabRunner({ lab }: { lab: LabView }) {
               </h2>
               {celebrating && (
                 <div ref={celebrationBox}>
-                  <Celebration
+                  <ScreenCelebration
                     kind="lab-pass"
                     title={lab.title}
                     detail={result.xp > 0 ? `+${result.xp} XP` : undefined}

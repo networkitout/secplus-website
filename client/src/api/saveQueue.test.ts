@@ -312,6 +312,26 @@ describe('saveQueue', () => {
     expect(seen).toEqual(['saving', 'failed']);
   });
 
+  it('counts the keys whose save was dropped, until a later save for the key succeeds or the notice is dismissed', async () => {
+    const q = createSaveQueue();
+    expect(q.dropped()).toBe(0);
+    q.enqueue('a', vi.fn().mockRejectedValue(badRequest()));
+    q.enqueue('b', vi.fn().mockRejectedValue(httpError(500)));
+    // The same key dropped twice is one answer that is missing.
+    q.enqueue('b', vi.fn().mockRejectedValue(badRequest()));
+    await q.flush();
+    expect(q.dropped()).toBe(2);
+
+    q.enqueue('a', vi.fn().mockResolvedValue('ok'));
+    await q.flush();
+    expect(q.dropped()).toBe(1);
+    expect(q.state()).toBe('failed');
+
+    q.dismiss();
+    expect(q.dropped()).toBe(0);
+    expect(q.state()).toBe('idle');
+  });
+
   it('flush resolves once nothing is left to send, also after a drop', async () => {
     const q = createSaveQueue();
     q.enqueue('a', vi.fn().mockRejectedValue(badRequest()));

@@ -1,5 +1,5 @@
 import type { MockHistoryEntry } from '../../api/types';
-import { formatInstant } from '../../ui/dates';
+import { formatInstant } from '../../lib/dates';
 
 const PASS_MARK = 750;
 const MIN = 100;

@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { DashboardResponse } from '../../api/types';
 import { Card } from '../../ui/Card';
-import { formatCalendarDate } from '../../ui/dates';
+import { formatCalendarDate } from '../../lib/dates';
 import { MasteryBar } from '../../ui/MasteryBar';
 import { QueryStatus } from '../../ui/QueryStatus';
 import { useAuth } from '../auth/AuthProvider';

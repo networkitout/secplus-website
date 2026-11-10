@@ -4,6 +4,7 @@ import { api, isUnavailable } from '../../api/client';
 import type { ReviewCard, ReviewDueResponse, ReviewResponse } from '../../api/types';
 import { formatDay } from '../../lib/dates';
 import { Button } from '../../ui/Button';
+import { useRewards } from '../rewards/RewardsProvider';
 import { FlashcardCard } from './FlashcardCard';
 import { count, pathLink, type ReviewedCard } from './parts';
 import { QuestionCard } from './QuestionCard';
@@ -22,6 +23,7 @@ function ReviewRound({
   more(): Promise<string>;
 }) {
   const queryClient = useQueryClient();
+  const { report } = useRewards();
   // The round keeps the cards it began with, whatever the query holds later.
   const [{ cards, total, nextDueOn }] = useState(due);
   const [index, setIndex] = useState(0);
@@ -35,7 +37,7 @@ function ReviewRound({
   const section = useRef<HTMLElement>(null);
   // Set and read in the same tick, which state is not: two presses in a row must not load twice.
   const loading = useRef(false);
-  // Something was reviewed since the header and the path last read their numbers.
+  // Something was reviewed since the path last read its numbers.
   const stale = useRef(false);
 
   const card = cards[index];
@@ -49,12 +51,11 @@ function ReviewRound({
     heading.current?.focus();
   }, [index]);
 
-  // After a round, and when a round is left half way, the header and the path read their numbers again.
+  // After a round, and when a round is left half way, the path reads its numbers again.
   useEffect(() => {
     function refresh() {
       if (!stale.current) return;
       stale.current = false;
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       void queryClient.invalidateQueries({ queryKey: ['path'] });
     }
     if (finished) refresh();
@@ -62,13 +63,14 @@ function ReviewRound({
   }, [finished, queryClient]);
 
   /**
-   * Every review response arrives here, once. Its `xp` and `newBadges` are for Task 20's rewards provider;
-   * until then the header re-reads its totals.
+   * Every review response arrives here, once: also a late one, from a card the round has left. What it
+   * earned goes to the rewards provider, which reads the header's totals again (it outlives this round, so
+   * a response that arrives after the learner has left the page is still reported).
    */
   function reviewed(done: ReviewCard, res: ReviewResponse) {
     setResponses((all) => (all.some((r) => r.cardId === done.cardId) ? all : [...all, { ...res, cardId: done.cardId }]));
     stale.current = true;
-    if (res.xp > 0 || res.newBadges.length > 0) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    report({ xp: res.xp, newBadges: res.newBadges });
   }
 
   async function loadMore() {

@@ -3,9 +3,9 @@ import { useId } from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { LabsResponse, LabSummary, PathDomain, PathResponse } from '../../api/types';
+import { wholePercent } from '../../lib/percent';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
-import { wholePercent } from './percent';
 
 const LINK = 'rounded-sm underline decoration-border underline-offset-4 hover:decoration-accent';
 

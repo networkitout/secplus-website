@@ -19,11 +19,17 @@ export function Celebration({
   kind,
   title,
   detail,
+  live = true,
   onDone,
 }: {
   kind: CelebrationKind;
   title: string;
   detail?: string;
+  /**
+   * False when it is shown inside a live region that was on the page before it. By default it is a live
+   * region itself (`role="status"`).
+   */
+  live?: boolean;
   onDone: () => void;
 }) {
   const reduced = useReducedMotion();
@@ -55,18 +61,19 @@ export function Celebration({
     </>
   );
   const cls = 'flex items-center justify-between gap-4 rounded-lg border border-accent bg-surface p-4';
+  const role = live ? 'status' : undefined;
 
   // Under reduced motion the banner is static: no entrance animation.
   if (reduced) {
     return (
-      <div role="status" className={cls}>
+      <div role={role} className={cls}>
         {body}
       </div>
     );
   }
   return (
     <motion.div
-      role="status"
+      role={role}
       className={cls}
       initial={{ opacity: 0, y: -12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}

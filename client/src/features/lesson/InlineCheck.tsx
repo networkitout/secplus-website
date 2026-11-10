@@ -1,11 +1,10 @@
 import { useId, useRef, useState } from 'react';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
-import { api } from '../../api/client';
+import { api, isTransient } from '../../api/client';
 import type { AnswerResponse, Rewards } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { usePressGuard } from '../../ui/pressGuard';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
-import { isTransient } from './transient';
 
 /** An inline check that has been marked: what the learner sent and what the server said. */
 export type CheckResult = { answer: Answer; feedback: Feedback };

@@ -2,14 +2,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { LessonProgressView, LessonView } from '../../../../shared/types';
-import { api, ApiError, isUnavailable } from '../../api/client';
+import { api, ApiError, isTransient, isUnavailable } from '../../api/client';
 import type { AssessmentStarted, LessonProgressResponse, LessonResponse, Rewards } from '../../api/types';
 import { Button } from '../../ui/Button';
-import { Celebration } from '../../ui/Celebration';
 import { usePressGuard } from '../../ui/pressGuard';
+import { ScreenCelebration, useRewards } from '../rewards/RewardsProvider';
 import type { CheckResult } from './InlineCheck';
 import { SectionView } from './SectionView';
-import { isTransient } from './transient';
 
 const pathLink = (
   <Link to="/" className="text-accent underline underline-offset-2">
@@ -89,6 +88,7 @@ function LessonPlayer({
   const total = sections.length;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { report } = useRewards();
   const lessonUrl = `lessons/${encodeURIComponent(lesson.objective)}`;
 
   const [done, setDone] = useState(() => new Set(progress.sectionsDone));
@@ -157,11 +157,11 @@ function LessonPlayer({
   }, [index]);
 
   /**
-   * XP and badges from an answer or a finished lesson arrive here. Task 20's rewards provider takes them
-   * over; until then the header re-reads its totals.
+   * XP and badges from an answer or a saved section arrive here, once per response. The rewards provider
+   * takes them from here: it reads the header's totals again and celebrates a new badge or level.
    */
   function earned({ xp, newBadges }: Rewards) {
-    if (xp > 0 || newBadges.length > 0) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    report({ xp, newBadges });
   }
 
   /**
@@ -318,7 +318,7 @@ function LessonPlayer({
           </h2>
           {celebration && (
             <div ref={celebrationBox}>
-              <Celebration
+              <ScreenCelebration
                 kind="lesson"
                 title={lesson.title}
                 detail={celebration.xp > 0 ? `+${celebration.xp} XP` : undefined}

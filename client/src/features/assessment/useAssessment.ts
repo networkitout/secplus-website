@@ -2,6 +2,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
 import type { AssessmentView } from '../../api/types';
+import { useRewards } from '../rewards/RewardsProvider';
 
 /** An assessment as read from the server, with what the read says about the server's clock. */
 export interface LoadedAssessment {
@@ -22,8 +23,17 @@ async function load(id: string): Promise<LoadedAssessment> {
   return { view, clockOffsetMs: Number.isNaN(serverNow) ? null : serverNow - (sent + received) / 2 };
 }
 
-// The assessments this app has already seen finalized, so that each finalization is acted on once.
-const seenFinalized = new WeakMap<QueryClient, Set<number>>();
+// What this app has seen of each assessment since the page was loaded: that it was open, and that it was
+// finalized. Each finalization is acted on once, and the app can tell a result that came about while it was
+// looking from one the learner has come back to.
+type Seen = { open: Set<number>; finalized: Set<number> };
+const registries = new WeakMap<QueryClient, Seen>();
+
+function seenBy(queryClient: QueryClient): Seen {
+  let seen = registries.get(queryClient);
+  if (!seen) registries.set(queryClient, (seen = { open: new Set(), finalized: new Set() }));
+  return seen;
+}
 
 /**
  * One assessment, always read from the server: its answers, flags and deadline may have changed on another
@@ -31,6 +41,7 @@ const seenFinalized = new WeakMap<QueryClient, Set<number>>();
  */
 export function useAssessment(id: string) {
   const queryClient = useQueryClient();
+  const { report } = useRewards();
   const query = useQuery({ queryKey: ['assessment', id], queryFn: () => load(id), staleTime: Infinity, gcTime: 0 });
   const { refetch } = query;
   const view = query.data?.view;
@@ -38,21 +49,34 @@ export function useAssessment(id: string) {
   const [finishedHere, setFinishedHere] = useState(false);
 
   /**
-   * Every finalized assessment passes through here, and is acted on the first time only. What it changed
-   * (XP, the path, the exam history) is read again. `fresh`: it was finalized during this visit; its
-   * `result.xp` and `result.newBadges` are then for Task 20's rewards provider to report.
+   * Every read of the assessment passes through here. A finalized one is acted on the first time only.
+   * `fresh`: it was finalized during this visit to the page.
+   *
+   * What the result earned (`result.xp`, `result.newBadges`: the XP of a quiz's answers is part of it) is
+   * reported once, and only when this app has seen the assessment open: it was submitted from here, or
+   * the server closed it meanwhile (an exam whose time ran out while the learner was on another screen).
+   * A result that was already there when the app first read the assessment is one the learner has come
+   * back to; what it earned was earned, and celebrated, earlier.
    */
-  const noteFinalized = useCallback(
-    (finalized: AssessmentView, fresh: boolean) => {
-      let seen = seenFinalized.get(queryClient);
-      if (!seen) seenFinalized.set(queryClient, (seen = new Set()));
-      if (!finalized.result || seen.has(finalized.id)) return;
-      seen.add(finalized.id);
+  const note = useCallback(
+    (read: AssessmentView, fresh: boolean) => {
+      const seen = seenBy(queryClient);
+      if (!read.result) {
+        seen.open.add(read.id);
+        return;
+      }
+      if (seen.finalized.has(read.id)) return;
+      seen.finalized.add(read.id);
       if (fresh) setFinishedHere(true);
+      const { xp, newBadges } = read.result;
+      const news = seen.open.has(read.id);
+      if (news) report({ xp, newBadges });
       void queryClient.invalidateQueries({ queryKey: ['path'] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      // The dashboard is read again once, not twice: by `report` when something was earned, and here
+      // otherwise (the exam history and the exam in progress have changed whatever was earned).
+      if (!(news && (xp > 0 || newBadges.length > 0))) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
-    [queryClient],
+    [queryClient, report],
   );
 
   // True while `reload` is under way. Only an open assessment is re-read, so a result that turns up
@@ -61,8 +85,8 @@ export function useAssessment(id: string) {
 
   // An exam that the server finalized while the learner was away arrives finalized on the first read.
   useEffect(() => {
-    if (view) noteFinalized(view, reloading.current);
-  }, [view, noteFinalized]);
+    if (view) note(view, reloading.current);
+  }, [view, note]);
 
   /** Reads the assessment again. Rejects on failure. */
   const reload = useCallback(async (): Promise<AssessmentView> => {
@@ -70,12 +94,12 @@ export function useAssessment(id: string) {
     try {
       const { data } = await refetch({ throwOnError: true });
       if (!data) throw new Error('The assessment could not be read');
-      noteFinalized(data.view, true);
+      note(data.view, true);
       return data.view;
     } finally {
       reloading.current = false;
     }
-  }, [refetch, noteFinalized]);
+  }, [refetch, note]);
 
   return { query, view, clockOffsetMs: query.data?.clockOffsetMs ?? null, reload, finishedHere };
 }

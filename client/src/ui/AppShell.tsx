@@ -37,7 +37,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg text-text">
+    // The padding is the room a celebration takes at the bottom of the window while one is showing, so
+    // that the end of the page can be scrolled clear of it (see `RewardsBanner`).
+    <div className="flex min-h-screen flex-col bg-bg pb-[var(--celebration-space,0px)] text-text">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-10 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2"

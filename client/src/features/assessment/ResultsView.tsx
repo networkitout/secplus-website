@@ -4,10 +4,11 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
 import { api } from '../../api/client';
 import type { AssessmentKind, AssessmentResult, PathResponse, Tally } from '../../api/types';
-import { Celebration } from '../../ui/Celebration';
+import { wholePercent } from '../../lib/percent';
 import { MasteryBar } from '../../ui/MasteryBar';
 import { Mark } from '../questions/FeedbackPanel';
 import { QuestionView } from '../questions/QuestionView';
+import { ScreenCelebration } from '../rewards/RewardsProvider';
 
 const PASS_MARK: Record<AssessmentKind, string> = { objective: '80%', domain: '75%', mock: '750' };
 const SCALE_MAX = 900;
@@ -160,7 +161,7 @@ export function ResultsView({
   }, [fresh]);
 
   const scaled = result.scaledScore;
-  const percent = Math.floor(result.scorePct); // never rounded up to a pass mark that was missed
+  const percent = wholePercent(result.scorePct); // never rounded up to a pass mark that was missed
   const marked = questions.flatMap((question, i) => {
     const fb = feedback[question.id];
     return fb ? [{ number: i + 1, question, feedback: fb }] : [];
@@ -191,7 +192,7 @@ export function ResultsView({
 
       {celebrating && (
         <div ref={celebrationBox}>
-          <Celebration
+          <ScreenCelebration
             kind={kind === 'objective' ? 'quiz-pass' : 'exam-pass'}
             title={passTitle}
             detail={result.xp > 0 ? `+${result.xp} XP` : undefined}

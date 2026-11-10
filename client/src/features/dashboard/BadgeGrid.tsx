@@ -1,5 +1,5 @@
 import type { DashboardBadge } from '../../api/types';
-import { formatInstant } from '../../ui/dates';
+import { formatInstant } from '../../lib/dates';
 
 function BadgeIcon({ earned }: { earned: boolean }) {
   return (

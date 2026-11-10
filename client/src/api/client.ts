@@ -9,10 +9,22 @@ export class ApiError extends Error {
 
 /**
  * True when there was no response at all (0) or the server reports itself unavailable (503). The error screen
- * and query retries act on this; the save queue decides for itself which failures it retries.
+ * and query retries act on this. What may be sent again is a wider set: see `isTransient`.
  */
 export function isUnavailable(err: unknown): err is ApiError {
   return err instanceof ApiError && (err.status === 0 || err.status === 503);
+}
+
+/** No response at all (0), or a gateway or unavailable answer while the host restarts the app. */
+const TRANSIENT_STATUSES: ReadonlySet<unknown> = new Set([0, 502, 503, 504]);
+
+/**
+ * True for a failure that can pass on its own: no connection, or a server or gateway that is busy or
+ * restarting. Sending the same request again later may work; after any other failure it will fail again.
+ * The save queue retries on this, and a screen offers "Try again" on it.
+ */
+export function isTransient(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'status' in err && TRANSIENT_STATUSES.has(err.status);
 }
 
 const defaultUnauthorized = (loginUrl: string) => window.location.assign(loginUrl);

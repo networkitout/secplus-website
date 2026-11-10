@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DashboardBadge, DashboardResponse, MockHistoryEntry, User } from '../../api/types';
 import { AuthContext } from '../auth/AuthProvider';
 import { createQueryClient } from '../../queryClient';
-import { formatCalendarDate, formatInstant } from '../../ui/dates';
+import { formatCalendarDate, formatInstant } from '../../lib/dates';
 import { DashboardPage } from './DashboardPage';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
