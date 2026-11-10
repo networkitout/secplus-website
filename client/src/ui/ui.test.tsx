@@ -36,6 +36,7 @@ function renderShell(
   page: ReactNode = <p>page body</p>,
   stats: () => typeof STATS = () => STATS,
   name = 'Sam',
+  path = '/',
 ) {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(stats()), { status: 200 })));
   const auth = { user: { ...user(role), name }, loading: false, login: vi.fn(), logout, refresh: vi.fn() };
@@ -43,7 +44,7 @@ function renderShell(
     <QueryClientProvider client={createQueryClient()}>
       <AuthContext.Provider value={auth}>
         <RewardsProvider>
-          <MemoryRouter><AppShell>{page}</AppShell></MemoryRouter>
+          <MemoryRouter initialEntries={[path]}><AppShell>{page}</AppShell></MemoryRouter>
         </RewardsProvider>
       </AuthContext.Provider>
     </QueryClientProvider>,
@@ -134,16 +135,98 @@ describe('ui', () => {
     expect(celebration!.compareDocumentPosition(screen.getByRole('banner')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
 
-  it('AppShell lets a long display name wrap inside the header instead of widening the page', async () => {
+  it('AppShell keeps a long display name inside the header: one line on a phone, wrapped from the sm breakpoint, never widening the page', async () => {
     const name = 'Wolfeschlegelsteinhausenbergerdorffvoralternwarengewissenhaftscha'.slice(0, 64);
     expect(name).toHaveLength(64);
     renderShell('learner', vi.fn(), <p>page body</p>, () => STATS, name);
-    // The whole name is there, for everyone: it breaks where it has to instead of being cut.
+    // The whole name is the link's text and name, whatever the screen shows of it.
     const link = await screen.findByRole('link', { name });
     expect(link).toHaveAttribute('href', '/settings');
+    expect(link).toHaveTextContent(name);
+    // On a phone it is one line, cut with an ellipsis; from `sm` it breaks where it has to, as before.
+    expect(link).toHaveClass('truncate', 'sm:overflow-visible', 'sm:whitespace-normal');
     expect(link).toHaveClass('min-w-0', 'max-w-full', '[overflow-wrap:anywhere]');
-    // The row it is in may become narrower than its content.
-    expect(link.parentElement).toHaveClass('min-w-0');
+    // The row it is in may become narrower than its content, and on a phone it holds the name and
+    // "Sign out" on one line; from `sm` the two are items of the header's own row again.
+    const row = link.parentElement!;
+    expect(row).toHaveClass('min-w-0', 'flex', 'sm:contents');
+    expect(row).not.toHaveClass('flex-wrap');
+    expect(row).toContainElement(screen.getByRole('button', { name: 'Sign out' }));
+    expect(screen.getByRole('button', { name: 'Sign out' })).toHaveClass('shrink-0');
+  });
+
+  it('AppShell on a phone: the navigation is one row that scrolls sideways, every link in reach of the keyboard, the current page marked', async () => {
+    renderShell('admin', vi.fn(), <p>page body</p>, () => STATS, 'Sam', '/leaderboard');
+    await screen.findByText(/Level 3/);
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(nav).toHaveClass('flex-nowrap', 'overflow-x-auto', 'sm:flex-wrap', 'sm:overflow-visible');
+    // The scrollbar is not hidden: a mouse can scroll the row too.
+    expect(nav.className).not.toMatch(/scrollbar-(none|hide)|scrollbar-width:none/);
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((l) => l.textContent)).toEqual(['Path', 'Review', 'Labs', 'Exam', 'Dashboard', 'Leaderboard', 'Admin']);
+    // Links, each a Tab stop of its own, none taken out of the order; they do not shrink to fit.
+    for (const link of links) {
+      expect(link).not.toHaveAttribute('tabindex');
+      expect(link).toHaveClass('shrink-0');
+    }
+    expect(links.filter((l) => l.getAttribute('aria-current') === 'page').map((l) => l.textContent)).toEqual(['Leaderboard']);
+  });
+
+  it('AppShell brings the link of the current page into view in the row, without scrolling the window', async () => {
+    // jsdom lays nothing out: give the row a width of 300, and the links a place in it, 70 wide and 74 apart.
+    const place = (el: HTMLElement) => [...(el.parentElement?.children ?? [])].indexOf(el) * 74;
+    vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.tagName === 'A' ? place(this) : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.tagName === 'A' ? 70 : 300;
+    });
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      renderShell('learner', vi.fn(), <p>page body</p>, () => STATS, 'Sam', '/leaderboard');
+      await screen.findByText(/Level 3/);
+      const nav = screen.getByRole('navigation', { name: 'Main' });
+      // "Leaderboard" is the sixth link: it lies from 370 to 440, and the row shows 300. A little of what follows stays in view.
+      expect(nav.scrollLeft).toBe(440 - 300 + 8);
+
+      await userEvent.click(screen.getByRole('link', { name: 'Review' }));
+      // "Review" lies from 74 to 144: it is brought back in from the left.
+      expect(nav.scrollLeft).toBe(74 - 8);
+      await userEvent.click(screen.getByRole('link', { name: 'Labs' }));
+      // "Labs" (148 to 218) is in view already: the row stays where it is.
+      expect(nav.scrollLeft).toBe(66);
+
+      // A link that takes keyboard focus is brought into view the same way, with room for its focus ring:
+      // a browser leaves a link that is partly in view where it is, with its ring cut off.
+      act(() => screen.getByRole('link', { name: 'Labs' }).focus());
+      await userEvent.tab();
+      expect(screen.getByRole('link', { name: 'Exam' })).toHaveFocus();
+      expect(nav.scrollLeft).toBe(66);
+      await userEvent.tab();
+      // "Dashboard" lies from 296 to 366, which is where the row ends.
+      expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveFocus();
+      expect(nav.scrollLeft).toBe(366 + 8 - 300);
+      await userEvent.tab({ shift: true });
+      await userEvent.tab({ shift: true });
+      await userEvent.tab({ shift: true });
+      expect(screen.getByRole('link', { name: 'Review' })).toHaveFocus();
+      expect(nav.scrollLeft).toBe(74 - 8);
+      // Only the row is scrolled: the window is not moved to the header.
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
+  it('AppShell on a phone: the progress stays on one line, and the theme button is left to the Settings page', async () => {
+    renderShell('learner');
+    const stats = (await screen.findByText(/Level 3/)).closest('p');
+    expect(stats).toHaveClass('whitespace-nowrap');
+    // Hidden below `sm`, where Settings has the theme control; from `sm` it is the button it was.
+    expect(screen.getByRole('button', { name: /^Switch to (light|dark) theme$/ })).toHaveClass('hidden', 'sm:inline-block');
   });
 
   it('AppShell reports a failed sign-out instead of leaving a rejected promise', async () => {
