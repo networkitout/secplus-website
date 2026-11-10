@@ -285,34 +285,145 @@ describe('questions', () => {
     expect(screen.getByText('Request dropped at position 2 of 3.')).toBeInTheDocument();
   });
 
-  it('match: choosing from the select emits pairs; choosing a right item already used moves it', async () => {
+  // Until the final client review the menus moved ("stole") an answer that another row was using, as the
+  // first brief asked. A menu sends a change for every option it passes on arrow keys and type-ahead, so
+  // passing over a used answer emptied the row that held it. The menus no longer take an answer; a drop still does.
+  it('match: choosing from a menu emits pairs; an answer that another row is using is disabled there, says so, and is not taken', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<Harness question={match} onChange={onChange} />);
 
     const confidentiality = screen.getByRole('combobox', { name: 'Match for Confidentiality' });
     const integrity = screen.getByRole('combobox', { name: 'Match for Integrity' });
+    const option = (menu: HTMLElement, name: string) => within(menu).getByRole('option', { name });
+    for (const menu of [confidentiality, integrity]) for (const o of within(menu).getAllByRole('option')) expect(o).toBeEnabled();
 
     await user.selectOptions(confidentiality, 'Encryption');
     expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r1' } });
     expect(confidentiality).toHaveValue('r1');
 
-    const moved = 'Encryption moved to Integrity. Confidentiality has no match.';
-    expect(screen.queryByText(moved)).not.toBeInTheDocument();
+    // In the other row's menu the answer cannot be reached, and its text says why (a screen reader reads
+    // the text and that it is unavailable). In its own row it is the choice, and stays open.
+    expect(option(integrity, 'Encryption (in use)')).toBeDisabled();
+    expect(option(integrity, 'Hashing')).toBeEnabled();
+    expect(option(confidentiality, 'Encryption')).toBeEnabled();
+    expect(within(confidentiality).queryByRole('option', { name: /in use/ })).not.toBeInTheDocument();
+
+    // A browser cannot land on a disabled option. Should a change for one arrive all the same, nothing is taken.
+    onChange.mockClear();
+    fireEvent.change(integrity, { target: { value: 'r1' } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(confidentiality).toHaveValue('r1');
+    expect(integrity).toHaveValue('');
+
+    await user.selectOptions(integrity, 'Hashing');
+    expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r1', l2: 'r2' } });
+    expect(option(confidentiality, 'Hashing (in use)')).toBeDisabled();
+    expect(isComplete(match, onChange.mock.lastCall![0])).toBe(true);
+
+    await user.selectOptions(integrity, '');
+    expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r1' } });
+    expect(isComplete(match, onChange.mock.lastCall![0])).toBe(false);
+    // Nothing was moved, so nothing is announced about a row that lost its match.
+    expect(screen.queryByText(/has no match/)).not.toBeInTheDocument();
+  });
+
+  it('match: to move an answer with the menus the learner clears the row that has it, then picks it; a hint says so once an answer is in use', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness question={match} onChange={onChange} />);
+    const confidentiality = screen.getByRole('combobox', { name: 'Match for Confidentiality' });
+    const integrity = screen.getByRole('combobox', { name: 'Match for Integrity' });
+    const hint = /An answer can be used only once\. To give it to another item, first set the menu that has it back to “Choose…”/;
+
+    // The place for the hint is on the page before it has anything to say, so that it is read out when it does.
+    expect(screen.queryByText(hint)).not.toBeInTheDocument();
+    const region = screen.getByText(/Pick a match from each menu/).nextElementSibling!;
+    expect(region).toBeEmptyDOMElement();
+    expect(region).toHaveAttribute('aria-live', 'polite');
+
+    await user.selectOptions(confidentiality, 'Encryption');
+    expect(screen.getByText(hint)).toBe(region);
+
+    await user.selectOptions(confidentiality, '');
+    expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: {} });
+    // The answer is free again, everywhere.
+    expect(within(integrity).getByRole('option', { name: 'Encryption' })).toBeEnabled();
+    expect(region).toBeEmptyDOMElement();
 
     await user.selectOptions(integrity, 'Encryption');
     expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l2: 'r1' } });
-    expect(confidentiality).toHaveValue('');
     expect(integrity).toHaveValue('r1');
-    // The row that lost its pair is not the one in focus, so the loss is announced.
-    expect(screen.getByText(moved)).toHaveAttribute('aria-live', 'polite');
+    expect(confidentiality).toHaveValue('');
+    expect(within(confidentiality).getByRole('option', { name: 'Encryption (in use)' })).toBeDisabled();
+  });
 
-    await user.selectOptions(confidentiality, 'Hashing');
-    expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r2', l2: 'r1' } });
-    expect(screen.queryByText(moved)).not.toBeInTheDocument();
+  it('match: stepping through a menu with the arrow keys or by typing changes no other row', () => {
+    const three: PublicQuestion = {
+      ...match,
+      left: [...match.left, { id: 'l3', text: 'Availability' }],
+      right: [...match.right, { id: 'r3', text: 'Backups' }],
+    };
+    const onChange = vi.fn();
+    render(<Harness question={three} initial={{ type: 'match', pairs: { l1: 'r1', l2: 'r2' } }} onChange={onChange} />);
+    const availability = screen.getByRole('combobox', { name: 'Match for Availability' });
 
-    await user.selectOptions(integrity, '');
-    expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r2' } });
+    // What the keyboard can reach in this menu: "Choose…" and the one answer that is free.
+    expect(within(availability).getAllByRole('option').filter((o) => !(o as HTMLOptionElement).disabled).map((o) => o.textContent)).toEqual(['Choose…', 'Backups']);
+    // A closed menu sends a change for each option it stops at on the way.
+    for (const value of ['r3', '', 'r3']) fireEvent.change(availability, { target: { value } });
+
+    expect(onChange.mock.calls.map(([a]) => a.pairs)).toEqual([
+      { l1: 'r1', l2: 'r2', l3: 'r3' },
+      { l1: 'r1', l2: 'r2' },
+      { l1: 'r1', l2: 'r2', l3: 'r3' },
+    ]);
+    expect(screen.getByRole('combobox', { name: 'Match for Confidentiality' })).toHaveValue('r1');
+    expect(screen.getByRole('combobox', { name: 'Match for Integrity' })).toHaveValue('r2');
+  });
+
+  it('match: an answer that comes back from the server is shown in its own row, also when another row has the same one', () => {
+    const view = render(<QuestionView question={match} value={{ type: 'match', pairs: { l1: 'r2', l2: 'r1' } }} onChange={vi.fn()} />);
+    const confidentiality = () => screen.getByRole('combobox', { name: 'Match for Confidentiality' });
+    const integrity = () => screen.getByRole('combobox', { name: 'Match for Integrity' });
+    expect(confidentiality()).toHaveValue('r2');
+    expect(integrity()).toHaveValue('r1');
+    expect(within(confidentiality()).getByRole('option', { name: 'Hashing' })).toBeEnabled();
+    expect(within(confidentiality()).getByRole('option', { name: 'Encryption (in use)' })).toBeDisabled();
+    expect(confidentiality().closest('li')!.querySelector('output')).toHaveTextContent('Your match: Hashing');
+    // The hint is there from the start: an answer is in use.
+    expect(screen.getByText(/An answer can be used only once/)).toBeInTheDocument();
+    view.unmount();
+
+    // Not an answer these menus can produce, but one a server may hold: each row still shows what it has.
+    render(<QuestionView question={match} value={{ type: 'match', pairs: { l1: 'r1', l2: 'r1' } }} onChange={vi.fn()} />);
+    for (const menu of [confidentiality(), integrity()]) {
+      expect(menu).toHaveValue('r1');
+      expect(within(menu).getByRole('option', { name: 'Encryption' })).toBeEnabled();
+      expect((within(menu).getByRole('option', { name: 'Encryption' }) as HTMLOptionElement).selected).toBe(true);
+    }
+  });
+
+  it('match: a locked or marked question labels no option as in use and gives no hint', () => {
+    const value: Answer = { type: 'match', pairs: { l1: 'r1' } };
+    const locked = render(<QuestionView question={match} value={value} onChange={vi.fn()} disabled />);
+    expect(screen.queryByRole('option', { name: /in use/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/An answer can be used only once/)).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Match for Confidentiality' })).toHaveValue('r1');
+    locked.unmount();
+
+    render(
+      <QuestionView
+        question={match}
+        value={value}
+        onChange={vi.fn()}
+        feedback={{ correct: false, fraction: 0.5, correctAnswer: { type: 'match', pairs: { l1: 'r1', l2: 'r2' } }, explanation: 'Hashes detect change.' }}
+      />,
+    );
+    expect(screen.queryByRole('option', { name: /in use/ })).not.toBeInTheDocument();
+    for (const o of screen.getAllByRole<HTMLOptionElement>('option')) expect(o.disabled).toBe(false);
+    expect(screen.queryByText(/An answer can be used only once/)).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Match for Confidentiality' })).toHaveValue('r1');
   });
 
   it('match: the chosen answer is printed in full under its menu, before and after marking, and is not read twice', async () => {
@@ -360,7 +471,7 @@ describe('questions', () => {
     const boxes = new Map<Element, Box>();
     stubLayout((el) => boxes.get(el));
     const onChange = vi.fn();
-    render(<Harness question={match} initial={{ type: 'match', pairs: { l1: 'r2' } }} onChange={onChange} />);
+    const view = render(<Harness question={match} initial={{ type: 'match', pairs: { l1: 'r2' } }} onChange={onChange} />);
 
     const chip = screen.getByText('Hashing', { ignore: 'option' });
     const target = screen.getByRole('combobox', { name: 'Match for Integrity' }).closest('li')!;
@@ -382,6 +493,10 @@ describe('questions', () => {
 
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('combobox', { name: 'Match for Integrity' })).toHaveValue('r2');
+
+    // What was said about this question is not said about the next one.
+    view.rerender(<Harness question={{ ...match, id: 'q-1.1-009' }} onChange={onChange} />);
+    expect(screen.queryByText(/has no match/)).not.toBeInTheDocument();
   });
 
   it('categorize: select emits placements; isComplete false until every item is placed', async () => {
@@ -703,12 +818,11 @@ describe('questions', () => {
     const matchView = { ...match, id: 'q-1.1-007' };
     rerender(<QuestionView question={matchView} value={{ type: 'match', pairs: { l1: 'r1' } }} onChange={onChange} />);
     expect(screen.queryByRole('list', { name: nextOrder.prompt })).not.toBeInTheDocument();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Match for Integrity' }), 'Encryption');
-    expect(screen.getByText(/Confidentiality has no match/)).toBeInTheDocument();
+    expect(screen.getByText(/An answer can be used only once/)).toBeInTheDocument();
 
     const nextMatch: PublicQuestion = { ...match, id: 'q-1.1-008', prompt: 'Match again.' };
     rerender(<QuestionView question={nextMatch} value={null} onChange={onChange} />);
-    expect(screen.queryByText(/has no match/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/An answer can be used only once/)).not.toBeInTheDocument();
     for (const select of screen.getAllByRole('combobox')) expect(select).toHaveValue('');
 
     rerender(<QuestionView question={single} value={null} onChange={onChange} />);

@@ -15,6 +15,9 @@ import { useId, useState } from 'react';
 import type { Answer, Feedback, Item, PublicQuestion } from '../../../../shared/types';
 import { Mark } from './FeedbackPanel';
 
+const MOVE_HINT =
+  'An answer can be used only once. To give it to another item, first set the menu that has it back to “Choose…”, or drag the answer across.';
+
 export function MatchQuestion({
   question,
   value,
@@ -60,7 +63,21 @@ export function MatchQuestion({
     onDragCancel: ({ active }) => `Matching ${rightText(active.id)} cancelled.`,
   };
 
-  /** Pair `leftId` with `rightId` (empty to clear it). A right item is used once, so it leaves any other pair. */
+  /**
+   * From a row's menu. An answer that another row is using is not taken from it: a menu sends a change
+   * for every option it stops at on the arrow keys and on type-ahead, so the row that has the answer would
+   * be emptied by a learner who was only passing. Those options are disabled; this is for a change that
+   * names one all the same.
+   */
+  function choose(leftId: string, rightId: string) {
+    if (rightId && question.left.some((left) => left.id !== leftId && pairs[left.id] === rightId)) return;
+    pair(leftId, rightId);
+  }
+
+  /**
+   * Pair `leftId` with `rightId` (empty to clear it). A right item is used once, so it leaves any other
+   * pair: that is what a drop does, which is one deliberate act.
+   */
   function pair(leftId: string, rightId: string) {
     const next: Record<string, string> = {};
     for (const left of question.left) {
@@ -94,17 +111,20 @@ export function MatchQuestion({
               left={left}
               right={question.right}
               chosen={pairs[left.id] ?? ''}
+              used={used}
               locked={locked}
               expected={correctPairs ? (correctPairs[left.id] ?? '') : null}
-              onChoose={(rightId) => pair(left.id, rightId)}
+              onChoose={(rightId) => choose(left.id, rightId)}
             />
           ))}
         </ul>
         {!feedback && (
           <div className="space-y-2">
-            {!locked && (
-              <p className="text-sm text-muted">Pick a match from each menu, or drag an answer onto its item.</p>
-            )}
+            <div className="space-y-1 text-sm text-muted">
+              {!locked && <p>Pick a match from each menu, or drag an answer onto its item.</p>}
+              {/* On the page before it has anything to say, so that it is read out when the first answer is taken. */}
+              <p aria-live="polite">{!locked && used.size > 0 ? MOVE_HINT : ''}</p>
+            </div>
             <ul role="list" className="flex flex-wrap gap-2">
               {question.right.map((right) => (
                 <AnswerChip key={right.id} item={right} used={used.has(right.id)} locked={locked} />
@@ -124,6 +144,7 @@ function LeftRow({
   left,
   right,
   chosen,
+  used,
   locked,
   expected,
   onChoose,
@@ -131,6 +152,8 @@ function LeftRow({
   left: Item;
   right: Item[];
   chosen: string;
+  /** The right items that some row has as its choice. */
+  used: ReadonlySet<string>;
   locked: boolean;
   /** The correct right item's id once the answer has been marked ('' if the item has no match). */
   expected: string | null;
@@ -162,11 +185,16 @@ function LeftRow({
           onChange={(e) => onChoose(e.target.value)}
         >
           <option value="">Choose…</option>
-          {right.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.text}
-            </option>
-          ))}
+          {right.map((r) => {
+            // Another row has it. The keyboard skips a disabled option, and the text says why it is one
+            // (to a screen reader too). This row's own choice is never disabled: the menu has to show it.
+            const elsewhere = !locked && r.id !== chosen && used.has(r.id);
+            return (
+              <option key={r.id} value={r.id} disabled={elsewhere}>
+                {elsewhere ? `${r.text} (in use)` : r.text}
+              </option>
+            );
+          })}
         </select>
       </div>
       {/* A closed menu clips a long answer on a narrow screen, and once the question is marked it is the
