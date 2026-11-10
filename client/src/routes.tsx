@@ -6,8 +6,11 @@ import { InvitePage } from './features/auth/InvitePage';
 import { LoginPage } from './features/auth/LoginPage';
 import { RequireAdmin, RequireAuth } from './features/auth/AuthProvider';
 import { ResetPage } from './features/auth/ResetPage';
+import { LabPage } from './features/labs/LabPage';
+import { LabsPage } from './features/labs/LabsPage';
 import { LessonPage } from './features/lesson/LessonPage';
 import { PathPage } from './features/path/PathPage';
+import { ReviewPage } from './features/review/ReviewPage';
 import { AppShell } from './ui/AppShell';
 
 // Placeholder until the feature's task replaces it.
@@ -16,9 +19,6 @@ function Placeholder({ title }: { title: string }) {
 }
 
 const screens: Array<{ path: string; title: string }> = [
-  { path: 'review', title: 'Review' },
-  { path: 'labs', title: 'Labs' },
-  { path: 'labs/:id', title: 'Lab' },
   { path: 'dashboard', title: 'Dashboard' },
   { path: 'leaderboard', title: 'Leaderboard' },
   { path: 'settings', title: 'Settings' },
@@ -44,6 +44,9 @@ export function AppRoutes() {
         <Route path="quiz/:id" element={<QuizPage />} />
         <Route path="exam" element={<ExamLobbyPage />} />
         <Route path="exam/:id" element={<ExamPage />} />
+        <Route path="review" element={<ReviewPage />} />
+        <Route path="labs" element={<LabsPage />} />
+        <Route path="labs/:id" element={<LabPage />} />
         {screens.map((s) => (
           <Route key={s.path} path={s.path} element={<Placeholder title={s.title} />} />
         ))}

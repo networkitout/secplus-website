@@ -139,3 +139,76 @@ export interface MockHistoryEntry {
 export interface DashboardMocks {
   mockHistory: MockHistoryEntry[];
 }
+
+/**
+ * One due card of `GET /api/review/due`. A question card carries its answer-free question; a flashcard
+ * carries its term only, and its definition is read with `GET /api/review/flashcard/:cardId`.
+ */
+export type ReviewCard =
+  | { cardId: string; kind: 'question'; question: PublicQuestion }
+  | { cardId: string; kind: 'flashcard'; term: string };
+
+/**
+ * `GET /api/review/due`. `total` counts every card due today; `cards` holds at most the first 30 of them,
+ * oldest first. It does not say when the next card falls due.
+ */
+export interface ReviewDueResponse {
+  total: number;
+  cards: ReviewCard[];
+}
+
+/** `GET /api/review/flashcard/:cardId` */
+export interface FlashcardDefinition {
+  definition: string;
+}
+
+/**
+ * `POST /api/review/:cardId` with `{ answer }` for a question card or `{ knewIt }` for a flashcard. `box`
+ * (1 to 5) is the card's new Leitner box and `dueOn` the calendar date (`YYYY-MM-DD`, in the learner's
+ * time zone) of its next review. A question card adds `feedback`, a flashcard its `definition`. 404 means
+ * the card is gone, 409 that it is not due (any more).
+ */
+export interface ReviewResponse {
+  box: number;
+  dueOn: string;
+  feedback?: Feedback;
+  definition?: string;
+  xp: number;
+}
+
+/** One lab of `GET /api/labs`. `bestScore` is 0 to 100 with up to two decimals, or null before any attempt. */
+export interface LabSummary {
+  id: string;
+  domain: number;
+  title: string;
+  /** The objectives whose lessons must be finished (and whose domain must be unlocked) for the lab to open. */
+  objectives: string[];
+  available: boolean;
+  bestScore: number | null;
+  passed: boolean;
+}
+
+/** `GET /api/labs`, sorted by lab id. */
+export interface LabsResponse {
+  labs: LabSummary[];
+}
+
+/** `GET /api/labs/:id`. 403 while the lab is locked for this learner, 404 when there is no such lab. */
+export interface LabView {
+  id: string;
+  title: string;
+  scenario: string;
+  steps: PublicQuestion[];
+}
+
+/**
+ * `POST /api/labs/:id/submit` with `{ answers }` keyed by step id. `steps` holds the feedback of every
+ * step, keyed by step id; `scorePct` is 0 to 100 with up to two decimals.
+ */
+export interface LabSubmitResponse {
+  scorePct: number;
+  passed: boolean;
+  steps: Record<string, Feedback>;
+  xp: number;
+  newBadges: string[];
+}
