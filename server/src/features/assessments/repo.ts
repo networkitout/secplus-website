@@ -84,6 +84,10 @@ export type OpenAssessment = { id: number; deadlineAt: string };
 /**
  * The learner's timed assessments of one kind that can still be resumed, by scope (`null` for a mock).
  * One whose deadline has passed is finalized here, as on any other access, and is not reported.
+ *
+ * This runs for pages that are not about the exam (the path, the dashboard in every page's header), and two
+ * of them can close two exams of one learner at the same moment. If closing one fails (a deadlock, say),
+ * that is logged and the exam is left for the next access to close: the page asking must not fail for it.
  */
 export async function openAssessments(
   db: Db,
@@ -98,16 +102,33 @@ export async function openAssessments(
   );
   const open = new Map<string | null, OpenAssessment>();
   for (const row of rows) {
-    if (isExpired(row, now)) await finalize(db, content, user, row.id, now);
-    else if (!open.has(row.scope)) open.set(row.scope, { id: row.id, deadlineAt: new Date(row.deadline_at!).toISOString() });
+    if (!isExpired(row, now)) {
+      if (!open.has(row.scope)) open.set(row.scope, { id: row.id, deadlineAt: new Date(row.deadline_at!).toISOString() });
+      continue;
+    }
+    try {
+      await finalize(db, content, user, row.id, now);
+    } catch (err) {
+      console.error(err);
+    }
   }
   return open;
 }
 
-/** What a mock exam started now would be: its length, its time limit and whether it leaves domains out. */
-export function mockSpec(content: Content): { questions: number; minutes: number; partial: boolean } {
-  const { questionIds, minutes, partial } = pickMock(content, new Map(), seededRng('spec'));
-  return { questions: questionIds.length, minutes, partial };
+/**
+ * What a mock exam started now would be: its length, its time limit and whether it leaves domains out.
+ * The same numbers `pickMock` arrives at, without drawing the questions: each domain with published
+ * content gives its `mockCount`, or all it has when it has fewer, and a mock allows one minute per question.
+ */
+export function mockSpec(content: Pick<Content, 'manifest' | 'questionsFor'>): { questions: number; minutes: number; partial: boolean } {
+  let questions = 0;
+  let partial = false;
+  for (const domain of content.manifest.domains) {
+    const published = domain.objectives.filter((o) => o.published);
+    if (published.length === 0) partial = true;
+    else questions += Math.min(domain.mockCount, published.reduce((sum, o) => sum + content.questionsFor(o.id).length, 0));
+  }
+  return { questions, minutes: questions, partial };
 }
 
 // ------------------------------------------------------------------ start

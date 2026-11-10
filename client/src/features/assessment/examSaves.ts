@@ -26,29 +26,45 @@ export interface ExamSaves {
   retry(): void;
   /** Set by the exam page while it is open. Called once, when a save is refused because the exam is finalized. */
   onClosed: (() => void) | null;
+  /** An exam page takes hold of the saves while it is mounted. They are kept for as long as anyone holds them. */
+  acquire(): void;
+  /** The page lets go. Once nobody holds the saves and nothing is left to send, they are forgotten. */
+  release(): void;
 }
 
-// Keyed by the app's query client, so that the saves live exactly as long as the rest of the app's data.
-const registries = new WeakMap<QueryClient, Map<number, ExamSaves & { discard(): void }>>();
+type Entry = ExamSaves & { close(): void };
 
+// Keyed by the app's query client, so that the saves live exactly as long as the rest of the app's data.
+const registries = new WeakMap<QueryClient, Map<number, Entry>>();
+
+/** The saves of an exam: the ones that exist, or new ones. A page that uses them must `acquire` them. */
 export function examSaves(queryClient: QueryClient, assessmentId: number): ExamSaves {
-  const registry = registries.get(queryClient) ?? new Map<number, ExamSaves & { discard(): void }>();
+  const registry = registries.get(queryClient) ?? new Map<number, Entry>();
   registries.set(queryClient, registry);
   const existing = registry.get(assessmentId);
   if (existing) return existing;
 
   const queue = createSaveQueue();
-  const removeGuard = guardUnload(queue);
   const unconfirmed = new Map<string, SaveBody>();
+  let holders = 0;
   let closed = false;
-  const saves: ExamSaves & { discard(): void } = {
+  let removeGuard: (() => void) | null = null;
+
+  /** Forgotten saves still work for a page that got them a moment earlier: `acquire` brings them back. */
+  const forget = () => {
+    if (registry.get(assessmentId) === saves) registry.delete(assessmentId);
+    removeGuard?.();
+    removeGuard = null;
+  };
+
+  const saves: Entry = {
     queue,
     unconfirmed,
     onClosed: null,
     save(key, body) {
       unconfirmed.set(key, body);
       queue.enqueue(key, async () => {
-        // Once the server has said that the exam is finalized, nothing more can be saved.
+        // Once the exam is finalized, nothing more can be saved.
         if (closed) return;
         try {
           await api.put<AnswerSaveResponse>(`assessments/${assessmentId}/answers`, body);
@@ -65,18 +81,31 @@ export function examSaves(queryClient: QueryClient, assessmentId: number): ExamS
     retry() {
       for (const [key, body] of [...unconfirmed]) saves.save(key, body);
     },
-    discard() {
-      registry.delete(assessmentId);
+    acquire() {
+      holders++;
+      if (closed) return;
+      registry.set(assessmentId, saves);
+      // Warns before the page is closed while a save is on its way.
+      removeGuard ??= guardUnload(queue);
+    },
+    release() {
+      holders--;
+      if (holders > 0) return;
+      void queue.flush().then(() => {
+        if (holders === 0 && unconfirmed.size === 0) forget();
+      });
+    },
+    close() {
       // Nothing that is still waiting matters any more: it is not sent, and leaving the page loses nothing.
       closed = true;
-      removeGuard();
+      forget();
     },
   };
   registry.set(assessmentId, saves);
   return saves;
 }
 
-/** Forgets the saves of an exam: it is finalized, or nobody is looking at it and nothing is left to save. */
-export function discardExamSaves(queryClient: QueryClient, assessmentId: number): void {
-  registries.get(queryClient)?.get(assessmentId)?.discard();
+/** The exam is finalized: its saves stop, whoever holds them, and are forgotten. */
+export function closeExamSaves(queryClient: QueryClient, assessmentId: number): void {
+  registries.get(queryClient)?.get(assessmentId)?.close();
 }

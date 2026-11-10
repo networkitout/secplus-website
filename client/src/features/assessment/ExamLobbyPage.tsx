@@ -60,8 +60,10 @@ export function ExamLobbyPage() {
   // The path names the domains that a partial exam covers.
   const covered = path.data?.domains.filter((d) => d.hasContent).map((d) => d.id) ?? [];
   const open = dashboard.data?.openMock ?? null;
-  // Shown to the minute and not ticking, so the device clock is good enough; the exam page keeps exact time.
-  const minutesLeft = open ? Math.ceil((Date.parse(open.deadlineAt) - Date.now()) / 60_000) : 0;
+  // A hint, to the minute and not ticking; the exam page keeps exact time. It is worked out on the device
+  // clock, which may be wrong, so it is kept between nothing and the length of the exam.
+  const minutesLeft =
+    open && spec ? Math.min(spec.minutes, Math.max(0, Math.ceil((Date.parse(open.deadlineAt) - Date.now()) / 60_000))) : 0;
 
   async function start() {
     // The button is not disabled meanwhile: a disabled button would drop keyboard focus.

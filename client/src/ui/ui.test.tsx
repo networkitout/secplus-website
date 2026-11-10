@@ -256,6 +256,41 @@ describe('ui', () => {
       expect(opener()).toHaveFocus();
     });
 
+    it('keeps every control of its body within reach of Tab: a link and a field, not only its two buttons', async () => {
+      render(
+        <ConfirmDialog title="Invite link" confirmLabel="Done" cancelLabel="Close" onConfirm={() => {}} onCancel={() => {}}>
+          <p>
+            Read <a href="/help">how invites work</a>.
+          </p>
+          <label>
+            Link <input readOnly value="https://example.test/invite/abc" />
+          </label>
+          <button disabled>Not available</button>
+        </ConfirmDialog>,
+      );
+      const link = screen.getByRole('link', { name: 'how invites work' });
+      const field = screen.getByRole('textbox', { name: 'Link' });
+      const close = screen.getByRole('button', { name: 'Close' });
+      const done = screen.getByRole('button', { name: 'Done' });
+      // Focus still starts on the choice that changes nothing, not on the first thing in the body.
+      expect(close).toHaveFocus();
+
+      await userEvent.tab();
+      expect(done).toHaveFocus();
+      await userEvent.tab();
+      expect(link).toHaveFocus();
+      await userEvent.tab();
+      expect(field).toHaveFocus();
+      await userEvent.tab();
+      expect(close).toHaveFocus();
+      await userEvent.tab({ shift: true });
+      expect(field).toHaveFocus();
+      await userEvent.tab({ shift: true });
+      expect(link).toHaveFocus();
+      await userEvent.tab({ shift: true });
+      expect(done).toHaveFocus();
+    });
+
     it('the cancel button and a click outside the dialog cancel; the confirm button confirms', async () => {
       const onConfirm = vi.fn();
       render(<Host onConfirm={onConfirm} />);
