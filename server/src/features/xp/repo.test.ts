@@ -38,13 +38,20 @@ test('totals reports level and tolerates a bad time zone', async () => {
 
 test('totals streak uses the user time zone', async () => {
   const { db, userId } = await setup();
-  await event(db, userId, '2026-11-10T03:00:00Z', 'a');
-  await event(db, userId, '2026-11-11T03:00:00Z', 'b');
-  expect((await totals(db, userId, 'UTC', now)).streak).toBe(2);
-  expect((await totals(db, userId, 'America/Chicago', now)).streak).toBe(2);
-  // Chicago days are Nov 9 and Nov 10; as of Nov 12 04:00Z (Nov 11 local) the streak is still alive, UTC's is not.
-  const later = new Date('2026-11-13T04:00:00Z');
-  expect((await totals(db, userId, 'America/Chicago', later)).streak).toBe(0);
+  await event(db, userId, '2026-11-09T23:00:00Z', 'a');
+  await event(db, userId, '2026-11-10T03:00:00Z', 'b');
+  const at = new Date('2026-11-10T05:00:00Z');
+  expect((await totals(db, userId, 'UTC', at)).streak).toBe(2);
+  expect((await totals(db, userId, 'America/Chicago', at)).streak).toBe(1); // both events are Nov 9 in Chicago
+  expect((await totals(db, userId, 'Mars/Olympus', at)).streak).toBe(2); // invalid zone behaves as UTC
+});
+
+test('evaluateBadges streak-7 threshold', async () => {
+  const { db, userId } = await setup();
+  for (let d = 5; d <= 10; d++) await event(db, userId, `2026-11-${String(d).padStart(2, '0')}T10:00:00Z`, `d${d}`);
+  expect(await evaluateBadges(db, userId, 'UTC', now)).toEqual(['streak-3']); // 6 days (Nov 5-10), now is Nov 11 04:00Z
+  await event(db, userId, '2026-11-11T01:00:00Z', 'd11');
+  expect(await evaluateBadges(db, userId, 'UTC', now)).toEqual(['streak-7']);
 });
 
 test('evaluateBadges returns each badge once', async () => {
