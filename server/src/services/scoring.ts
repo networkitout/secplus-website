@@ -73,7 +73,7 @@ export function grade(q: Question, a: Answer): Grade {
   }
 }
 
-function correctAnswerOf(q: Question): Answer {
+export function correctAnswerOf(q: Question): Answer {
   switch (q.type) {
     case 'single': return { type: 'single', choice: q.correct };
     case 'multi': return { type: 'multi', choices: [...q.correct] };

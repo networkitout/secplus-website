@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import type { Content } from './content/loader.js';
 import type { Db } from './db/db.js';
 import { adminRouter } from './features/admin/routes.js';
+import { assessmentsRouter } from './features/assessments/routes.js';
 import { authRouter } from './features/auth/routes.js';
 import { answersRouter } from './features/answers/routes.js';
 import { lessonsRouter } from './features/lessons/routes.js';
@@ -62,6 +63,7 @@ export function createApp(deps: AppDeps): Express {
   app.use('/api/review', reviewRouter(deps));
   app.use('/api/lessons', lessonsRouter(deps));
   app.use('/api/answers', answersRouter(deps));
+  app.use('/api/assessments', assessmentsRouter(deps));
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });
