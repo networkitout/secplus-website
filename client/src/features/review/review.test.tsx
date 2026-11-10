@@ -396,6 +396,13 @@ describe('review', () => {
     expect(writes()).toEqual([post(first)]);
   });
 
+  it('a term that is one long unbroken word wraps inside the card', async () => {
+    serve([flash(1)]);
+    renderReview();
+    await cardHeading('Card 1 of 1: flashcard');
+    expect(within(screen.getByRole('group', { name: 'Flashcard' })).getByText('Security control')).toHaveClass('[overflow-wrap:anywhere]');
+  });
+
   it('the card flips in 3D once the answer is shown', async () => {
     serve([flash(1)]);
     renderReview();

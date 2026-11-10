@@ -3,12 +3,12 @@ import { useId, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api, isUnavailable } from '../../api/client';
 import type { AssessmentStarted, DashboardMocks, DashboardSummary, MockHistoryEntry, PathResponse } from '../../api/types';
+import { formatInstant } from '../../lib/dates';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
+import { useAuth } from '../auth/AuthProvider';
 
 const FULL_EXAM = '90 questions in 90 minutes';
-
-const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 /** "Domain 1", "Domains 1 and 2", "Domains 1, 2 and 4". */
 function domainList(ids: number[]): string {
@@ -16,8 +16,9 @@ function domainList(ids: number[]): string {
   return `Domains ${ids.slice(0, -1).join(', ')} and ${ids[ids.length - 1]}`;
 }
 
-function HistoryRow({ exam }: { exam: MockHistoryEntry }) {
-  const date = when.format(new Date(exam.submittedAt));
+function HistoryRow({ exam, timeZone }: { exam: MockHistoryEntry; timeZone: string }) {
+  // In the learner's time zone, as on the dashboard: the day agrees with the days the server counts.
+  const date = formatInstant(exam.submittedAt, timeZone, { time: true });
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3">
       <time dateTime={exam.submittedAt} className="basis-full text-sm text-muted sm:basis-48">
@@ -42,13 +43,17 @@ function HistoryRow({ exam }: { exam: MockHistoryEntry }) {
 export function ExamLobbyPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const timeZone = user?.timeZone ?? 'UTC';
   const path = useQuery({ queryKey: ['path'], queryFn: () => api.get<PathResponse>('path') });
   const dashboard = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => api.get<DashboardSummary & DashboardMocks>('dashboard'),
   });
   const [error, setError] = useState('');
+  // The ref is read by a second press in the same tick; the state is what the page shows meanwhile.
   const starting = useRef(false);
+  const [busy, setBusy] = useState(false);
   const historyId = useId();
 
   // Oldest first from the server; the newest is the most useful one to see first.
@@ -69,6 +74,7 @@ export function ExamLobbyPage() {
     // The button is not disabled meanwhile: a disabled button would drop keyboard focus.
     if (starting.current) return;
     starting.current = true;
+    setBusy(true);
     setError('');
     try {
       const { id } = await api.post<AssessmentStarted>('assessments', { kind: 'mock' });
@@ -78,6 +84,7 @@ export function ExamLobbyPage() {
     } catch (err) {
       setError(isUnavailable(err) ? "Can't reach the server. Try again in a moment." : "Couldn't start the exam. Try again.");
       starting.current = false;
+      setBusy(false);
     }
   }
 
@@ -135,7 +142,14 @@ export function ExamLobbyPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            <Button onClick={() => void start()}>Start practice exam</Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button aria-busy={busy} onClick={() => void start()}>
+                Start practice exam
+              </Button>
+              <p role="status" className="text-sm text-muted">
+                {busy ? 'Starting the exam…' : ''}
+              </p>
+            </div>
             {error && (
               <p role="alert" className="text-sm text-bad">
                 {error}
@@ -163,7 +177,7 @@ export function ExamLobbyPage() {
           // role="list" keeps the list semantics that Safari drops when list markers are removed.
           <ul role="list" aria-labelledby={historyId} className="divide-y divide-border">
             {history.map((exam) => (
-              <HistoryRow key={exam.id} exam={exam} />
+              <HistoryRow key={exam.id} exam={exam} timeZone={timeZone} />
             ))}
           </ul>
         )}

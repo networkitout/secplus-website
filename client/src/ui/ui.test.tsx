@@ -15,6 +15,7 @@ import { AppShell } from './AppShell';
 import { AUTO_DISMISS_MS, Celebration } from './Celebration';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBoundary } from './ErrorBoundary';
+import { Field } from './Field';
 import { MasteryBar } from './MasteryBar';
 import { SETTLE_MS } from './pressGuard';
 import { ProgressRing } from './ProgressRing';
@@ -68,6 +69,26 @@ describe('ui', () => {
     render(<MasteryBar value={73} label="Mastery" />);
     expect(screen.getByRole('progressbar', { name: 'Mastery' })).toHaveAttribute('aria-valuenow', '73');
     expect(screen.getByText('73%')).toBeInTheDocument();
+  });
+
+  it('Field: the edge of the input is drawn in the field border colour, which can be told from what is around it', () => {
+    render(<Field label="Display name" />);
+    const input = screen.getByLabelText('Display name');
+    expect(input).toHaveClass('border', 'border-field-border');
+    expect(input).not.toHaveClass('border-border');
+  });
+
+  it('MasteryBar never reads higher than the value: it is rounded down, like every score', () => {
+    const { rerender } = render(<MasteryBar value={79.6} label="Mastery" />);
+    expect(screen.getByRole('progressbar', { name: 'Mastery' })).toHaveAttribute('aria-valuenow', '79');
+    expect(screen.getByText('79%')).toBeInTheDocument();
+    rerender(<MasteryBar value={(2 / 3) * 100} label="Mastery" />);
+    expect(screen.getByText('66%')).toBeInTheDocument();
+    // A whole number that floating point does not hold exactly keeps its point.
+    rerender(<MasteryBar value={0.29 * 100} label="Mastery" />);
+    expect(screen.getByText('29%')).toBeInTheDocument();
+    rerender(<MasteryBar value={120} label="Mastery" />);
+    expect(screen.getByRole('progressbar', { name: 'Mastery' })).toHaveAttribute('aria-valuenow', '100');
   });
 
   it('AppShell shows Admin link only for admins and always shows the CompTIA footer', async () => {
@@ -226,6 +247,8 @@ describe('ui', () => {
       expect(screen.getByRole('alert')).toHaveTextContent("Can't reach the server");
       expect(screen.getByRole('heading', { name: "Can't reach the server" })).toBeInTheDocument();
       expect(screen.getByText(FOOTER)).toBeInTheDocument();
+      // Loading the app afresh would not reach the server either, and would drop what is waiting to be saved.
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
 
       await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
       expect(onRetry).toHaveBeenCalledTimes(1);
@@ -249,6 +272,20 @@ describe('ui', () => {
       render(<ErrorBoundary><Screen /></ErrorBoundary>, quiet);
       expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
       expect(screen.getByText(FOOTER)).toBeInTheDocument();
+    });
+
+    it('offers a way out beside Retry: a plain link that loads the study path afresh', async () => {
+      // A page that fails every time it is drawn: Retry draws it again, and Back does not take the error screen away.
+      function Screen(): never {
+        throw new Error('boom');
+      }
+      render(<ErrorBoundary><Screen /></ErrorBoundary>, quiet);
+      const link = screen.getByRole('link', { name: 'Go to the study path' });
+      // Not a link of the router: the app is loaded again from its start.
+      expect(link).toHaveAttribute('href', '/');
+      expect(link.parentElement).toContainElement(screen.getByRole('button', { name: 'Retry' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      expect(screen.getByRole('link', { name: 'Go to the study path' })).toBeInTheDocument();
     });
 
     it('titles the document after what went wrong', () => {

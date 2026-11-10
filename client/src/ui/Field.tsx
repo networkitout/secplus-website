@@ -17,7 +17,7 @@ export function Field({
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className="w-full rounded-md border border-border bg-bg px-3 py-2 text-text"
+        className="w-full rounded-md border border-field-border bg-bg px-3 py-2 text-text"
         {...input}
       />
       {hint && (

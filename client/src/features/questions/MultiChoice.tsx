@@ -66,7 +66,7 @@ export function MultiChoice({
                 aria-describedby={feedback ? feedbackId : undefined}
                 onChange={(e) => toggle(option.id, e.target.checked)}
               />
-              <span>{option.text}</span>
+              <span className="[overflow-wrap:anywhere]">{option.text}</span>
             </label>
             {feedback && (
               <ChoiceFeedback id={feedbackId} correct={isCorrect} chosen={chosen} why={feedback.why?.[option.id]} />

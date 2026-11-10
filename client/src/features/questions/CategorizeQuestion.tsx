@@ -32,7 +32,8 @@ export function CategorizeQuestion({
 }: {
   question: Extract<PublicQuestion, { type: 'categorize' }>;
   value: Extract<Answer, { type: 'categorize' }> | null;
-  onChange(a: Answer): void;
+  /** Returns whether the change was taken (see `QuestionView`). */
+  onChange(a: Answer): boolean;
   feedback?: Feedback;
   locked: boolean;
   labelledBy: string;
@@ -50,6 +51,9 @@ export function CategorizeQuestion({
 
   const selects = useRef(new Map<string, HTMLSelectElement>());
   const focusAfterMove = useRef<string | null>(null);
+  // The last drop asked for a change that was not taken. Set in `onDragEnd`, which dnd-kit calls before
+  // it asks for the announcement of that drop.
+  const refused = useRef(false);
 
   // Mouse and touch only: the menus are the keyboard route. A touch drag starts after a short press so
   // that swiping over an item still scrolls the page.
@@ -74,26 +78,27 @@ export function CategorizeQuestion({
     onDragOver: ({ active, over }) =>
       over ? `${itemText(active.id)} is over ${bucketText(bucketOf(over))}.` : undefined,
     onDragEnd: ({ active, over }) =>
-      over
+      over && !refused.current
         ? `${itemText(active.id)} dropped in ${bucketText(bucketOf(over))}.`
         : `${itemText(active.id)} dropped. Nothing changed.`,
     onDragCancel: ({ active }) => `Moving ${itemText(active.id)} cancelled.`,
   };
 
-  /** Put `itemId` in `bucketId` (empty to take it back out). */
-  function place(itemId: string, bucketId: string) {
+  /** Put `itemId` in `bucketId` (empty to take it back out). Returns whether the change was taken. */
+  function place(itemId: string, bucketId: string): boolean {
     const next: Record<string, string> = {};
     for (const item of question.items) {
       const bucket = item.id === itemId ? bucketId : placements[item.id];
       if (bucket) next[item.id] = bucket;
     }
-    onChange({ type: 'categorize', placements: next });
+    return onChange({ type: 'categorize', placements: next });
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
+    refused.current = false;
     if (!over) return;
     const itemId = String(active.id);
-    if ((placements[itemId] ?? '') !== bucketOf(over)) place(itemId, bucketOf(over));
+    if ((placements[itemId] ?? '') !== bucketOf(over)) refused.current = !place(itemId, bucketOf(over));
   }
 
   const card = (item: Item) => (
@@ -108,8 +113,7 @@ export function CategorizeQuestion({
       layoutKey={layoutKey}
       selects={selects}
       onPlace={(bucketId) => {
-        focusAfterMove.current = item.id;
-        place(item.id, bucketId);
+        if (place(item.id, bucketId)) focusAfterMove.current = item.id;
       }}
     />
   );
@@ -130,7 +134,9 @@ export function CategorizeQuestion({
             {unplaced.map(card)}
           </Zone>
         )}
-        <div className="grid gap-3 sm:grid-cols-2">
+        {/* A stated column that may shrink under its content: an implied `auto` column grows to the widest
+            menu in it and pushes the page sideways on a narrow screen. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {question.buckets.map((bucket) => (
             <Zone key={bucket.id} id={bucket.id} bucket={bucket.id} label={bucket.text} empty="Nothing here yet." locked={locked}>
               {question.items.filter((i) => placements[i.id] === bucket.id).map(card)}
@@ -239,7 +245,7 @@ function ItemCard({
             }}
             aria-label={`Bucket for ${item.text}`}
             aria-describedby={marked ? `${id}-mark` : undefined}
-            className="min-w-0 rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-text disabled:cursor-not-allowed"
+            className="min-w-0 rounded-md border border-field-border bg-bg px-2 py-1.5 text-sm text-text disabled:cursor-not-allowed"
             value={bucket}
             disabled={locked}
             onChange={(e) => onPlace(e.target.value)}

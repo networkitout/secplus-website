@@ -76,6 +76,8 @@ describe('settings', () => {
     expect(zone()).toHaveValue('Europe/London');
     expect(examDate()).toHaveValue('');
     expect(hide()).not.toBeChecked();
+    // The menu and the text fields are drawn with the same edge, one that stands out from the card.
+    for (const field of [name(), zone(), examDate()]) expect(field).toHaveClass('border-field-border');
 
     await userEvent.type(name(), ' K');
     await userEvent.click(hide());

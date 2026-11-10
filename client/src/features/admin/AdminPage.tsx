@@ -61,7 +61,7 @@ function LinkPanel({ link, timeZone, onHide }: { link: ShownLink; timeZone: stri
             value={link.url}
             aria-labelledby={headingId}
             onFocus={(e) => e.currentTarget.select()}
-            className="min-w-0 flex-1 basis-64 rounded-md border border-border bg-bg px-3 py-2 font-mono text-sm text-text"
+            className="min-w-0 flex-1 basis-64 rounded-md border border-field-border bg-bg px-3 py-2 font-mono text-sm text-text"
           />
           <Button onClick={() => void copy()}>Copy</Button>
         </div>

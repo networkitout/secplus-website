@@ -30,6 +30,9 @@ export function useAuth(): AuthValue {
   return ctx;
 }
 
+/** When the page comes back into view it asks who is signed in, but not more often than this. */
+export const IDENTITY_CHECK_MS = 10_000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +85,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => live && setLoading(false));
     return () => {
       live = false;
+    };
+  }, [refresh]);
+
+  // The session belongs to the browser, not to this tab: in another tab someone may have signed out, or
+  // another account may have signed in, and this page would go on showing the first learner's screens and
+  // post as the second. So when the page comes back into view, it asks again who is signed in; a change of
+  // account then clears what was cached (see `signedIn`). Tabs that are switched back and forth share one
+  // question per pause, asked at its end at the latest.
+  useEffect(() => {
+    let last = -Infinity;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ask = () => {
+      timer = undefined;
+      if (document.visibilityState !== 'visible') return;
+      last = Date.now();
+      // An answer that does not arrive changes nothing: the page keeps what it has.
+      refresh().catch(() => {});
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || timer !== undefined) return;
+      const wait = last + IDENTITY_CHECK_MS - Date.now();
+      if (wait <= 0) ask();
+      else timer = setTimeout(ask, wait);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearTimeout(timer);
     };
   }, [refresh]);
 

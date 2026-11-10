@@ -52,7 +52,7 @@ export function ResetPage() {
       ) : (
         <Card>
           <form onSubmit={onSubmit} noValidate className="space-y-4">
-            {link.info?.name && <p className="text-sm text-muted">Choose a new password for {link.info.name}.</p>}
+            {link.info?.name && <p className="text-sm text-muted [overflow-wrap:anywhere]">Choose a new password for {link.info.name}.</p>}
             <Field label="New password" type="password" autoComplete="new-password" required hint={`At least ${MIN_PASSWORD} characters`} error={passwordError} value={password} onChange={(e) => setPassword(e.target.value)} />
             {error && <p role="alert" className="text-sm text-bad">{error}</p>}
             <Button type="submit" disabled={busy} className="w-full">Update password</Button>

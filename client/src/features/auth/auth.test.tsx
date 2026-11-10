@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -8,7 +8,7 @@ import { saveQueue } from '../../api/saveQueue';
 import type { DashboardResponse, User } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { AppRoutes } from '../../routes';
-import { AuthContext, AuthProvider, RequireAdmin, type AuthValue } from './AuthProvider';
+import { AuthContext, AuthProvider, IDENTITY_CHECK_MS, RequireAdmin, type AuthValue } from './AuthProvider';
 import { safeNext } from './LoginPage';
 
 const FOOTER = 'Not affiliated with or endorsed by CompTIA. Security+ is a trademark of CompTIA, Inc.';
@@ -40,6 +40,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   window.history.pushState({}, '', '/');
 });
@@ -284,6 +285,68 @@ describe('a change of account on the same page', () => {
     expect(screen.getByRole('status', { name: 'Rewards' })).toBeEmptyDOMElement();
   });
 
+  it('asks who is signed in when the page comes back into view: an account that signed in from another tab takes over, and nothing of the first is left', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const visibility = vi.spyOn(document, 'visibilityState', 'get');
+    const show = (state: DocumentVisibilityState) => {
+      visibility.mockReturnValue(state);
+      fireEvent(document, new Event('visibilitychange'));
+    };
+    const asked = () => fetchMock.mock.calls.filter(([url]) => url === '/api/auth/me').length;
+    try {
+      handlers['GET /api/dashboard'] = () => json(200, totals(120, 2));
+      const client = createQueryClient();
+      renderAt('/dashboard', client);
+      expect(await screen.findByText('120 XP')).toBeInTheDocument();
+      client.setQueryData(['kept'], 'of the first account');
+      expect(asked()).toBe(1);
+
+      // The learner goes to another tab. There, someone signs out and another account signs in.
+      show('hidden');
+      expect(asked()).toBe(1);
+      handlers['GET /api/auth/me'] = () => json(200, { user: other });
+      handlers['GET /api/dashboard'] = () => json(200, totals(5000, 7));
+      show('visible');
+      expect(await screen.findByRole('link', { name: 'Kim' })).toBeInTheDocument();
+      expect(await screen.findByText('5000 XP')).toBeInTheDocument();
+      expect(asked()).toBe(2);
+      expect(screen.queryByText('120 XP')).not.toBeInTheDocument();
+      expect(client.getQueryData(['kept'])).toBeUndefined();
+      // Level 7 is where this learner starts.
+      expect(screen.queryByText('Level up')).not.toBeInTheDocument();
+
+      // Switching back and forth does not ask each time…
+      for (let i = 0; i < 3; i++) {
+        show('hidden');
+        show('visible');
+      }
+      expect(asked()).toBe(2);
+      // …but once more when the pause is over, in case the account changed during it.
+      await act(() => vi.advanceTimersByTimeAsync(IDENTITY_CHECK_MS));
+      expect(asked()).toBe(3);
+
+      // Nothing is asked for a page that is not being looked at; it is asked when the page is back.
+      show('visible');
+      show('hidden');
+      await act(() => vi.advanceTimersByTimeAsync(IDENTITY_CHECK_MS));
+      expect(asked()).toBe(3);
+      show('visible');
+      expect(asked()).toBe(4);
+
+      // A check that cannot reach the server changes nothing on the page.
+      handlers['GET /api/auth/me'] = () => Promise.reject(new TypeError('Failed to fetch'));
+      await act(() => vi.advanceTimersByTimeAsync(IDENTITY_CHECK_MS));
+      show('hidden');
+      show('visible');
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(asked()).toBe(5);
+      expect(screen.getByRole('link', { name: 'Kim' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    } finally {
+      visibility.mockRestore();
+    }
+  });
+
   it('a notice about a dropped save does not outlive the account it was for: it goes on sign-out and on sign-in', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     handlers['POST /api/auth/logout'] = () => json(200, { ok: true });
@@ -434,6 +497,31 @@ describe('invite page', () => {
     });
   });
 
+  // The account exists and the link is used up: staying on the page would end in "This link is no longer valid".
+  it.each([
+    ['fails', () => json(500, { error: 'Internal error' })],
+    ['cannot be reached', () => Promise.reject(new TypeError('Failed to fetch'))],
+    ['says that nobody is signed in', () => json(401, { error: 'Not signed in' })],
+  ])('when the new account cannot be read back (the server %s), goes to the sign-in page and says that the account was created', async (_how, me) => {
+    let created = false;
+    handlers['GET /api/auth/me'] = () => (created ? me() : json(401, { error: 'Not signed in' }));
+    handlers['POST /api/auth/accept-invite'] = () => {
+      created = true;
+      return json(200, { user: learner });
+    };
+    renderAt('/invite/tok');
+    await userEvent.type(await screen.findByLabelText('Login name'), 'sam');
+    await userEvent.type(screen.getByLabelText('Display name'), 'Sam');
+    await userEvent.type(screen.getByLabelText('Password'), 'a long enough password');
+    await userEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Account created. Sign in to continue.'));
+    expect(where).toBe('/login');
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(1);
+  });
+
   it.each([404, 410])('shows "This link is no longer valid. Ask for a new one." for a %i token', async (status) => {
     handlers['GET /api/auth/invite/tok'] = () => json(status, { error: 'gone' });
     renderAt('/invite/tok');
@@ -461,6 +549,8 @@ describe('reset page', () => {
     handlers['POST /api/auth/reset'] = () => json(200, { ok: true });
     renderAt('/reset/tok');
     await userEvent.type(await screen.findByLabelText('New password'), 'a brand new password');
+    // A display name may be one unbroken word of 64 characters: it wraps instead of widening the page.
+    expect(screen.getByText('Choose a new password for Sam.')).toHaveClass('[overflow-wrap:anywhere]');
     await userEvent.click(screen.getByRole('button', { name: 'Update password' }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Password updated. Sign in with your new password.'));
     expect(screen.getByLabelText('Login name')).toBeInTheDocument();

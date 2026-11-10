@@ -6,10 +6,12 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
 import { api } from '../../api/client';
-import type { AssessmentResult, AssessmentView, DashboardMocks, MockHistoryEntry, PathDomain, PathResponse } from '../../api/types';
+import type { AssessmentResult, AssessmentView, DashboardMocks, MockHistoryEntry, PathDomain, PathResponse, User } from '../../api/types';
+import { formatInstant } from '../../lib/dates';
 import { createQueryClient } from '../../queryClient';
 import { holdPressClock } from '../../test/pressClock';
 import { SETTLE_MS } from '../../ui/pressGuard';
+import { AuthContext, type AuthValue } from '../auth/AuthProvider';
 import { REFRESH_DELAY_MS, RewardsBanner, RewardsContext, RewardsProvider, useRewards, type RewardsValue } from '../rewards/RewardsProvider';
 import { ExamLobbyPage } from './ExamLobbyPage';
 import { examSaves } from './examSaves';
@@ -218,17 +220,24 @@ function Screens() {
   );
 }
 
+// The learner lives where the day begins first: fourteen hours ahead of UTC, and of no clock a test is likely to run on.
+const LEARNER_ZONE = 'Pacific/Kiritimati';
+const learner: User = { id: 2, login: 'sam', name: 'Sam', role: 'learner', timeZone: LEARNER_ZONE, examDate: null, hideFromLeaderboard: false };
+const auth: AuthValue = { user: learner, loading: false, login: vi.fn(), logout: vi.fn(), refresh: vi.fn() };
+
 function renderAt(url: string, client: QueryClient = createQueryClient()) {
   return render(
     <QueryClientProvider client={client}>
-      <Observers />
-      <Rewards>
-        <MemoryRouter initialEntries={[url]}>
-          <Link to="/">leave</Link>
-          <Link to={url}>come back</Link>
-          <Screens />
-        </MemoryRouter>
-      </Rewards>
+      <AuthContext.Provider value={auth}>
+        <Observers />
+        <Rewards>
+          <MemoryRouter initialEntries={[url]}>
+            <Link to="/">leave</Link>
+            <Link to={url}>come back</Link>
+            <Screens />
+          </MemoryRouter>
+        </Rewards>
+      </AuthContext.Provider>
     </QueryClientProvider>,
   );
 }
@@ -350,9 +359,18 @@ describe('quiz', () => {
     expect(screen.queryByText('Passed')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to path' })).toHaveAttribute('href', '/');
 
+    // Nothing is starting yet: the place that will say so is there, and empty.
+    const retake = screen.getByRole('button', { name: 'Retake' });
+    expect(retake).not.toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Starting the quiz…')).not.toBeInTheDocument();
+
     // A double click starts one new quiz.
-    await userEvent.dblClick(screen.getByRole('button', { name: 'Retake' }));
+    await userEvent.dblClick(retake);
     expect(bodies('POST /api/assessments')).toEqual([{ kind: 'objective', scope: '1.1' }]);
+    // While it is being created the page says so, to the eye and to a screen reader, and the button stays in reach.
+    expect(retake).toHaveAttribute('aria-busy', 'true');
+    expect(retake).toBeEnabled();
+    expect(screen.getByText('Starting the quiz…')).toHaveAttribute('role', 'status');
     started.resolve(json(201, { id: 13 }));
     await heading('Question 1 of 10');
     expect(calls('POST /api/assessments')).toHaveLength(1);
@@ -711,6 +729,32 @@ describe('exam', () => {
     await heading('Question 1 of 5');
     const columns = nav().parentElement!;
     expect(columns).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)]', 'lg:grid-cols-[minmax(0,1fr)_18rem]');
+  });
+
+  it('exam: what is scrolled into view stops below the bar that stays at the top, for as long as the bar is there', async () => {
+    const root = document.documentElement;
+    let height = 57;
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    let resized = () => {};
+    vi.stubGlobal('ResizeObserver', class { constructor(callback: () => void) { resized = callback; } observe() {} disconnect() {} });
+    try {
+      handlers['GET /api/assessments/30'] = () => json(200, exam());
+      renderAt('/exam/30');
+      expect(root.style.scrollPaddingTop).toBe('');
+      await heading('Question 1 of 5');
+      // The height of the bar and a little air: a control reached with Shift+Tab is not left under it.
+      expect(root.style.scrollPaddingTop).toBe('65px');
+      // The bar grows when its line about saving wraps.
+      height = 90;
+      act(() => resized());
+      expect(root.style.scrollPaddingTop).toBe('98px');
+
+      await userEvent.click(screen.getByRole('link', { name: 'leave' }));
+      expect(await screen.findByText('path screen')).toBeInTheDocument();
+      expect(root.style.scrollPaddingTop).toBe('');
+    } finally {
+      offsetHeight.mockRestore();
+    }
   });
 
   it('exam: flag toggles and shows in the navigator', async () => {
@@ -1551,6 +1595,53 @@ describe('exam', () => {
     expect(calls(SUBMIT)).toHaveLength(2);
   });
 
+  // The API client gives up on a request after 20 seconds too, and then really ends it. Both clocks run
+  // out together: the learner is told once, and one retry is offered.
+  it('a submission whose connection has stalled is given up once: one message, one retry, and nothing is left over', async () => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    const open = exam({ answers: { [q1.id]: pick('a') } });
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    const aborted = vi.fn();
+    handlers[SUBMIT] = (_url, init) =>
+      new Promise<Response>((_, reject) =>
+        init!.signal!.addEventListener('abort', () => {
+          aborted();
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+        }),
+      );
+    renderAt('/exam/30');
+    await settle();
+    fireEvent.click(button('Submit exam'));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+    await settle();
+    expect(submission()).toHaveTextContent('Submitting your exam…');
+
+    await advance(19_999);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(aborted).not.toHaveBeenCalled();
+    await advance(1);
+    await settle();
+    // The request is ended, not left to arrive later.
+    expect(aborted).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't submit your exam. Your saved answers are safe, and you can keep working.");
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
+    expect(submission()).toBeEmptyDOMElement();
+    for (const radio of screen.getAllByRole('radio')) expect(radio).toBeEnabled();
+
+    // Long after: nothing more has happened.
+    await advance(60_000);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(calls(SUBMIT)).toHaveLength(1);
+
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 1).result });
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1));
+    fireEvent.click(button('Try again'));
+    await settle();
+    expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
+    expect(calls(SUBMIT)).toHaveLength(2);
+  });
+
   it('says that the exam was submitted when only the results could not be read, and then only reads again', async () => {
     const open = exam({ answers: { [q1.id]: pick('a') } });
     handlers['GET /api/assessments/30'] = () => json(200, open);
@@ -1859,7 +1950,8 @@ describe('results', () => {
 
     // Bars per objective, named with the titles from the study path.
     const objectives = within(screen.getByRole('region', { name: 'By objective' }));
-    expect(await objectives.findByRole('progressbar', { name: '1.1 Objective 1.1 title: 2 of 3 correct' })).toHaveAttribute('aria-valuenow', '67');
+    // Two of three is 66%, not 67%: a bar is rounded down, like the score itself.
+    expect(await objectives.findByRole('progressbar', { name: '1.1 Objective 1.1 title: 2 of 3 correct' })).toHaveAttribute('aria-valuenow', '66');
     expect(objectives.getByRole('progressbar', { name: '1.2 Objective 1.2 title: 0 of 1 correct' })).toHaveAttribute('aria-valuenow', '0');
 
     expect(reviewItems().map((b) => b.textContent)).toEqual([
@@ -2038,8 +2130,15 @@ describe('exam lobby', () => {
     expect(await screen.findByText('No practice exams yet.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Resume practice exam' })).not.toBeInTheDocument();
 
-    await userEvent.dblClick(button('Start practice exam'));
+    const start = button('Start practice exam');
+    expect(start).not.toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Starting the exam…')).not.toBeInTheDocument();
+    await userEvent.dblClick(start);
     expect(bodies('POST /api/assessments')).toEqual([{ kind: 'mock' }]);
+    // While the exam is being created the page says so, to the eye and to a screen reader, and the button stays in reach.
+    expect(start).toHaveAttribute('aria-busy', 'true');
+    expect(start).toBeEnabled();
+    expect(screen.getByText('Starting the exam…')).toHaveAttribute('role', 'status');
     started.resolve(json(201, { id: 30 }));
     await heading('Question 1 of 5');
     expect(screen.getByRole('heading', { level: 1, name: 'Practice exam' })).toBeInTheDocument();
@@ -2075,6 +2174,12 @@ describe('exam lobby', () => {
     expect(rows[0]).not.toHaveTextContent('Partial');
     expect(within(rows[0]!).getByRole('link', { name: /^Review/ })).toHaveAttribute('href', '/exam/3');
     expect(rows[0]!.querySelector('time')).toHaveAttribute('datetime', '2026-11-03T10:00:00.000Z');
+    // The day and the time are the learner's own, as on the dashboard, with the zone named: where they
+    // live it was already the 4th.
+    const when = formatInstant('2026-11-03T10:00:00.000Z', LEARNER_ZONE, { time: true });
+    expect(when).toMatch(/^Nov 4, 2026, 12:00\sAM/);
+    expect(rows[0]!.querySelector('time')).toHaveTextContent(when);
+    expect(within(rows[0]!).getByRole('link')).toHaveTextContent(`Review the exam of ${when}`);
     expect(rows[1]).toHaveTextContent('700');
     expect(rows[1]).toHaveTextContent('Not yet');
     expect(rows[2]).toHaveTextContent('650');
@@ -2115,5 +2220,8 @@ describe('exam lobby', () => {
     await userEvent.click(start);
     expect(await screen.findByRole('alert')).toHaveTextContent("Can't reach the server. Try again in a moment.");
     expect(start).toBeEnabled();
+    // It is no longer starting.
+    expect(start).not.toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Starting the exam…')).not.toBeInTheDocument();
   });
 });

@@ -40,24 +40,40 @@ function apiUrl(path: string): string {
   return p.startsWith('api/') ? `/${p}` : `/api/${p}`;
 }
 
+/**
+ * How long a request may go without a complete answer. A connection that has stalled reports nothing by
+ * itself, and "Saving…" or "Checking…" would stay on screen for good. After this time the request is ended
+ * and fails like one that could not be sent at all (status 0), so whatever retries or offers "Try again"
+ * after a network failure does the same here.
+ */
+export const REQUEST_TIMEOUT_MS = 20_000;
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const url = apiUrl(path);
   const headers: Record<string, string> = { 'X-Requested-With': 'secplus' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
+  // A timer of our own rather than `AbortSignal.timeout`: it is stopped as soon as the answer is complete.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res: Response;
+  let text: string;
   try {
     res = await fetch(url, {
       method,
       credentials: 'same-origin',
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
     });
+    // The time covers the body too: an answer that begins and never ends is no answer.
+    text = await res.text();
   } catch {
     throw new ApiError(0, "Can't reach the server");
+  } finally {
+    clearTimeout(timer);
   }
 
-  const text = await res.text();
   let data: unknown;
   try {
     data = text ? JSON.parse(text) : undefined;

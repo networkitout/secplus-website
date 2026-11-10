@@ -19,6 +19,7 @@ import {
 import { motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { Answer, Feedback, Item, PublicQuestion } from '../../../../shared/types';
+import { usePressGuard } from '../../ui/pressGuard';
 import { Mark } from './FeedbackPanel';
 
 type Direction = 'up' | 'down';
@@ -40,7 +41,8 @@ export function OrderQuestion({
 }: {
   question: Extract<PublicQuestion, { type: 'order' }>;
   value: Extract<Answer, { type: 'order' }> | null;
-  onChange(a: Answer): void;
+  /** Returns whether the change was taken (see `QuestionView`). */
+  onChange(a: Answer): boolean;
   feedback?: Feedback;
   locked: boolean;
   labelledBy: string;
@@ -59,6 +61,14 @@ export function OrderQuestion({
   const [announcement, setAnnouncement] = useState('');
   const buttons = useRef(new Map<string, HTMLButtonElement>());
   const focusAfterMove = useRef<{ id: string; direction: Direction } | null>(null);
+  // The last drop asked for a change that was not taken. Set in `onDragEnd`, which dnd-kit calls before
+  // it asks for the announcement of that drop.
+  const refused = useRef(false);
+  // A row that moves takes its buttons with it, and another row's buttons are under the pointer now: the
+  // second click of a double click, or a second tap, would move that row. So for a moment after the order
+  // changed, a pointer press on a move button does nothing. The keyboard is not held back: its focus is
+  // on the item that moved, so a second press is meant for that item.
+  const settle = usePressGuard(order.join(' '));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -83,25 +93,31 @@ export function OrderQuestion({
     onDragStart: ({ active }) => `Picked up ${text(active.id)}, ${position(active.id)}.`,
     onDragOver: ({ active, over }) => (over ? `${text(active.id)} moved to ${position(over.id)}.` : undefined),
     onDragEnd: ({ active, over }) =>
-      over ? `${text(active.id)} dropped at ${position(over.id)}.` : `${text(active.id)} dropped.`,
+      refused.current
+        ? `${text(active.id)} dropped. Nothing changed.`
+        : over
+          ? `${text(active.id)} dropped at ${position(over.id)}.`
+          : `${text(active.id)} dropped.`,
     onDragCancel: ({ active }) => `Reordering cancelled. ${text(active.id)} is back at ${position(active.id)}.`,
   };
 
-  function move(id: string, direction: Direction) {
+  function move(id: string, direction: Direction, byKeyboard: boolean) {
+    if (!byKeyboard && !settle.settled()) return;
     const from = order.indexOf(id);
     const to = direction === 'up' ? from - 1 : from + 1;
     if (to < 0 || to >= order.length) return;
+    if (!onChange({ type: 'order', order: arrayMove(order, from, to) })) return;
     focusAfterMove.current = { id, direction };
     setAnnouncement(`${text(id)} moved to position ${to + 1} of ${order.length}.`);
-    onChange({ type: 'order', order: arrayMove(order, from, to) });
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
+    refused.current = false;
     if (!over || active.id === over.id) return;
     const from = order.indexOf(String(active.id));
     const to = order.indexOf(String(over.id));
     if (from < 0 || to < 0) return;
-    onChange({ type: 'order', order: arrayMove(order, from, to) });
+    refused.current = !onChange({ type: 'order', order: arrayMove(order, from, to) });
   }
 
   return (
@@ -156,7 +172,8 @@ function Row({
   layoutKey: string;
   /** Where this item belongs, once the answer has been marked. */
   correctIndex: number | null;
-  onMove(id: string, direction: Direction): void;
+  /** `byKeyboard`: the button was pressed with Enter or Space, not with a pointer. */
+  onMove(id: string, direction: Direction, byKeyboard: boolean): void;
   buttons: RefObject<Map<string, HTMLButtonElement>>;
 }) {
   // Motion animates the row to its new place, so dnd-kit's own settle animation stays off.
@@ -225,6 +242,8 @@ function Row({
           )}
         </div>
         {showControls && (
+          // A click made with the keyboard has no click count (`detail` is 0); one made with a mouse, a pen
+          // or a finger has one.
           <div className="flex shrink-0 flex-col gap-1 sm:flex-row sm:gap-2">
             <button
               type="button"
@@ -232,7 +251,7 @@ function Row({
               disabled={locked || index === 0}
               aria-label={`Move up: ${item.text}`}
               className={arrow}
-              onClick={() => onMove(item.id, 'up')}
+              onClick={(e) => onMove(item.id, 'up', e.detail === 0)}
             >
               <span aria-hidden="true">↑</span>
             </button>
@@ -242,7 +261,7 @@ function Row({
               disabled={locked || index === total - 1}
               aria-label={`Move down: ${item.text}`}
               className={arrow}
-              onClick={() => onMove(item.id, 'down')}
+              onClick={(e) => onMove(item.id, 'down', e.detail === 0)}
             >
               <span aria-hidden="true">↓</span>
             </button>

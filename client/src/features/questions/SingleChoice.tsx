@@ -40,7 +40,7 @@ export function SingleChoice({
                 aria-describedby={feedback ? feedbackId : undefined}
                 onChange={() => onChange({ type: 'single', choice: option.id })}
               />
-              <span>{option.text}</span>
+              <span className="[overflow-wrap:anywhere]">{option.text}</span>
             </label>
             {feedback && (
               <ChoiceFeedback

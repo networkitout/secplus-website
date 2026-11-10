@@ -146,6 +146,7 @@ function ExamRunner({
 
   const heading = useRef<HTMLHeadingElement>(null);
   const status = useRef<HTMLParagraphElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
   const headingId = useId();
   // Each phase of a submission brings its own buttons (the three about unsaved answers; Try again), often
   // where the ones before were. A press on one of those that arrives straight after a phase began is ignored.
@@ -164,6 +165,25 @@ function ExamRunner({
       saves.release();
     };
   }, [saves]);
+
+  // The bar with the timer stays at the top of the window and covers what scrolls under it. Anything that
+  // is brought into view (a control that takes focus with Shift+Tab, for one) must stop below it.
+  useEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const measure = () => {
+      root.style.scrollPaddingTop = `${el.offsetHeight + 8}px`;
+    };
+    measure();
+    // Its height changes when what it says about saving wraps.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(el);
+    return () => {
+      observer?.disconnect();
+      root.style.scrollPaddingTop = '';
+    };
+  }, []);
 
   // The page scrolls to a new question, so the second tap of a double tap on Next or Previous lands on
   // something of that question. Its flag takes no press for a moment (its answers: see `QuestionView`).
@@ -327,7 +347,7 @@ function ExamRunner({
         {view.partial && <p className="text-sm text-muted">Partial practice exam: it does not cover all five domains yet.</p>}
       </header>
 
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border bg-bg py-3">
+      <div ref={bar} className="sticky top-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border bg-bg py-3">
         {view.deadlineAt && <ExamTimer deadlineAt={view.deadlineAt} offsetMs={offsetMs} onExpire={expire} />}
         <SaveIndicator queue={queue} />
         {/* Never disabled: a disabled button would drop keyboard focus. Presses while busy do nothing. */}

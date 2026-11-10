@@ -1,11 +1,20 @@
 @import 'tailwindcss';
 
-/* Design tokens. Dark is the default; the light theme is selected by data-theme="light" on <html>. */
+/*
+ * Design tokens. Dark is the default; the light theme is selected by data-theme="light" on <html>.
+ *
+ * --border is for cards and dividers: decoration, about 1.3 to 1.5:1 against what it lies on.
+ * --field-border is the edge of text fields and menus, which is all that shows where they are: WCAG 1.4.11
+ * asks for 3:1 there. Contrast ratios (a test computes them from this file):
+ *   dark   #5f7397 on --bg #0a0f1a 4.00:1, on --surface #121a2b 3.63:1
+ *   light  #76859b on --bg #f6f8fb 3.53:1, on --surface #ffffff 3.75:1
+ */
 :root {
   color-scheme: dark;
   --bg: #0a0f1a;
   --surface: #121a2b;
   --border: #22304a;
+  --field-border: #5f7397;
   --text: #e6edf7;
   --muted: #8fa3c2;
   --accent: #2dd4bf;
@@ -20,6 +29,7 @@
   --bg: #f6f8fb;
   --surface: #ffffff;
   --border: #d5dde8;
+  --field-border: #76859b;
   --text: #0f172a;
   --muted: #51627a;
   --accent: #0f766e;
@@ -33,6 +43,7 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-border: var(--border);
+  --color-field-border: var(--field-border);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);

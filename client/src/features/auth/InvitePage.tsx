@@ -38,14 +38,18 @@ export function InvitePage() {
         password,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
-      await refresh(); // the server has already signed the new user in
-      void navigate('/', { replace: true });
     } catch (err) {
       if (err instanceof ApiError && (err.status === 404 || err.status === 410)) setExpired(true);
       else if (err instanceof ApiError) setError(err.message);
       else setError('Could not create the account. Try again.');
       setBusy(false);
+      return;
     }
+    // The server has already signed the new user in. If that cannot be read back, the account exists all
+    // the same and the link is used up: the way on is the sign-in page, not another try here.
+    const me = await refresh().catch(() => null);
+    if (me) void navigate('/', { replace: true });
+    else void navigate('/login', { replace: true, state: { notice: 'Account created. Sign in to continue.' } });
   }
 
   return (

@@ -212,7 +212,9 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
 function QuizResults({ view, result, fresh }: { view: AssessmentView; result: AssessmentResult; fresh: boolean }) {
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  // The ref is read by a second press in the same tick; the state is what the page shows meanwhile.
   const starting = useRef(false);
+  const [busy, setBusy] = useState(false);
   // The results take the place of the last question: a press that arrives with them does not start a new quiz.
   const guard = usePressGuard();
   usePageTitle(`Objective ${view.scope} quiz results`);
@@ -221,6 +223,7 @@ function QuizResults({ view, result, fresh }: { view: AssessmentView; result: As
     // The button is not disabled meanwhile: a disabled button would drop keyboard focus.
     if (starting.current || !guard.settled()) return;
     starting.current = true;
+    setBusy(true);
     setError('');
     try {
       const { id } = await api.post<AssessmentStarted>('assessments', { kind: 'objective', scope: view.scope });
@@ -228,6 +231,7 @@ function QuizResults({ view, result, fresh }: { view: AssessmentView; result: As
     } catch (err) {
       setError(isUnavailable(err) ? "Can't reach the server. Try again in a moment." : "Couldn't start the quiz. Try again.");
       starting.current = false;
+      setBusy(false);
     }
   }
 
@@ -242,10 +246,13 @@ function QuizResults({ view, result, fresh }: { view: AssessmentView; result: As
       feedback={view.feedback}
       fresh={fresh}
     >
-      <Button variant={result.passed ? 'secondary' : 'primary'} onClick={() => void retake()}>
+      <Button variant={result.passed ? 'secondary' : 'primary'} aria-busy={busy} onClick={() => void retake()}>
         Retake
       </Button>
       {pathLink}
+      <p role="status" className="text-sm text-muted">
+        {busy ? 'Starting the quiz…' : ''}
+      </p>
       {error && (
         <p role="alert" className="basis-full text-sm text-bad">
           {error}

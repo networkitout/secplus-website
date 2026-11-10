@@ -99,6 +99,7 @@ describe('admin', () => {
     const full = `${window.location.origin}/invite/tok-invite-abc`;
     const field = within(panel).getByRole('textbox', { name: 'Invite link' });
     expect(field).toHaveValue(full);
+    expect(field).toHaveClass('border-field-border');
     expect(field).toHaveAttribute('readonly');
     expect(field).toHaveFocus();
     expect(panel.querySelector('time')).toHaveAttribute('datetime', EXPIRES);

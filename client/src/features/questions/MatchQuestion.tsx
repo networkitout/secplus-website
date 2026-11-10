@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { Answer, Feedback, Item, PublicQuestion } from '../../../../shared/types';
 import { Mark } from './FeedbackPanel';
 
@@ -28,7 +28,8 @@ export function MatchQuestion({
 }: {
   question: Extract<PublicQuestion, { type: 'match' }>;
   value: Extract<Answer, { type: 'match' }> | null;
-  onChange(a: Answer): void;
+  /** Returns whether the change was taken (see `QuestionView`). */
+  onChange(a: Answer): boolean;
   feedback?: Feedback;
   locked: boolean;
   labelledBy: string;
@@ -42,6 +43,9 @@ export function MatchQuestion({
   const correctPairs = feedback?.correctAnswer.type === 'match' ? feedback.correctAnswer.pairs : null;
   const used = new Set(Object.values(pairs));
   const [announcement, setAnnouncement] = useState('');
+  // The last drop asked for a change that was not taken. Set in `onDragEnd`, which dnd-kit calls before
+  // it asks for the announcement of that drop.
+  const refused = useRef(false);
 
   // Mouse and touch only: the menus are the keyboard route. A touch drag starts after a short press so
   // that swiping over an answer still scrolls the page.
@@ -57,7 +61,7 @@ export function MatchQuestion({
     onDragStart: ({ active }) => `Picked up ${rightText(active.id)}.`,
     onDragOver: ({ active, over }) => (over ? `${rightText(active.id)} is over ${leftText(over.id)}.` : undefined),
     onDragEnd: ({ active, over }) =>
-      over && pairs[over.id] !== active.id
+      over && pairs[over.id] !== active.id && !refused.current
         ? `${rightText(active.id)} matched to ${leftText(over.id)}.`
         : `${rightText(active.id)} dropped. Nothing changed.`,
     onDragCancel: ({ active }) => `Matching ${rightText(active.id)} cancelled.`,
@@ -76,24 +80,25 @@ export function MatchQuestion({
 
   /**
    * Pair `leftId` with `rightId` (empty to clear it). A right item is used once, so it leaves any other
-   * pair: that is what a drop does, which is one deliberate act.
+   * pair: that is what a drop does, which is one deliberate act. Returns whether the change was taken.
    */
-  function pair(leftId: string, rightId: string) {
+  function pair(leftId: string, rightId: string): boolean {
     const next: Record<string, string> = {};
     for (const left of question.left) {
       const right = left.id === leftId ? rightId : pairs[left.id];
       if (right && (left.id === leftId || right !== rightId)) next[left.id] = right;
     }
+    if (!onChange({ type: 'match', pairs: next })) return false;
     // The row that loses its pair is not the one being worked on, so say what happened to it.
     const emptied = question.left.find((left) => left.id !== leftId && pairs[left.id] === rightId);
     setAnnouncement(
       emptied ? `${rightText(rightId)} moved to ${leftText(leftId)}. ${emptied.text} has no match.` : '',
     );
-    onChange({ type: 'match', pairs: next });
+    return true;
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
-    if (over && pairs[over.id] !== active.id) pair(String(over.id), String(active.id));
+    refused.current = over !== null && pairs[over.id] !== active.id && !pair(String(over.id), String(active.id));
   }
 
   return (
@@ -179,7 +184,7 @@ function LeftRow({
           id={`${id}-select`}
           aria-label={`Match for ${left.text}`}
           aria-describedby={marked ? `${id}-mark` : undefined}
-          className="min-w-0 flex-1 basis-40 rounded-md border border-border bg-bg px-3 py-2 text-text disabled:cursor-not-allowed"
+          className="min-w-0 flex-1 basis-40 rounded-md border border-field-border bg-bg px-3 py-2 text-text disabled:cursor-not-allowed"
           value={chosen}
           disabled={locked}
           onChange={(e) => onChoose(e.target.value)}

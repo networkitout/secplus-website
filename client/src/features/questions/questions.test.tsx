@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StrictMode, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -123,13 +123,27 @@ function stubLayout(boxFor: (el: HTMLElement) => Box | undefined) {
   });
 }
 
-/** A mouse drag from the centre of one box to the centre of another, in the steps dnd-kit needs to track it. */
+/**
+ * A mouse drag from the centre of one box to the centre of another, in the steps dnd-kit needs to track it.
+ *
+ * After a drop dnd-kit swallows every click on the page for 50 ms (the click that a real mouse sends after
+ * the drag must not act). That time passes here, on a clock of its own, so that no click of the test, or of
+ * the test after it, is lost and nothing waits on the real clock.
+ */
 function mouseDrag(source: HTMLElement, from: Box, to: Box) {
   const centre = (b: Box) => ({ clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 });
-  fireEvent.mouseDown(source, { button: 0, ...centre(from) });
-  fireEvent.mouseMove(document, { clientX: centre(from).clientX + 10, clientY: centre(from).clientY + 10 });
-  fireEvent.mouseMove(document, centre(to));
-  fireEvent.mouseUp(document, centre(to));
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    fireEvent.mouseDown(source, { button: 0, ...centre(from) });
+    fireEvent.mouseMove(document, { clientX: centre(from).clientX + 10, clientY: centre(from).clientY + 10 });
+    fireEvent.mouseMove(document, centre(to));
+    fireEvent.mouseUp(document, centre(to));
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+  } finally {
+    vi.useRealTimers();
+  }
 }
 
 /**
@@ -866,6 +880,149 @@ describe('questions', () => {
     clock.advance(SETTLE_MS);
     await userEvent.selectOptions(menu, 'Encryption');
     expect(onChange).toHaveBeenCalledWith({ type: 'match', pairs: { l1: 'r1' } });
+  });
+
+  it('says and queues nothing for a change that was not taken: no move is announced, a drop says that nothing changed, and focus is not sent after it later', async () => {
+    holdPressClock();
+    const boxes = new Map<Element, Box>();
+    const onChange = vi.fn();
+    const from = { x: 0, y: 300, width: 100, height: 30 };
+    const to = { x: 0, y: 60, width: 300, height: 50 };
+
+    // order: a move button, then a keyboard drag.
+    stubLayout((el) => {
+      const row = el.closest('li');
+      if (!row?.parentElement) return undefined;
+      return { x: 0, y: Array.from(row.parentElement.children).indexOf(row) * 50, width: 300, height: 40 };
+    });
+    const orderView = render(<Harness question={order} onChange={onChange} />);
+    const down = screen.getByRole('button', { name: 'Move down: Request' });
+    down.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(rowTexts()).toEqual(['Request', 'Approve', 'Implement']);
+    expect(screen.queryByText(/moved to position/)).not.toBeInTheDocument();
+    expect(down).toHaveFocus();
+    screen.getByRole('button', { name: 'Reorder: Request' }).focus();
+    await userEvent.keyboard('[Space]');
+    await userEvent.keyboard('{ArrowDown}');
+    await userEvent.keyboard('[Space]');
+    expect(rowTexts()).toEqual(['Request', 'Approve', 'Implement']);
+    expect(screen.queryByText(/dropped at position/)).not.toBeInTheDocument();
+    expect(screen.getByText('Request dropped. Nothing changed.')).toBeInTheDocument();
+    orderView.unmount();
+    vi.restoreAllMocks();
+
+    // match: a drop onto a row.
+    stubLayout((el) => boxes.get(el));
+    const matchView = render(<Harness question={match} initial={{ type: 'match', pairs: { l1: 'r2' } }} onChange={onChange} />);
+    const chip = screen.getByText('Hashing', { ignore: 'option' });
+    boxes.set(chip, from);
+    boxes.set(screen.getByRole('combobox', { name: 'Match for Integrity' }).closest('li')!, to);
+    mouseDrag(chip, from, to);
+    expect(screen.getByRole('combobox', { name: 'Match for Confidentiality' })).toHaveValue('r2');
+    expect(screen.queryByText(/moved to Integrity/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/matched to Integrity/)).not.toBeInTheDocument();
+    expect(screen.getByText('Hashing dropped. Nothing changed.')).toBeInTheDocument();
+    matchView.unmount();
+
+    // categorize: a drop into a bucket, then a menu.
+    const tree = () => (
+      <>
+        <button>Elsewhere</button>
+        <Harness question={categorize} onChange={onChange} />
+      </>
+    );
+    const categorizeView = render(tree());
+    const item = screen.getByText('Audit log');
+    boxes.set(item, from);
+    boxes.set(screen.getByRole('group', { name: 'Detective' }), to);
+    mouseDrag(item, from, to);
+    expect(screen.queryByText(/dropped in Detective/)).not.toBeInTheDocument();
+    expect(screen.getByText('Audit log dropped. Nothing changed.')).toBeInTheDocument();
+
+    const fence = screen.getByRole('combobox', { name: 'Bucket for Fence' });
+    fireEvent.change(fence, { target: { value: 'b1' } });
+    expect(fence).toHaveValue('');
+    // Focus follows an item that a menu has moved. This one was not moved: the next time the page is drawn
+    // for any other reason, focus stays where the learner has put it.
+    screen.getByRole('button', { name: 'Elsewhere' }).focus();
+    categorizeView.rerender(tree());
+    expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('order: a pointer press on a move button straight after the order changed is ignored (the row under the pointer is another one now)', async () => {
+    const clock = holdPressClock();
+    const onChange = vi.fn();
+    render(<Harness question={order} onChange={onChange} />);
+    // The question has been on screen for a while: what counts from here on is when the order last changed.
+    clock.advance(SETTLE_MS);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Move down: Request' }));
+    expect(rowTexts()).toEqual(['Approve', 'Request', 'Implement']);
+    // The second click of a double click lands where the first one did: on the row that has taken the place.
+    await userEvent.click(screen.getByRole('button', { name: 'Move down: Approve' }));
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(screen.getByRole('button', { name: 'Move up: Request' }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(rowTexts()).toEqual(['Approve', 'Request', 'Implement']);
+    // Nothing more was said either.
+    expect(screen.getByText('Request moved to position 2 of 3.')).toBeInTheDocument();
+
+    clock.advance(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Move down: Approve' }));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(rowTexts()).toEqual(['Request', 'Approve', 'Implement']);
+    expect(screen.getByText('Approve moved to position 2 of 3.')).toBeInTheDocument();
+  });
+
+  it('order: the keyboard moves an item again at once: focus is on the item that moved, so the press is meant for it', async () => {
+    const clock = holdPressClock();
+    const onChange = vi.fn();
+    render(<Harness question={order} onChange={onChange} />);
+    clock.advance(SETTLE_MS);
+
+    screen.getByRole('button', { name: 'Move down: Request' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(rowTexts()).toEqual(['Approve', 'Request', 'Implement']);
+    expect(screen.getByRole('button', { name: 'Move down: Request' })).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(rowTexts()).toEqual(['Approve', 'Implement', 'Request']);
+    // At the end its button is disabled: focus is on the item's other button, and Space works there too.
+    expect(screen.getByRole('button', { name: 'Move up: Request' })).toHaveFocus();
+    await userEvent.keyboard(' ');
+    expect(rowTexts()).toEqual(['Approve', 'Request', 'Implement']);
+    expect(onChange).toHaveBeenCalledTimes(3);
+  });
+
+  it('long unbroken text cannot widen the page: option text wraps anywhere, and the bucket grid has one column that may shrink', () => {
+    const word = 'Pneumonoultramicroscopicsilicovolcanoconiosis'.repeat(3);
+    const options = [{ id: 'a', text: word }, { id: 'b', text: 'Short' }];
+    const singleView = render(<QuestionView question={{ ...single, options }} value={null} onChange={vi.fn()} />);
+    expect(screen.getByText(word)).toHaveClass('[overflow-wrap:anywhere]');
+    singleView.unmount();
+    const multiView = render(<QuestionView question={{ ...multi, options }} value={null} onChange={vi.fn()} />);
+    expect(screen.getByText(word)).toHaveClass('[overflow-wrap:anywhere]');
+    multiView.unmount();
+
+    render(<QuestionView question={categorize} value={null} onChange={vi.fn()} />);
+    // Without a stated column the grid's one column is `auto`, which grows to the widest menu in it.
+    expect(screen.getByRole('group', { name: 'Preventive' }).parentElement).toHaveClass('grid', 'grid-cols-1', 'sm:grid-cols-2');
+  });
+
+  it('the menus of match and categorize questions have the border of a form field', () => {
+    const matchView = render(<QuestionView question={match} value={null} onChange={vi.fn()} />);
+    for (const menu of screen.getAllByRole('combobox')) {
+      expect(menu).toHaveClass('border', 'border-field-border');
+      expect(menu).not.toHaveClass('border-border');
+    }
+    matchView.unmount();
+    render(<QuestionView question={categorize} value={null} onChange={vi.fn()} />);
+    for (const menu of screen.getAllByRole('combobox')) {
+      expect(menu).toHaveClass('border', 'border-field-border');
+      expect(menu).not.toHaveClass('border-border');
+    }
   });
 
   it('reduced motion: no result pulse is rendered and order rows move without a transition', () => {

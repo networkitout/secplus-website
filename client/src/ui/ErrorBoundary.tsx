@@ -45,7 +45,18 @@ function ErrorScreen({ error, onRetry }: { error: unknown; onRetry(): void }) {
               ? error.message
               : 'An unexpected error occurred.'}
         </p>
-        <Button onClick={onRetry}>Retry</Button>
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
+          <Button onClick={onRetry}>Retry</Button>
+          {/* When the page fails every time it is drawn, Retry and Back both lead here again. A plain
+              link, not the router's: the app is loaded afresh at a page that is not the broken one.
+              Not while the server cannot be reached: loading the app again would not work either, and
+              would drop the answers that are waiting to be saved. */}
+          {!offline && (
+            <a href="/" className="rounded-sm text-accent underline underline-offset-2">
+              Go to the study path
+            </a>
+          )}
+        </div>
       </div>
       <Footer />
     </div>

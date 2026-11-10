@@ -52,7 +52,7 @@ function timeZones(stored: string): string[] {
   return ['UTC', ...[...new Set([...listed, stored])].filter((z) => z !== 'UTC').sort()];
 }
 
-const INPUT = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-text';
+const INPUT = 'w-full rounded-md border border-field-border bg-bg px-3 py-2 text-text';
 const THEMES: Array<{ theme: Theme; label: string }> = [
   { theme: 'dark', label: 'Dark' },
   { theme: 'light', label: 'Light' },

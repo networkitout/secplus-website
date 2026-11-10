@@ -106,13 +106,13 @@ export function FlashcardView({
   const front = (
     <>
       <p className={EYEBROW}>Term</p>
-      <p className="text-2xl font-semibold">{term}</p>
+      <p className="text-2xl font-semibold [overflow-wrap:anywhere]">{term}</p>
     </>
   );
   // Nothing of the answer is in the page before it is asked for.
   const back = revealed && (
     <>
-      <p className={EYEBROW}>{term}</p>
+      <p className={`${EYEBROW} [overflow-wrap:anywhere]`}>{term}</p>
       <p ref={answer} tabIndex={-1} className="rounded-sm text-lg">
         {definition}
       </p>

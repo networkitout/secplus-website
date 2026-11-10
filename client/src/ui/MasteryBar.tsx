@@ -1,5 +1,8 @@
+import { wholePercent } from '../lib/percent';
+
 export function MasteryBar({ value, label }: { value: number; label: string }) {
-  const v = Math.max(0, Math.min(100, Math.round(value)));
+  // Rounded down, like a score: a bar never reads as more than was reached.
+  const v = Math.max(0, Math.min(100, wholePercent(value)));
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-sm">

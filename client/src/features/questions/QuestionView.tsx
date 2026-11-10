@@ -70,8 +70,11 @@ export function QuestionView({
   // A press that was meant for the screen before (the second tap of a double tap on "Next") lands on
   // whatever the new question has put under it. For a moment after a question appears it takes no answer.
   const guard = usePressGuard(question.id);
-  const change = (a: Answer) => {
-    if (guard.settled()) onChange(a);
+  // Tells the type component whether the change was taken: it says and queues nothing for one that was not.
+  const change = (a: Answer): boolean => {
+    if (!guard.settled()) return false;
+    onChange(a);
+    return true;
   };
   const common = { onChange: change, feedback, locked: disabled || feedback !== undefined, labelledBy: promptId };
   // With `initial={false}` below, the result animations play when feedback arrives, not when a question
