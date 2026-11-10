@@ -1,3 +1,10 @@
+/** An error in one line: its code, when it has one, and its message. Safe to print for a database error. */
+export function errorLine(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const code = (err as { code?: unknown }).code;
+  return `${typeof code === 'string' ? `[${code}] ` : ''}${err.message}`;
+}
+
 /**
  * What to log for an error: its code when it has one, then its stack (which starts with its message).
  * The error object itself is never given to the console, which would print every property it carries:

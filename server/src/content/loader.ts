@@ -16,6 +16,12 @@ export class ContentError extends Error {
   }
 }
 
+/** What to print for content that failed to load: the file and field of a ContentError, as `npm run check-content` shows them. */
+export function describeContentError(err: unknown): string {
+  if (err instanceof ContentError) return `${err.file}: ${err.field}: ${err.message}`;
+  return err instanceof Error ? (err.stack ?? err.message) : String(err);
+}
+
 export type Content = {
   manifest: Manifest;
   questions: Map<string, Question>;

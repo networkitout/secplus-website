@@ -14,7 +14,7 @@ import { lessonsRouter } from './features/lessons/routes.js';
 import { reviewRouter } from './features/review/routes.js';
 import { settingsRouter } from './features/settings/routes.js';
 import { HttpError, requireCsrfHeader } from './http.js';
-import { logError } from './log.js';
+import { errorLine, logError } from './log.js';
 
 export type AppDeps = {
   db: Db;
@@ -123,8 +123,7 @@ export function createApp(deps: AppDeps): Express {
     const clientError = clientErrorStatus(err);
     if (clientError) return res.status(clientError).json({ error: 'Bad request' });
     if (isDbUnavailable(err)) {
-      const { code, message } = err as Error & { code?: unknown };
-      console.error(`Database unavailable: ${typeof code === 'string' ? `[${code}] ` : ''}${message}`);
+      console.error(`Database unavailable: ${errorLine(err)}`);
       return res.status(503).json({ error: 'Service unavailable' });
     }
     logError(err);
