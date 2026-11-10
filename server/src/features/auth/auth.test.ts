@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { CSRF_HEADER, CSRF_VALUE } from '../../http.js';
 import { createUser, testApp } from '../../test/helpers.js';
@@ -225,6 +226,64 @@ describe('invites', () => {
   });
 });
 
+describe('hardening', () => {
+  test('garbage token returns 404 on accept-invite and reset without hashing the password', async () => {
+    const { app } = await setup();
+    const spy = vi.spyOn(bcrypt, 'hash');
+    try {
+      const a = await post(app, '/api/auth/accept-invite', {
+        token: 'g'.repeat(43), login: 'someone', name: 'S', password: 'a-long-password-1',
+      });
+      const r = await post(app, '/api/auth/reset', { token: 'g'.repeat(43), password: 'a-long-password-1' });
+      expect([a.status, r.status]).toEqual([404, 404]);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test('11th accept-invite/reset request from one IP in the window returns 429', async () => {
+    const { app } = await setup();
+    for (let i = 0; i < 10; i++) {
+      const res = await post(app, i % 2 ? '/api/auth/reset' : '/api/auth/accept-invite', {
+        token: 'g'.repeat(43), login: 'someone', name: 'S', password: 'a-long-password-1',
+      });
+      expect(res.status).toBe(404);
+    }
+    const res = await post(app, '/api/auth/reset', { token: 'g'.repeat(43), password: 'a-long-password-1' });
+    expect(res.status).toBe(429);
+  });
+
+  test('an expired invite still returns 410 after another user logs in', async () => {
+    const { app, db, setNow } = await setup();
+    const admin = await createUser(db, { login: 'boss', role: 'admin' });
+    const token = await createInvite(db, { purpose: 'invite', createdBy: admin.id, now: T0 });
+    setNow(new Date(T0.getTime() + 8 * 24 * 60 * MIN));
+    await post(app, '/api/auth/login', { login: 'boss', password: admin.password });
+    expect((await request(app).get(`/api/auth/invite/${token}`)).status).toBe(410);
+    setNow(new Date(T0.getTime() + 40 * 24 * 60 * MIN));
+    await post(app, '/api/auth/login', { login: 'boss', password: admin.password });
+    expect((await request(app).get(`/api/auth/invite/${token}`)).status).toBe(404);
+  });
+
+  test('passwords over 72 bytes are rejected with 400 on accept-invite and reset', async () => {
+    const { app } = await setup();
+    const long = 'p'.repeat(73);
+    expect((await post(app, '/api/auth/accept-invite', { token: 't', login: 'abc', name: 'N', password: long })).status).toBe(400);
+    expect((await post(app, '/api/auth/reset', { token: 't', password: long })).status).toBe(400);
+  });
+
+  test('reset returns 404 for an inactive user and leaves the token unused', async () => {
+    const { app, db } = await setup();
+    const admin = await createUser(db, { login: 'boss', role: 'admin' });
+    const u = await createUser(db, { login: 'gone', active: false });
+    const token = await createInvite(db, { purpose: 'reset', userId: u.id, createdBy: admin.id, now: T0 });
+    expect((await post(app, '/api/auth/reset', { token, password: 'brand-new-password' })).status).toBe(404);
+    const inv = await db.query('SELECT used_at FROM invites WHERE token_hash = ?', [hashToken(token)]);
+    expect(inv[0].used_at).toBeNull();
+  });
+});
+
 describe('ensureAdmin', () => {
   test('ensureAdmin creates an admin from ADMIN_LOGIN/ADMIN_PASSWORD/ADMIN_NAME when no admin exists', async () => {
     const { db } = await setup();
@@ -238,7 +297,14 @@ describe('ensureAdmin', () => {
   test('ensureAdmin does nothing when an admin exists, and throws if no admin exists and ADMIN_PASSWORD is under 12 chars', async () => {
     const { db } = await setup();
     await expect(ensureAdmin(db, { adminLogin: 'root', adminPassword: 'short' }, T0)).rejects.toThrow(/12/);
-    await expect(ensureAdmin(db, {}, T0)).resolves.toBeUndefined(); // warns, no throw
+    await expect(ensureAdmin(db, { adminPassword: 'short' }, T0)).rejects.toThrow(/12/);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await expect(ensureAdmin(db, {}, T0)).resolves.toBeUndefined(); // warns, no throw
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
     await createUser(db, { login: 'existing', role: 'admin' });
     await ensureAdmin(db, { adminLogin: 'root', adminPassword: 'short' }, T0);
     await ensureAdmin(db, { adminLogin: 'root', adminPassword: 'twelve-chars-ok' }, T0);

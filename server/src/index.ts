@@ -19,7 +19,12 @@ try {
   process.exit(1);
 }
 
-await ensureAdmin(db, env, new Date());
+try {
+  await ensureAdmin(db, env, new Date());
+} catch (err) {
+  console.error(`Admin bootstrap failed: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+}
 
 const content = loadContent('content');
 const app = createApp({

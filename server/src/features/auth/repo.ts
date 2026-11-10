@@ -51,12 +51,12 @@ export async function ensureAdmin(
   const existing = await db.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
   if (existing.length) return;
   const { adminLogin, adminPassword, adminName } = env;
+  if (adminPassword && adminPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`ADMIN_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
   if (!adminLogin || !adminPassword) {
     console.warn('No admin user exists and ADMIN_LOGIN/ADMIN_PASSWORD are not set; nobody can sign in.');
     return;
-  }
-  if (adminPassword.length < MIN_PASSWORD_LENGTH) {
-    throw new Error(`ADMIN_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
   const login = adminLogin.trim().toLowerCase();
   if (!LOGIN_PATTERN.test(login)) throw new Error('ADMIN_LOGIN must be 3-64 characters of a-z, 0-9, ".", "_" or "-"');

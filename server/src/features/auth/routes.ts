@@ -16,11 +16,17 @@ import { hashToken } from './tokens.js';
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILURES = 5;
+const INVITE_KEEP_MS = 30 * 24 * 60 * 60 * 1000; // expired invites keep answering 410 for a month
 
-const password = z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`).max(200);
+const MAX_PASSWORD_BYTES = 72; // bcrypt ignores everything after 72 bytes
+const within72 = (v: string) => Buffer.byteLength(v, 'utf8') <= MAX_PASSWORD_BYTES;
+const password = z
+  .string()
+  .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+  .refine(within72, `Password must be at most ${MAX_PASSWORD_BYTES} bytes`);
 const token = z.string().min(1).max(200);
 
-const loginBody = z.object({ login: z.string().max(200), password: z.string().max(200) });
+const loginBody = z.object({ login: z.string().max(64), password: z.string().max(MAX_PASSWORD_BYTES) });
 const acceptBody = z.object({
   token,
   login: z
@@ -62,15 +68,29 @@ export function authRouter(deps: AppDeps): Router {
   const dummyHash = bcrypt.hashSync('not-a-real-password', cost);
   const failures = new Map<string, { count: number; firstAt: number }>();
 
-  const ipLimiter = rateLimit({
-    windowMs: WINDOW_MS,
-    limit: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    handler: (_req, res) => {
-      res.status(429).json({ error: 'Too many attempts. Try again later.' });
-    },
-  });
+  // Per-IP limiters use express-rate-limit's real clock (accepted exception to the deps.now() rule).
+  const makeLimiter = () =>
+    rateLimit({
+      windowMs: WINDOW_MS,
+      limit: 10,
+      standardHeaders: true,
+      legacyHeaders: false,
+      handler: (_req, res) => {
+        res.status(429).json({ error: 'Too many attempts. Try again later.' });
+      },
+    });
+  const ipLimiter = makeLimiter();
+  const inviteLimiter = makeLimiter(); // shared by accept-invite and reset
+
+  /** Cheap token check done before any bcrypt work; the locked transaction re-checks it. */
+  async function checkToken(raw: string, purpose: 'invite' | 'reset', t: Date) {
+    const invite = await findInvite(db, hashToken(raw));
+    if (!invite || invite.purpose !== purpose) return { status: 404, error: 'Link not found' };
+    if (invite.used_at || invite.expires_at.getTime() <= t.getTime()) {
+      return { status: 410, error: 'This link has already been used or has expired' };
+    }
+    return undefined;
+  }
 
   router.post('/login', ipLimiter, validate(loginBody), async (req: Request, res: Response) => {
     const login = String(req.body.login).trim().toLowerCase();
@@ -88,7 +108,7 @@ export function authRouter(deps: AppDeps): Router {
     }
 
     await db.exec('DELETE FROM sessions WHERE expires_at < ?', [t]);
-    await db.exec('DELETE FROM invites WHERE expires_at < ?', [t]);
+    await db.exec('DELETE FROM invites WHERE expires_at < ?', [new Date(nowMs - INVITE_KEEP_MS)]);
 
     const rows = await db.query<UserRow & { active: number }>(
       'SELECT id, login, name, role, time_zone, password_hash, active FROM users WHERE login = ?',
@@ -99,6 +119,7 @@ export function authRouter(deps: AppDeps): Router {
     const ok = await bcrypt.compare(String(req.body.password), usable ? usable.password_hash : dummyHash);
 
     if (!usable || !ok) {
+      for (const [k, v] of failures) if (nowMs - v.firstAt >= WINDOW_MS) failures.delete(k);
       const cur = failures.get(login);
       failures.set(login, cur ? { ...cur, count: cur.count + 1 } : { count: 1, firstAt: nowMs });
       res.status(401).json({ error: 'Invalid login or password' });
@@ -138,10 +159,15 @@ export function authRouter(deps: AppDeps): Router {
     res.json({ purpose: invite.purpose });
   });
 
-  router.post('/accept-invite', validate(acceptBody), async (req, res) => {
+  router.post('/accept-invite', inviteLimiter, validate(acceptBody), async (req, res) => {
     const { token: raw, login, name, password: pw, timeZone } = req.body as z.infer<typeof acceptBody>;
-    const passwordHash = await bcrypt.hash(pw, cost);
     const t = now();
+    const early = await checkToken(raw, 'invite', t);
+    if (early) {
+      res.status(early.status).json({ error: early.error });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(pw, cost);
     type Result = { status: number; error: string } | { userId: number };
     let result: Result;
     try {
@@ -178,16 +204,23 @@ export function authRouter(deps: AppDeps): Router {
     res.json({ user: publicUser(rows[0]!) });
   });
 
-  router.post('/reset', validate(resetBody), async (req, res) => {
+  router.post('/reset', inviteLimiter, validate(resetBody), async (req, res) => {
     const { token: raw, password: pw } = req.body as z.infer<typeof resetBody>;
-    const passwordHash = await bcrypt.hash(pw, cost);
     const t = now();
+    const early = await checkToken(raw, 'reset', t);
+    if (early) {
+      res.status(early.status).json({ error: early.error });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(pw, cost);
     const result = await db.tx<{ status: number; error: string } | { ok: true }>(async (tx) => {
       const invite = await findInvite(tx, hashToken(raw), true);
       if (!invite || invite.purpose !== 'reset' || !invite.user_id) return { status: 404, error: 'Reset link not found' };
       if (invite.used_at || invite.expires_at.getTime() <= t.getTime()) {
         return { status: 410, error: 'This link has already been used or has expired' };
       }
+      const target = await tx.query('SELECT id FROM users WHERE id = ? AND active = 1', [invite.user_id]);
+      if (!target.length) return { status: 404, error: 'Reset link not found' };
       await tx.exec('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, invite.user_id]);
       await tx.exec('UPDATE invites SET used_at = ? WHERE id = ?', [t, invite.id]);
       await tx.exec('DELETE FROM sessions WHERE user_id = ?', [invite.user_id]);
