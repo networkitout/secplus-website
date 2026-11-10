@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { z } from 'zod';
-import { DIAGRAM_NAMES } from '../../../shared/diagrams.js';
-import type { Flashcard, Lab, Manifest, ManifestDomain, ManifestObjective, Question } from '../../../shared/types.js';
+import type { Flashcard, Lab, Lesson, Manifest, ManifestDomain, ManifestObjective, Question } from '../../../shared/types.js';
+import { parseLesson } from './lesson.js';
 import { flashcardsFileSchema, labSchema, manifestSchema, questionsFileSchema } from './schema.js';
 
 export class ContentError extends Error {
@@ -20,7 +20,7 @@ export type Content = {
   manifest: Manifest;
   questions: Map<string, Question>;
   questionsFor(objective: string): Question[];
-  rawLessons: Map<string, string>; // objective id -> lesson.md source; parsed in Task 3
+  lessons: Map<string, Lesson>; // objective id -> parsed lesson.md
   labs: Map<string, Lab>;
   flashcards: Flashcard[];
   publishedObjectives(): ManifestObjective[];
@@ -127,7 +127,8 @@ export function loadContent(dir: string): Content {
 
   const questions = new Map<string, Question>();
   const byObjective = new Map<string, Question[]>();
-  const rawLessons = new Map<string, string>();
+  const lessons = new Map<string, Lesson>();
+  const lessonFiles = new Map<string, string>();
 
   for (const d of manifest.domains) {
     for (const o of d.objectives) {
@@ -144,7 +145,13 @@ export function loadContent(dir: string): Content {
         }
       }
       const lessonFile = path.join(objDir, 'lesson.md');
-      if (fs.existsSync(lessonFile)) rawLessons.set(o.id, readText(lessonFile));
+      if (fs.existsSync(lessonFile)) {
+        const lesson = parseLesson(readText(lessonFile), lessonFile);
+        if (lesson.objective !== o.id)
+          throw new ContentError(lessonFile, 'objective', `lesson objective ${lesson.objective} does not match ${o.id}`);
+        lessons.set(o.id, lesson);
+        lessonFiles.set(o.id, lessonFile);
+      }
     }
   }
 
@@ -159,23 +166,18 @@ export function loadContent(dir: string): Content {
   for (const o of objectives.values()) {
     if (!o.published) continue;
     const lessonFile = path.join(dir, 'domains', String(domainByObjective.get(o.id)!.id), o.id, 'lesson.md');
-    if (!rawLessons.has(o.id)) throw new ContentError(lessonFile, 'lesson', `published objective ${o.id} has no lesson.md`);
+    if (!lessons.has(o.id)) throw new ContentError(lessonFile, 'lesson', `published objective ${o.id} has no lesson.md`);
     const count = byObjective.get(o.id)?.length ?? 0;
     if (count < o.minQuestions)
       throw new ContentError(manifestFile, 'minQuestions', `objective ${o.id} has ${count} questions, needs ${o.minQuestions}`);
   }
 
-  // Lesson directives: simple line scan (full parsing happens in Task 3).
-  for (const [objId, source] of rawLessons) {
-    const file = path.join(dir, 'domains', String(domainByObjective.get(objId)!.id), objId, 'lesson.md');
-    for (const line of source.split(/\r?\n/)) {
-      const diagram = /^:::diagram\s+(\S+)\s*$/.exec(line);
-      if (diagram && !(DIAGRAM_NAMES as readonly string[]).includes(diagram[1]!))
-        throw new ContentError(file, 'diagram', `unknown diagram "${diagram[1]}"`);
-      const check = /^:::check\s+(\S+)\s*$/.exec(line);
-      if (check && !questions.has(check[1]!))
-        throw new ContentError(file, 'check', `unknown question id "${check[1]}"`);
-    }
+  // Check blocks may only name known questions (all questions are loaded by now).
+  for (const [objId, lesson] of lessons) {
+    for (const section of lesson.sections)
+      for (const block of section.blocks)
+        if (block.kind === 'check' && !questions.has(block.questionId))
+          throw new ContentError(lessonFiles.get(objId)!, 'check', `unknown question id "${block.questionId}"`);
   }
 
   const labs = new Map<string, Lab>();
@@ -212,7 +214,7 @@ export function loadContent(dir: string): Content {
     manifest,
     questions,
     questionsFor: (objective) => byObjective.get(objective) ?? [],
-    rawLessons,
+    lessons,
     labs,
     flashcards,
     publishedObjectives: () => [...objectives.values()].filter((o) => o.published),

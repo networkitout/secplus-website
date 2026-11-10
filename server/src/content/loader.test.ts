@@ -84,7 +84,7 @@ test('loads fixture content', () => {
   expect(c.questionsFor('1.1')).toHaveLength(12);
   expect(c.publishedObjectives().map((o) => o.id)).toEqual(['1.1', '1.2']);
   expect(c.domainOf('1.2').id).toBe(1);
-  expect(c.rawLessons.size).toBe(2);
+  expect(c.lessons.size).toBe(2);
   expect(c.flashcards).toHaveLength(4);
   const lab = c.labs.get('lab-1-01')!;
   expect(lab.steps).toHaveLength(5);
@@ -125,4 +125,18 @@ test('rejects a lab step whose objective is not one of the lab objectives', () =
 
 test('real content directory is valid', () => {
   expect(() => loadContent('content')).not.toThrow();
+});
+
+test('parses lessons into sections and blocks', () => {
+  const l = loadContent(FIXTURE).lessons.get('1.1')!;
+  expect(l.sections.map((s) => s.title)).toEqual(['Overview', 'Check yourself']);
+  expect(l.sections[1]!.blocks).toEqual([{ kind: 'check', questionId: 'q-1.1-001' }]);
+});
+
+test('rejects a lesson whose objective differs from its directory', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'secplus-content-'));
+  fs.cpSync(FIXTURE, dir, { recursive: true });
+  const f = path.join(dir, 'domains/1/1.1/lesson.md');
+  fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('objective: "1.1"', 'objective: "1.2"'));
+  expect(() => loadContent(dir)).toThrow(expect.objectContaining({ name: 'ContentError', field: 'objective' }));
 });

@@ -1,3 +1,5 @@
+import type { DiagramName } from './diagrams.js';
+
 export type Item = { id: string; text: string };
 
 type QBase = {
@@ -54,3 +56,10 @@ export type ManifestDomain = {
   objectives: ManifestObjective[];
 };
 export type Manifest = { exam: 'SY0-701'; domains: ManifestDomain[] };
+
+export type LessonBlock =
+  | { kind: 'html'; html: string }
+  | { kind: 'diagram'; name: DiagramName }
+  | { kind: 'check'; questionId: string };
+export type LessonSection = { id: string; title: string; blocks: LessonBlock[] };
+export type Lesson = { objective: string; title: string; minutes: number; sections: LessonSection[] };
