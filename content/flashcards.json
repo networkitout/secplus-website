@@ -1,1 +1,812 @@
-[]
+[
+  {
+    "id": "f-1.1-001",
+    "objective": "1.1",
+    "term": "Security control",
+    "definition": "A measure put in place to reduce risk to systems, data, people or buildings."
+  },
+  {
+    "id": "f-1.1-002",
+    "objective": "1.1",
+    "term": "Control category",
+    "definition": "How a control is implemented: technical, managerial, operational or physical."
+  },
+  {
+    "id": "f-1.1-003",
+    "objective": "1.1",
+    "term": "Control type",
+    "definition": "What a control does about an incident: preventive, deterrent, detective, corrective, compensating or directive."
+  },
+  {
+    "id": "f-1.1-004",
+    "objective": "1.1",
+    "term": "Technical control",
+    "definition": "A control implemented by hardware, software or firmware, such as a firewall rule, encryption or antivirus."
+  },
+  {
+    "id": "f-1.1-005",
+    "objective": "1.1",
+    "term": "Managerial control",
+    "definition": "A control based on management's oversight of risk, such as a risk assessment, a security policy or a supplier review."
+  },
+  {
+    "id": "f-1.1-006",
+    "objective": "1.1",
+    "term": "Operational control",
+    "definition": "A control carried out by people as part of day-to-day work, such as security awareness training."
+  },
+  {
+    "id": "f-1.1-007",
+    "objective": "1.1",
+    "term": "Physical control",
+    "definition": "A tangible barrier or device that protects buildings and equipment, such as a lock, fence or bollard."
+  },
+  {
+    "id": "f-1.1-008",
+    "objective": "1.1",
+    "term": "Preventive control",
+    "definition": "A control that stops an unwanted action from succeeding, such as a firewall rule or a door lock."
+  },
+  {
+    "id": "f-1.1-009",
+    "objective": "1.1",
+    "term": "Deterrent control",
+    "definition": "A control that discourages an attempt, for example by warning of consequences or of being caught, without blocking it."
+  },
+  {
+    "id": "f-1.1-010",
+    "objective": "1.1",
+    "term": "Detective control",
+    "definition": "A control that identifies and reports an incident during or after it, without stopping it, such as an IDS alert or a log review."
+  },
+  {
+    "id": "f-1.1-011",
+    "objective": "1.1",
+    "term": "Corrective control",
+    "definition": "A control that repairs damage and restores normal operation after an incident, such as restoring files from backup."
+  },
+  {
+    "id": "f-1.1-012",
+    "objective": "1.1",
+    "term": "Compensating control",
+    "definition": "An approved alternative used when a required control cannot be implemented. It reduces the same risk to a similar level."
+  },
+  {
+    "id": "f-1.1-013",
+    "objective": "1.1",
+    "term": "Directive control",
+    "definition": "A control that tells people what they must or must not do, such as a policy, procedure or instruction sign."
+  },
+  {
+    "id": "f-1.1-014",
+    "objective": "1.1",
+    "term": "IDS vs. IPS (control type)",
+    "definition": "An intrusion detection system only alerts, so it is detective. An intrusion prevention system blocks the traffic, so it is preventive."
+  },
+  {
+    "id": "f-1.2-001",
+    "objective": "1.2",
+    "term": "CIA triad",
+    "definition": "The three goals of security: confidentiality, integrity and availability."
+  },
+  {
+    "id": "f-1.2-002",
+    "objective": "1.2",
+    "term": "Confidentiality",
+    "definition": "Only authorized people and systems can read the information. Protected by encryption and access permissions."
+  },
+  {
+    "id": "f-1.2-003",
+    "objective": "1.2",
+    "term": "Integrity",
+    "definition": "Information is accurate and is changed only by those allowed to change it. Checked with hashes and digital signatures."
+  },
+  {
+    "id": "f-1.2-004",
+    "objective": "1.2",
+    "term": "Availability",
+    "definition": "Systems and data can be reached when authorized users need them. Protected by redundancy, backups and patching."
+  },
+  {
+    "id": "f-1.2-005",
+    "objective": "1.2",
+    "term": "Non-repudiation",
+    "definition": "A person cannot credibly deny an action, because proof exists that only they could have produced, such as a digital signature."
+  },
+  {
+    "id": "f-1.2-006",
+    "objective": "1.2",
+    "term": "AAA",
+    "definition": "Authentication, Authorization, and Accounting: prove who you are, receive only the access you are allowed, and have your activity recorded."
+  },
+  {
+    "id": "f-1.2-007",
+    "objective": "1.2",
+    "term": "Identification",
+    "definition": "Claiming an identity, for example by typing a username. The claim proves nothing until it is authenticated."
+  },
+  {
+    "id": "f-1.2-008",
+    "objective": "1.2",
+    "term": "Authentication",
+    "definition": "Proving a claimed identity, for example with a password, a token, a fingerprint or a certificate."
+  },
+  {
+    "id": "f-1.2-009",
+    "objective": "1.2",
+    "term": "Authorization",
+    "definition": "Deciding what an authenticated user or device is allowed to access or do."
+  },
+  {
+    "id": "f-1.2-010",
+    "objective": "1.2",
+    "term": "Accounting",
+    "definition": "Recording what users and devices do: sign-in time, resources used, data transferred and sign-out time."
+  },
+  {
+    "id": "f-1.2-011",
+    "objective": "1.2",
+    "term": "Authenticating people",
+    "definition": "Proving a person's identity with factors: something you know, something you have, something you are (objective 4.6 adds somewhere you are). Two different factors make multifactor authentication."
+  },
+  {
+    "id": "f-1.2-012",
+    "objective": "1.2",
+    "term": "Authenticating systems",
+    "definition": "Proving the identity of a device or service, usually with a digital certificate issued by a certificate authority the organization trusts."
+  },
+  {
+    "id": "f-1.2-013",
+    "objective": "1.2",
+    "term": "Authorization model",
+    "definition": "A consistent method for deciding access, by roles, attributes, rules or labels, so that permissions are not set by hand for each user."
+  },
+  {
+    "id": "f-1.2-014",
+    "objective": "1.2",
+    "term": "Gap analysis",
+    "definition": "A comparison of current security with a target standard or baseline. It produces a list of shortfalls and a plan to close them."
+  },
+  {
+    "id": "f-1.2-015",
+    "objective": "1.2",
+    "term": "Zero Trust",
+    "definition": "A model in which no user or device is trusted because of its network location. Every access request is authenticated and authorized."
+  },
+  {
+    "id": "f-1.2-016",
+    "objective": "1.2",
+    "term": "Control plane",
+    "definition": "The part of a Zero Trust architecture that makes and communicates access decisions. It contains the policy engine and the policy administrator."
+  },
+  {
+    "id": "f-1.2-017",
+    "objective": "1.2",
+    "term": "Data plane",
+    "definition": "The part of a Zero Trust architecture that carries the actual traffic between subject and resource, through the policy enforcement point."
+  },
+  {
+    "id": "f-1.2-018",
+    "objective": "1.2",
+    "term": "Adaptive identity",
+    "definition": "Zero Trust control-plane concept: adjusting how much proof of identity is required by using context such as location, device, time and behavior."
+  },
+  {
+    "id": "f-1.2-019",
+    "objective": "1.2",
+    "term": "Threat scope reduction",
+    "definition": "Zero Trust control-plane concept: limiting an attacker's entry points and how far a compromise can spread, through least privilege, segmentation and small implicit trust zones."
+  },
+  {
+    "id": "f-1.2-020",
+    "objective": "1.2",
+    "term": "Policy-driven access control",
+    "definition": "Zero Trust control-plane concept: deciding each access request from defined policies that combine identity, device and context, not from network location."
+  },
+  {
+    "id": "f-1.2-021",
+    "objective": "1.2",
+    "term": "Policy engine",
+    "definition": "Zero Trust control-plane component that decides whether to grant, deny or revoke access for each request."
+  },
+  {
+    "id": "f-1.2-022",
+    "objective": "1.2",
+    "term": "Policy administrator",
+    "definition": "Zero Trust control-plane component that carries out the policy engine's decision by telling the policy enforcement point to open or close a session."
+  },
+  {
+    "id": "f-1.2-023",
+    "objective": "1.2",
+    "term": "Policy enforcement point (PEP)",
+    "definition": "Zero Trust data-plane gatekeeper in the traffic path. It allows, monitors and ends connections as the policy administrator instructs."
+  },
+  {
+    "id": "f-1.2-024",
+    "objective": "1.2",
+    "term": "Implicit trust zone",
+    "definition": "The area behind a policy enforcement point where traffic is not checked again. Zero Trust keeps it as small as possible."
+  },
+  {
+    "id": "f-1.2-025",
+    "objective": "1.2",
+    "term": "Subject/system",
+    "definition": "In Zero Trust, the user, application or service requesting access (subject) and the device it uses (system). Both are verified."
+  },
+  {
+    "id": "f-1.2-026",
+    "objective": "1.2",
+    "term": "Bollards",
+    "definition": "Short, sturdy posts that stop vehicles from reaching a building while letting pedestrians walk through."
+  },
+  {
+    "id": "f-1.2-027",
+    "objective": "1.2",
+    "term": "Access control vestibule",
+    "definition": "A small room with two interlocking doors that admits one verified person at a time. It prevents tailgating. Formerly called a mantrap."
+  },
+  {
+    "id": "f-1.2-028",
+    "objective": "1.2",
+    "term": "Fencing",
+    "definition": "A barrier that encloses the site perimeter. It deters intruders and slows them down."
+  },
+  {
+    "id": "f-1.2-029",
+    "objective": "1.2",
+    "term": "Video surveillance",
+    "definition": "Cameras that are watched live or recorded (CCTV). They detect activity, provide evidence afterwards and deter when visible."
+  },
+  {
+    "id": "f-1.2-030",
+    "objective": "1.2",
+    "term": "Security guard",
+    "definition": "A person who checks identification, handles visitors and responds to incidents. Adds human judgment that the other physical controls in this objective lack."
+  },
+  {
+    "id": "f-1.2-031",
+    "objective": "1.2",
+    "term": "Access badge",
+    "definition": "An ID card read by door readers. It identifies the holder, and each use is logged with the door and the time."
+  },
+  {
+    "id": "f-1.2-032",
+    "objective": "1.2",
+    "term": "Lighting",
+    "definition": "A physical control that removes dark areas where intruders could approach unseen, and lets guards and cameras see."
+  },
+  {
+    "id": "f-1.2-033",
+    "objective": "1.2",
+    "term": "Infrared sensor",
+    "definition": "Detects infrared radiation (heat), such as a warm body moving across its view. Works in light and in darkness."
+  },
+  {
+    "id": "f-1.2-034",
+    "objective": "1.2",
+    "term": "Pressure sensor",
+    "definition": "Detects a change in weight or force on a surface, such as a step on a floor mat or an object being lifted."
+  },
+  {
+    "id": "f-1.2-035",
+    "objective": "1.2",
+    "term": "Microwave sensor",
+    "definition": "Detects movement by sending out microwave (radio) pulses and measuring the reflections. Covers large areas; the signal passes through thin walls."
+  },
+  {
+    "id": "f-1.2-036",
+    "objective": "1.2",
+    "term": "Ultrasonic sensor",
+    "definition": "Detects movement by sending out sound waves above human hearing and measuring the reflections. The sound stays inside the room."
+  },
+  {
+    "id": "f-1.2-037",
+    "objective": "1.2",
+    "term": "Deception and disruption technology",
+    "definition": "Decoys with no business use, planted to detect attackers, waste their time and reveal their methods. Any interaction with a decoy is suspicious."
+  },
+  {
+    "id": "f-1.2-038",
+    "objective": "1.2",
+    "term": "Honeypot",
+    "definition": "A single decoy system made to look like a real, attractive target, used to detect and observe attackers."
+  },
+  {
+    "id": "f-1.2-039",
+    "objective": "1.2",
+    "term": "Honeynet",
+    "definition": "A network of honeypots that imitates a real environment, showing how attackers move between systems."
+  },
+  {
+    "id": "f-1.2-040",
+    "objective": "1.2",
+    "term": "Honeyfile",
+    "definition": "A bait file with a tempting name placed on a real system. Opening it raises an alert."
+  },
+  {
+    "id": "f-1.2-041",
+    "objective": "1.2",
+    "term": "Honeytoken",
+    "definition": "A piece of fake, tracked data, such as a record or login details. If it is used or appears elsewhere, data has been stolen."
+  },
+  {
+    "id": "f-1.3-001",
+    "objective": "1.3",
+    "term": "Change management",
+    "definition": "The formal process for controlling changes to systems: each change is requested, assessed, tested, approved, scheduled, implemented, verified and documented."
+  },
+  {
+    "id": "f-1.3-002",
+    "objective": "1.3",
+    "term": "Approval process",
+    "definition": "The formal review in which approvers, often a change advisory board, weigh the impact analysis and test results and decide whether a change may proceed."
+  },
+  {
+    "id": "f-1.3-003",
+    "objective": "1.3",
+    "term": "Change advisory board (CAB)",
+    "definition": "A group from IT, security and the business that reviews change requests and approves, rejects or returns them. Also called a change control board."
+  },
+  {
+    "id": "f-1.3-004",
+    "objective": "1.3",
+    "term": "Ownership (of a change)",
+    "definition": "Accountability for a change from request to sign-off. The owner usually owns the affected system or data, and need not perform the change. The approval body decides."
+  },
+  {
+    "id": "f-1.3-005",
+    "objective": "1.3",
+    "term": "Stakeholders",
+    "definition": "Everyone a change affects. They are consulted about its impact and told what will happen and when."
+  },
+  {
+    "id": "f-1.3-006",
+    "objective": "1.3",
+    "term": "Impact analysis",
+    "definition": "An assessment made before a change of which systems and users it affects, what could go wrong, and the risk of not making it."
+  },
+  {
+    "id": "f-1.3-007",
+    "objective": "1.3",
+    "term": "Test results",
+    "definition": "Recorded evidence from trying a change in a test environment, showing whether it works and leaves security settings intact. Approvers expect it before deciding."
+  },
+  {
+    "id": "f-1.3-008",
+    "objective": "1.3",
+    "term": "Backout plan",
+    "definition": "The documented way to return a system to its previous working state if a change fails: a restore point, written steps and a decision point."
+  },
+  {
+    "id": "f-1.3-009",
+    "objective": "1.3",
+    "term": "Maintenance window",
+    "definition": "An agreed period, chosen to disturb the business least, during which an approved change may be made."
+  },
+  {
+    "id": "f-1.3-010",
+    "objective": "1.3",
+    "term": "Standard operating procedure (SOP)",
+    "definition": "Written step-by-step instructions for a routine task, so that it is done the same way every time."
+  },
+  {
+    "id": "f-1.3-011",
+    "objective": "1.3",
+    "term": "Allow list",
+    "definition": "A list of permitted items, such as applications or addresses. Anything not on the list is blocked."
+  },
+  {
+    "id": "f-1.3-012",
+    "objective": "1.3",
+    "term": "Deny list",
+    "definition": "A list of blocked items, such as applications or addresses. Anything not on the list is permitted."
+  },
+  {
+    "id": "f-1.3-013",
+    "objective": "1.3",
+    "term": "Restricted activities",
+    "definition": "The limit an approval places on a change: only the approved actions, on the approved systems, in the approved window. Anything else must go back through the change process."
+  },
+  {
+    "id": "f-1.3-014",
+    "objective": "1.3",
+    "term": "Downtime",
+    "definition": "A period when a service is unavailable to its users. Changes should plan it, keep it short and place it in the maintenance window."
+  },
+  {
+    "id": "f-1.3-015",
+    "objective": "1.3",
+    "term": "Service restart",
+    "definition": "Stopping and starting one background service so that it loads a change, while the operating system and other services keep running."
+  },
+  {
+    "id": "f-1.3-016",
+    "objective": "1.3",
+    "term": "Application restart",
+    "definition": "Closing and reopening a program so that it loads a new version or settings. Its users may lose sessions or unsaved work."
+  },
+  {
+    "id": "f-1.3-017",
+    "objective": "1.3",
+    "term": "Legacy application",
+    "definition": "An old application the business still relies on that is no longer supported or well understood, so changes around it are risky."
+  },
+  {
+    "id": "f-1.3-018",
+    "objective": "1.3",
+    "term": "Dependencies",
+    "definition": "Cases where one component needs another to work, so changing one can break others or force them to change first."
+  },
+  {
+    "id": "f-1.3-019",
+    "objective": "1.3",
+    "term": "Updating diagrams",
+    "definition": "Revising network and data flow diagrams after a change so that they still match the real environment."
+  },
+  {
+    "id": "f-1.3-020",
+    "objective": "1.3",
+    "term": "Updating policies/procedures",
+    "definition": "Revising written policies and procedures when a change alters how work is done, so that people do not follow outdated instructions."
+  },
+  {
+    "id": "f-1.3-021",
+    "objective": "1.3",
+    "term": "Version control",
+    "definition": "Tracking every version of a file, such as code or a configuration: who changed what, when and why, with the ability to restore earlier versions."
+  },
+  {
+    "id": "f-1.3-022",
+    "objective": "1.3",
+    "term": "Emergency change",
+    "definition": "An urgent change that takes a faster approval route and is documented right afterward. It is still approved and recorded."
+  },
+  {
+    "id": "f-1.4-001",
+    "objective": "1.4",
+    "term": "Public key infrastructure (PKI)",
+    "definition": "The system of certificate authorities, certificates, keys and processes used to issue, use and revoke certificates that tie public keys to identities."
+  },
+  {
+    "id": "f-1.4-002",
+    "objective": "1.4",
+    "term": "Public key",
+    "definition": "The half of a key pair that can be given to anyone. Used to encrypt data for its owner and to verify its owner's signatures."
+  },
+  {
+    "id": "f-1.4-003",
+    "objective": "1.4",
+    "term": "Private key",
+    "definition": "The half of a key pair that never leaves its owner. Used to decrypt data sent to the owner and to create the owner's signatures."
+  },
+  {
+    "id": "f-1.4-004",
+    "objective": "1.4",
+    "term": "Key escrow",
+    "definition": "A trusted third party holds a copy of keys so that encrypted data can be recovered if a key is lost or its owner leaves."
+  },
+  {
+    "id": "f-1.4-005",
+    "objective": "1.4",
+    "term": "Symmetric encryption",
+    "definition": "Encryption that uses one shared key to encrypt and decrypt. Fast and suited to bulk data, but the key must be shared securely."
+  },
+  {
+    "id": "f-1.4-006",
+    "objective": "1.4",
+    "term": "Asymmetric encryption",
+    "definition": "Encryption that uses a linked key pair: encrypt with the recipient's public key, decrypt with the recipient's private key. Slower than symmetric encryption."
+  },
+  {
+    "id": "f-1.4-007",
+    "objective": "1.4",
+    "term": "Hybrid encryption",
+    "definition": "Using asymmetric cryptography to set up a symmetric key, then using that symmetric key to encrypt the data. TLS works this way."
+  },
+  {
+    "id": "f-1.4-008",
+    "objective": "1.4",
+    "term": "Key exchange",
+    "definition": "The way two parties end up with the same symmetric key over an untrusted network, for example with Diffie-Hellman."
+  },
+  {
+    "id": "f-1.4-009",
+    "objective": "1.4",
+    "term": "Diffie-Hellman",
+    "definition": "An asymmetric key exchange algorithm. Both sides calculate the same secret from exchanged public values. It does not encrypt data."
+  },
+  {
+    "id": "f-1.4-010",
+    "objective": "1.4",
+    "term": "Key length",
+    "definition": "The number of bits in a key. Longer is stronger within one algorithm; lengths cannot be compared between different algorithms."
+  },
+  {
+    "id": "f-1.4-011",
+    "objective": "1.4",
+    "term": "AES",
+    "definition": "Advanced Encryption Standard. The current standard symmetric block cipher, with 128-, 192- or 256-bit keys."
+  },
+  {
+    "id": "f-1.4-012",
+    "objective": "1.4",
+    "term": "ChaCha20",
+    "definition": "A modern symmetric stream cipher, used as an alternative to AES."
+  },
+  {
+    "id": "f-1.4-013",
+    "objective": "1.4",
+    "term": "DES, 3DES and RC4",
+    "definition": "Data Encryption Standard, Triple DES and Rivest Cipher 4. Older symmetric ciphers that are deprecated or insecure; replace them with AES or ChaCha20."
+  },
+  {
+    "id": "f-1.4-014",
+    "objective": "1.4",
+    "term": "RSA",
+    "definition": "Rivest-Shamir-Adleman, named after its inventors. An asymmetric algorithm used for encryption and digital signatures. Keys of 2048 bits are the minimum in current practice."
+  },
+  {
+    "id": "f-1.4-015",
+    "objective": "1.4",
+    "term": "ECC",
+    "definition": "Elliptic curve cryptography. Asymmetric algorithms (ECDSA for signatures, ECDH for key exchange) that match RSA's strength with much shorter keys."
+  },
+  {
+    "id": "f-1.4-016",
+    "objective": "1.4",
+    "term": "SHA-2 and SHA-3",
+    "definition": "Secure Hash Algorithm 2 and 3: the current, secure hash algorithms. SHA-256 is part of SHA-2."
+  },
+  {
+    "id": "f-1.4-017",
+    "objective": "1.4",
+    "term": "MD5 and SHA-1",
+    "definition": "Message Digest 5 and Secure Hash Algorithm 1. Older hashes that are broken for collision resistance; do not use them for signatures or certificates."
+  },
+  {
+    "id": "f-1.4-018",
+    "objective": "1.4",
+    "term": "Full-disk encryption",
+    "definition": "Encrypts the whole drive, including the operating system. Protects a powered-off, lost or stolen device, not data on a running, unlocked system."
+  },
+  {
+    "id": "f-1.4-019",
+    "objective": "1.4",
+    "term": "Partition encryption",
+    "definition": "Encrypts one partition (section) of a drive, while other partitions on the same drive are left unencrypted."
+  },
+  {
+    "id": "f-1.4-020",
+    "objective": "1.4",
+    "term": "Volume encryption",
+    "definition": "Encrypts one logical drive as a unit. The volume may be a single partition, span several disks, or be a mounted container file."
+  },
+  {
+    "id": "f-1.4-021",
+    "objective": "1.4",
+    "term": "File encryption",
+    "definition": "Encrypts individual files or folders, often with a key tied to one user, so other users of the same computer cannot read them."
+  },
+  {
+    "id": "f-1.4-022",
+    "objective": "1.4",
+    "term": "Database encryption",
+    "definition": "Encrypts a database's data files, logs and backups on disk. Transparent data encryption (TDE) does this without changes to applications."
+  },
+  {
+    "id": "f-1.4-023",
+    "objective": "1.4",
+    "term": "Record encryption",
+    "definition": "Encrypts individual records (rows) or fields in a database with a key the application controls, so even database administrators see ciphertext."
+  },
+  {
+    "id": "f-1.4-024",
+    "objective": "1.4",
+    "term": "Transport/communication encryption",
+    "definition": "Encryption of data while it crosses a network (data in transit), for example with TLS or a VPN tunnel."
+  },
+  {
+    "id": "f-1.4-025",
+    "objective": "1.4",
+    "term": "TLS",
+    "definition": "Transport Layer Security. Its handshake uses asymmetric cryptography to authenticate the server and agree on keys; symmetric session keys then encrypt the data."
+  },
+  {
+    "id": "f-1.4-026",
+    "objective": "1.4",
+    "term": "Session key",
+    "definition": "A temporary symmetric key set up for one connection, such as a TLS session, and used to encrypt that connection's data."
+  },
+  {
+    "id": "f-1.4-027",
+    "objective": "1.4",
+    "term": "Trusted Platform Module (TPM)",
+    "definition": "A chip on the motherboard, bound to one device. Stores that device's keys, such as the disk encryption key, and supports measured boot."
+  },
+  {
+    "id": "f-1.4-028",
+    "objective": "1.4",
+    "term": "Hardware security module (HSM)",
+    "definition": "A dedicated, tamper-resistant device or service that generates, stores and uses keys for many systems. The keys never leave it."
+  },
+  {
+    "id": "f-1.4-029",
+    "objective": "1.4",
+    "term": "Key management system",
+    "definition": "A central service that manages keys through their lifecycle: creation, rotation and revocation, with access rules and logging."
+  },
+  {
+    "id": "f-1.4-030",
+    "objective": "1.4",
+    "term": "Secure enclave",
+    "definition": "An isolated, protected processing area inside a processor or device, separate from the main operating system, for sensitive data and keys."
+  },
+  {
+    "id": "f-1.4-031",
+    "objective": "1.4",
+    "term": "Obfuscation",
+    "definition": "Making data hard to find or hard to understand. Includes steganography, tokenization and data masking."
+  },
+  {
+    "id": "f-1.4-032",
+    "objective": "1.4",
+    "term": "Steganography",
+    "definition": "Hiding the existence of data inside another file, such as an image, audio clip or video."
+  },
+  {
+    "id": "f-1.4-033",
+    "objective": "1.4",
+    "term": "Tokenization",
+    "definition": "Replacing a sensitive value with a random token. The mapping is kept in a separate vault, and the token cannot be reversed by calculation."
+  },
+  {
+    "id": "f-1.4-034",
+    "objective": "1.4",
+    "term": "Data masking",
+    "definition": "Hiding part or all of a value from the viewer, for example showing only the last four digits of a card number."
+  },
+  {
+    "id": "f-1.4-035",
+    "objective": "1.4",
+    "term": "Hashing",
+    "definition": "A one-way function that turns any input into a fixed-length digest. The same input always gives the same hash. Provides integrity."
+  },
+  {
+    "id": "f-1.4-036",
+    "objective": "1.4",
+    "term": "Collision",
+    "definition": "Two different inputs that produce the same hash. A hash algorithm is broken when attackers can create collisions on purpose."
+  },
+  {
+    "id": "f-1.4-037",
+    "objective": "1.4",
+    "term": "Salting",
+    "definition": "Adding a unique random value to each password before hashing, so identical passwords hash differently and rainbow tables fail. The salt is not secret."
+  },
+  {
+    "id": "f-1.4-038",
+    "objective": "1.4",
+    "term": "Rainbow table",
+    "definition": "A precomputed table of hashes for likely passwords, used to look up stolen hashes. Defeated by salting."
+  },
+  {
+    "id": "f-1.4-039",
+    "objective": "1.4",
+    "term": "Key stretching",
+    "definition": "Running a password through a deliberately slow function (bcrypt, PBKDF2, scrypt, Argon2) so that every guess is expensive for an attacker."
+  },
+  {
+    "id": "f-1.4-040",
+    "objective": "1.4",
+    "term": "HMAC",
+    "definition": "Hash-based message authentication code. A hash calculated with a shared secret key. Provides integrity and authenticity, but not non-repudiation."
+  },
+  {
+    "id": "f-1.4-041",
+    "objective": "1.4",
+    "term": "Digital signature",
+    "definition": "A hash of a message signed with the sender's private key and verified with the sender's public key. Gives integrity, authentication and non-repudiation."
+  },
+  {
+    "id": "f-1.4-042",
+    "objective": "1.4",
+    "term": "Blockchain",
+    "definition": "A distributed, append-only ledger. Each block contains the hash of the previous block, so tampering with an earlier block is evident."
+  },
+  {
+    "id": "f-1.4-043",
+    "objective": "1.4",
+    "term": "Open public ledger",
+    "definition": "A ledger that anyone can read and verify. Provides transparency and integrity, not confidentiality."
+  },
+  {
+    "id": "f-1.4-044",
+    "objective": "1.4",
+    "term": "Certificate",
+    "definition": "A document that binds a public key to an identity, such as a hostname, and is digitally signed by its issuer."
+  },
+  {
+    "id": "f-1.4-045",
+    "objective": "1.4",
+    "term": "Certificate authority (CA)",
+    "definition": "An organization that checks identities and issues certificates by signing them. Root CAs sign intermediate CAs, which sign server certificates."
+  },
+  {
+    "id": "f-1.4-046",
+    "objective": "1.4",
+    "term": "Root of trust",
+    "definition": "The starting point that is trusted without further proof, such as a root CA certificate preinstalled in a device. Everything beneath it chains to it."
+  },
+  {
+    "id": "f-1.4-047",
+    "objective": "1.4",
+    "term": "Third-party certificate",
+    "definition": "A certificate issued by a public CA that browsers and operating systems already trust. Used for anything the public reaches."
+  },
+  {
+    "id": "f-1.4-048",
+    "objective": "1.4",
+    "term": "Self-signed certificate",
+    "definition": "A certificate signed with its own private key instead of by a CA. Unless it is in the trust store, as root CA certificates are, browsers warn about it."
+  },
+  {
+    "id": "f-1.4-049",
+    "objective": "1.4",
+    "term": "Certificate signing request (CSR)",
+    "definition": "A request sent to a CA containing the applicant's public key and identifying details, signed with the applicant's private key. The private key is never sent."
+  },
+  {
+    "id": "f-1.4-050",
+    "objective": "1.4",
+    "term": "Wildcard certificate",
+    "definition": "A certificate for *.example.com covers every hostname one level below the domain, such as www.example.com, but not a.b.example.com."
+  },
+  {
+    "id": "f-1.4-051",
+    "objective": "1.4",
+    "term": "Certificate revocation list (CRL)",
+    "definition": "A signed list of the serial numbers of revoked certificates, published periodically by the CA."
+  },
+  {
+    "id": "f-1.4-052",
+    "objective": "1.4",
+    "term": "Online Certificate Status Protocol (OCSP)",
+    "definition": "A protocol for asking whether one certificate is good, revoked or unknown, in close to real time."
+  },
+  {
+    "id": "f-1.4-053",
+    "objective": "1.4",
+    "term": "ECDSA",
+    "definition": "Elliptic Curve Digital Signature Algorithm. An asymmetric algorithm that creates and verifies digital signatures using short elliptic curve keys."
+  },
+  {
+    "id": "f-1.4-054",
+    "objective": "1.4",
+    "term": "ECDH",
+    "definition": "Elliptic Curve Diffie-Hellman. A Diffie-Hellman key exchange carried out with elliptic curve keys."
+  },
+  {
+    "id": "f-1.4-055",
+    "objective": "1.4",
+    "term": "PBKDF2",
+    "definition": "Password-Based Key Derivation Function 2. A key-stretching function that repeats a hash many thousands of times to make each password guess expensive."
+  },
+  {
+    "id": "f-1.4-056",
+    "objective": "1.4",
+    "term": "Perfect forward secrecy (PFS)",
+    "definition": "Also called forward secrecy. Each session uses fresh, temporary (ephemeral) keys, so a server private key stolen later cannot decrypt recorded past sessions."
+  },
+  {
+    "id": "f-1.4-057",
+    "objective": "1.4",
+    "term": "Transparent data encryption (TDE)",
+    "definition": "Database encryption that encrypts data files, logs and backups on disk automatically. Anyone who can query the running database still sees plaintext."
+  },
+  {
+    "id": "f-1.4-058",
+    "objective": "1.4",
+    "term": "Intermediate CA",
+    "definition": "A CA signed by the root CA that issues certificates to servers. It lets the root key stay offline, and it can be revoked without replacing the root."
+  }
+]

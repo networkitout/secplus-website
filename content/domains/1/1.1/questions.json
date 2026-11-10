@@ -1,0 +1,1006 @@
+[
+  {
+    "id": "q-1.1-001",
+    "objective": "1.1",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A security team describes a new control as \"technical\" and \"preventive\". What do these two labels tell you about the control?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Technical is its control type and preventive is its category."
+      },
+      {
+        "id": "b",
+        "text": "Technical says how it is implemented; preventive says what it does."
+      },
+      {
+        "id": "c",
+        "text": "Preventive is a sub-group that exists only inside the technical category."
+      },
+      {
+        "id": "d",
+        "text": "Both labels describe the same property, so either one alone would be enough."
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "The terms are reversed. Technical is one of the four categories, and preventive is one of the six control types.",
+      "b": "Correct. The category (technical) describes how a control is implemented, and the control type (preventive) describes what it does about an incident.",
+      "c": "Control types are independent of categories. A physical lock can be preventive too.",
+      "d": "Category and type are separate properties. A technical control could just as well be detective or corrective."
+    },
+    "explanation": "Every control gets two independent labels: a category (technical, managerial, operational or physical) for how it is implemented, and a control type (preventive, deterrent, detective, corrective, compensating or directive) for what it does."
+  },
+  {
+    "id": "q-1.1-002",
+    "objective": "1.1",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "Northgate Community College runs a 30-minute phishing awareness session for every new member of staff. A member of the IT team delivers it in person. Which category of control is this?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Technical"
+      },
+      {
+        "id": "b",
+        "text": "Managerial"
+      },
+      {
+        "id": "c",
+        "text": "Operational"
+      },
+      {
+        "id": "d",
+        "text": "Physical"
+      }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "No hardware or software enforces anything here. The control is a person teaching other people.",
+      "b": "Managerial controls are management's oversight of risk, such as risk assessments and policies. Delivering the session is a task carried out by people.",
+      "c": "Correct. Awareness training is carried out by people as part of day-to-day work, which is what defines an operational control.",
+      "d": "Physical controls are tangible barriers and devices such as locks and fences. A training session is not one."
+    },
+    "explanation": "Operational controls are implemented primarily by people rather than by systems. Security awareness training is the standard example."
+  },
+  {
+    "id": "q-1.1-003",
+    "objective": "1.1",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "Before signing a contract with a cloud payroll provider, the partners at Marlow & Finch Accountants commission a formal risk assessment and record their decision on how to handle each risk it finds. Which category of control is the risk assessment?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Managerial"
+      },
+      {
+        "id": "b",
+        "text": "Operational"
+      },
+      {
+        "id": "c",
+        "text": "Technical"
+      },
+      {
+        "id": "d",
+        "text": "Physical"
+      }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Correct. A risk assessment is management's oversight of risk: it identifies risks and drives decisions about them, which is what managerial controls do.",
+      "b": "Operational controls are routine security tasks that staff carry out, such as delivering awareness training. A risk assessment is oversight that decides which controls are needed.",
+      "c": "Nothing is being enforced by hardware or software. The assessment is a management activity.",
+      "d": "Nothing tangible is protecting a building or a piece of equipment here."
+    },
+    "explanation": "Managerial controls are about overseeing and managing risk: risk assessments, security policies, planning and security reviews of suppliers."
+  },
+  {
+    "id": "q-1.1-004",
+    "objective": "1.1",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "Tarn Valley Credit Union connects a network sensor to a mirror port on its core switch. The sensor receives a copy of the traffic and sends an alert to the analysts when it sees a known attack pattern. It cannot block anything. Which control type is the sensor?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Preventive"
+      },
+      {
+        "id": "b",
+        "text": "Deterrent"
+      },
+      {
+        "id": "c",
+        "text": "Corrective"
+      },
+      {
+        "id": "d",
+        "text": "Detective"
+      }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A preventive control stops the action. This sensor only receives a copy of the traffic and cannot block it.",
+      "b": "A deterrent discourages people from trying. Attackers do not know the sensor is there, and it sends them no warning.",
+      "c": "A corrective control repairs damage after an incident. The sensor only reports what it sees.",
+      "d": "Correct. The sensor identifies an attack and alerts people to it without stopping it, which is what a detective control does."
+    },
+    "explanation": "A control that notices and reports an incident but does not stop it is detective. This is how an intrusion detection system (IDS) works; a device that blocks the traffic would be preventive."
+  },
+  {
+    "id": "q-1.1-005",
+    "objective": "1.1",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "Every server at Redfern Freight shows this message before the login prompt: \"Unauthorized access to this system is a criminal offense and will be reported to the police.\" The message itself does not block anyone. Which control type is it?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Preventive"
+      },
+      {
+        "id": "b",
+        "text": "Detective"
+      },
+      {
+        "id": "c",
+        "text": "Deterrent"
+      },
+      {
+        "id": "d",
+        "text": "Corrective"
+      }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "A preventive control stops the action. Anyone can read the message and carry on to the login prompt.",
+      "b": "A detective control notices and reports an incident. The message records nothing and alerts nobody.",
+      "c": "Correct. The message warns of consequences in order to discourage an attempt, without stopping it. That is a deterrent.",
+      "d": "A corrective control repairs damage after an incident. The message appears before anything has happened."
+    },
+    "explanation": "A deterrent discourages an attacker by making the consequences clear. It works on the person's decision and does not block the action."
+  },
+  {
+    "id": "q-1.1-006",
+    "objective": "1.1",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "Ransomware encrypts the shared drive on a file server at Lumen Foods. The administrators wipe the server and restore the files from last night's backup. In this scenario, which control type is the restore from backup?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Preventive"
+      },
+      {
+        "id": "b",
+        "text": "Corrective"
+      },
+      {
+        "id": "c",
+        "text": "Detective"
+      },
+      {
+        "id": "d",
+        "text": "Compensating"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "A preventive control stops the action. The backup did not stop the ransomware from encrypting the files.",
+      "b": "Correct. Restoring from backup repairs the damage after the incident and returns the server to normal, which is what a corrective control does.",
+      "c": "A detective control notices and reports an incident. The backup played no part in discovering the attack.",
+      "d": "A compensating control stands in for a required control that cannot be used. Nothing in this scenario is being substituted."
+    },
+    "explanation": "Controls that repair damage and restore normal operation after an incident are corrective. Some frameworks call this \"recovery\", but recovery is not one of the SY0-701 control types, so choose corrective."
+  },
+  {
+    "id": "q-1.1-007",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Castlebrook Council publishes an acceptable use policy stating that staff must not install personal software on council laptops. Staff still have local administrator rights, so nothing technically stops them. Which control type is the policy?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Preventive"
+      },
+      {
+        "id": "b",
+        "text": "Deterrent"
+      },
+      {
+        "id": "c",
+        "text": "Corrective"
+      },
+      {
+        "id": "d",
+        "text": "Directive"
+      }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A preventive control stops the action. Staff have administrator rights, so the policy alone cannot stop an installation.",
+      "b": "A deterrent discourages by warning of consequences. This policy states a rule to follow and, as described, threatens nothing.",
+      "c": "A corrective control repairs damage after an incident. The policy applies before anything has gone wrong.",
+      "d": "Correct. The policy instructs staff on what they must not do and relies on them to comply. That is a directive control."
+    },
+    "explanation": "A directive control tells people what they must or must not do. Policies, procedures and instruction signs are directive; they depend on people following them."
+  },
+  {
+    "id": "q-1.1-008",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Pinecrest Hotels installs file integrity monitoring software on its web servers. When a system file changes, the software emails the administrators. It does not stop the change or undo it. Which category and control type describe this control?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Technical, detective"
+      },
+      {
+        "id": "b",
+        "text": "Technical, preventive"
+      },
+      {
+        "id": "c",
+        "text": "Operational, detective"
+      },
+      {
+        "id": "d",
+        "text": "Managerial, corrective"
+      }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Correct. Software implements the control (technical), and it reports a change without stopping or undoing it (detective).",
+      "b": "The category is right, but the software does not stop the change, so it is not preventive.",
+      "c": "The type is right, but the monitoring is done by software, not by people carrying out a task, so the category is technical.",
+      "d": "Nothing here is management oversight, and the software does not undo the change, so neither label fits."
+    },
+    "explanation": "Classify in two passes. Who or what implements the control gives the category (software: technical). What it does about the incident gives the type (reports it: detective)."
+  },
+  {
+    "id": "q-1.1-009",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Greyfriars Hosting builds an access control vestibule at its data center entrance: a small room with two interlocking doors, where the inner door stays locked until the outer door has closed and the person inside has presented a valid badge. Which category and control type best describe it?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Physical, detective"
+      },
+      {
+        "id": "b",
+        "text": "Physical, preventive"
+      },
+      {
+        "id": "c",
+        "text": "Operational, preventive"
+      },
+      {
+        "id": "d",
+        "text": "Managerial, directive"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "The category is right, but the vestibule's job is to stop people without a valid badge from getting in, not just to notice them.",
+      "b": "Correct. It is a tangible barrier at a building entrance (physical) that stops people without a valid badge from entering (preventive).",
+      "c": "The type is right, but the interlocking doors do the work, not a person carrying out a task, so it is not operational.",
+      "d": "Nothing here is a management decision or an instruction to follow. The doors physically stop entry."
+    },
+    "explanation": "A barrier that physically stops unauthorized entry is a physical, preventive control. The category comes from how the control is implemented; the type comes from what it does."
+  },
+  {
+    "id": "q-1.1-010",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Harbourline Logistics mounts empty camera housings with blinking red lights along its warehouse fence. There are no cameras or recording equipment inside them. Which control type are the housings?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Detective"
+      },
+      {
+        "id": "b",
+        "text": "Preventive"
+      },
+      {
+        "id": "c",
+        "text": "Corrective"
+      },
+      {
+        "id": "d",
+        "text": "Deterrent"
+      }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A detective control notices and reports an incident. Empty housings cannot record anything or alert anyone.",
+      "b": "A preventive control stops the action. The housings do not physically stop anyone from climbing the fence.",
+      "c": "A corrective control repairs damage after an incident. The housings do nothing once a break-in has happened.",
+      "d": "Correct. The housings only make intruders believe they are being watched, which discourages an attempt. That is a deterrent."
+    },
+    "explanation": "Classify a control by what it does in the scenario, not by its name. A real camera whose footage is reviewed is detective; a fake one can only deter."
+  },
+  {
+    "id": "q-1.1-011",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A security appliance at Brightwell Dental Group has been running in monitor-only mode, sending alerts about suspicious traffic. After tuning its rules, the administrators switch it to inline mode so that it drops matching traffic automatically. How does the classification of this control change?",
+    "options": [
+      {
+        "id": "a",
+        "text": "The type changes from detective to preventive; the category stays technical."
+      },
+      {
+        "id": "b",
+        "text": "The category changes from operational to technical; the type stays detective."
+      },
+      {
+        "id": "c",
+        "text": "The type changes from deterrent to corrective; the category stays technical."
+      },
+      {
+        "id": "d",
+        "text": "Nothing changes, because it is the same appliance in both modes."
+      }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Correct. The same device moved from reporting attacks (detective) to blocking them (preventive). It is still implemented by hardware and software, so it stays technical.",
+      "b": "The appliance was technical in both modes, and once it drops traffic it is no longer only detecting.",
+      "c": "Alerting is detective, not deterrent, and dropping traffic stops an attack rather than repairing damage afterwards.",
+      "d": "A control is classified by what it does. Changing from alerting to blocking changes its type."
+    },
+    "explanation": "An intrusion detection system (IDS) alerts and is detective. An intrusion prevention system (IPS) blocks and is preventive. The type follows what the control does, not the name on the box."
+  },
+  {
+    "id": "q-1.1-012",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Castlebrook Council's policy requires every PC to lock its screen after five minutes without activity. The PCs in its traffic control room show live road maps that the operators must be able to see at all times, so the screen lock cannot be used there. Instead, the council fits a badge-controlled door to the control room and admits only the operators who are on shift. Which control type describes the badge-controlled door in this scenario?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Corrective"
+      },
+      {
+        "id": "b",
+        "text": "Directive"
+      },
+      {
+        "id": "c",
+        "text": "Compensating"
+      },
+      {
+        "id": "d",
+        "text": "Detective"
+      }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "A corrective control repairs damage after an incident. No incident has happened, and the screens still do not lock.",
+      "b": "A directive control instructs people what to do. The door restricts who can enter the room; it is not an instruction.",
+      "c": "Correct. The required control, the screen lock, cannot be used, so a different control is used in its place to reduce the same risk. That is a compensating control.",
+      "d": "A detective control notices and reports an incident. The door limits who can reach the PCs; the scenario does not say that it reports anything."
+    },
+    "explanation": "When a required control cannot be implemented and a different control is used in its place to reduce the same risk, that substitute is a compensating control."
+  },
+  {
+    "id": "q-1.1-013",
+    "objective": "1.1",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "Kestrel Print Works protects its design file server with firewall rules, disk encryption, multifactor authentication and a locked server room. A contractor with valid access copied customer designs to a personal cloud account every night for three weeks. The company's main concern is that the copying went unnoticed for so long. Which control type addresses that concern, and which addition is an example of it?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Detective; an alert when an account downloads unusually many files"
+      },
+      {
+        "id": "b",
+        "text": "Preventive; a stricter set of inbound firewall rules for the server"
+      },
+      {
+        "id": "c",
+        "text": "Corrective; more frequent backups of the design file server"
+      },
+      {
+        "id": "d",
+        "text": "Deterrent; a warning message shown on the server's login page"
+      }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Correct. Every existing control is preventive, and none of them reports misuse by someone with valid access. A detective control would have revealed the copying early.",
+      "b": "The server already has several preventive controls, and inbound firewall rules would not block a contractor who has valid access.",
+      "c": "Backups restore lost or damaged files. The files were copied, not damaged, and backups would not reveal the copying.",
+      "d": "A warning might discourage some misuse, but it would not tell the company that copying was taking place, which is the concern described."
+    },
+    "explanation": "A set of controls needs more than prevention. Someone with valid access passes straight through preventive controls, so detective controls are needed to reveal what the preventive ones miss."
+  },
+  {
+    "id": "q-1.1-014",
+    "objective": "1.1",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "Lumen Foods has a policy that all backup media must be encrypted. Its backup system is too old to support encryption and will not be replaced for nine months. Which option is the best compensating control until then?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Email the IT team a reminder that backup tapes hold sensitive data and must be handled with great care."
+      },
+      {
+        "id": "b",
+        "text": "Keep the tapes in a locked safe and move them off site only in sealed cases with a signed handover."
+      },
+      {
+        "id": "c",
+        "text": "Record the unencrypted tapes in the risk register, the company's list of known risks, and review it later."
+      },
+      {
+        "id": "d",
+        "text": "Run the backup twice each night so that there are always two copies of every tape in case one is lost."
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "A reminder does little to stop someone who gets hold of a tape from reading it, so it does not reduce the same risk to a similar level.",
+      "b": "Correct. Encryption protects the data if a tape falls into the wrong hands. Strict physical custody reduces that same risk by keeping the tapes out of the wrong hands.",
+      "c": "This documents and accepts the risk. It is not a control, because nothing makes it harder for an unauthorized person to read a tape.",
+      "d": "A second copy helps if a tape is lost or damaged. It does nothing about unauthorized reading, and it doubles the number of unencrypted tapes."
+    },
+    "explanation": "A compensating control must reduce the same risk as the control it replaces, to a similar level. Accepting the risk, or adding a control aimed at a different risk, does not compensate."
+  },
+  {
+    "id": "q-1.1-015",
+    "objective": "1.1",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "Brightwell Dental Group adds two messages to the sign-in screen of its patient records system. Message 1 reads: \"Lock your screen whenever you leave your desk.\" Message 2 reads: \"Staff who view patient records without a clinical reason will face disciplinary action.\" Which control type is each message?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Both messages are deterrent."
+      },
+      {
+        "id": "b",
+        "text": "Message 1 is deterrent; Message 2 is directive."
+      },
+      {
+        "id": "c",
+        "text": "Message 1 is directive; Message 2 is deterrent."
+      },
+      {
+        "id": "d",
+        "text": "Both messages are directive."
+      }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Message 2 is a deterrent, but Message 1 threatens no consequences. It gives an instruction, which makes it directive.",
+      "b": "This is reversed. Message 1 gives an instruction (directive) and Message 2 warns of consequences (deterrent).",
+      "c": "Correct. Message 1 tells staff what they must do (directive). Message 2 warns of consequences to discourage misuse (deterrent).",
+      "d": "Message 1 is directive, but Message 2 gives no instruction. It warns of consequences, which makes it a deterrent."
+    },
+    "explanation": "Read the wording of a sign or message. \"Do this\" or \"do not do this\" is directive. \"If you do this, there will be consequences\" is deterrent."
+  },
+  {
+    "id": "q-1.1-016",
+    "objective": "1.1",
+    "difficulty": 1,
+    "type": "multi",
+    "prompt": "Marlow & Finch Accountants lists the controls that protect its client files. Which two are technical controls? (Choose two.)",
+    "options": [
+      {
+        "id": "a",
+        "text": "A clean desk rule in the staff handbook"
+      },
+      {
+        "id": "b",
+        "text": "A screen lock that the operating system applies after five minutes without activity"
+      },
+      {
+        "id": "c",
+        "text": "A keyed lock on the filing room door"
+      },
+      {
+        "id": "d",
+        "text": "A yearly review of supplier risks by the partners"
+      },
+      {
+        "id": "e",
+        "text": "Encryption of the connection to the client portal"
+      },
+      {
+        "id": "f",
+        "text": "Security awareness training for new staff"
+      }
+    ],
+    "correct": [
+      "b",
+      "e"
+    ],
+    "why": {
+      "a": "A rule in a handbook is an instruction from management, not something that hardware or software enforces.",
+      "b": "Correct. The operating system enforces the lock, so it is a technical control.",
+      "c": "A door lock is a tangible barrier, which makes it a physical control.",
+      "d": "A risk review by the partners is management oversight, which makes it a managerial control.",
+      "e": "Correct. Encryption is carried out by software, so it is a technical control.",
+      "f": "Training is delivered by people, which makes it an operational control."
+    },
+    "explanation": "Technical controls are implemented by hardware, software or firmware. If a system enforces the control without relying on a person, a document or a physical barrier, it is technical."
+  },
+  {
+    "id": "q-1.1-017",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "Greyfriars Hosting wants to know which of its controls would tell it that an incident is happening or has happened. Which three controls are detective? (Choose three.)",
+    "options": [
+      {
+        "id": "a",
+        "text": "A monitoring rule that alerts when an account has ten failed logins in one minute"
+      },
+      {
+        "id": "b",
+        "text": "A firewall rule that drops inbound Remote Desktop connections"
+      },
+      {
+        "id": "c",
+        "text": "A quarterly audit that looks for accounts belonging to people who have left"
+      },
+      {
+        "id": "d",
+        "text": "Restoring a database from a snapshot after it is corrupted"
+      },
+      {
+        "id": "e",
+        "text": "A notice on the server room door that reads \"Do not hold the door open for others\""
+      },
+      {
+        "id": "f",
+        "text": "A sensor that sounds an alarm when a fire exit is opened"
+      }
+    ],
+    "correct": [
+      "a",
+      "c",
+      "f"
+    ],
+    "why": {
+      "a": "Correct. The rule notices suspicious activity and raises an alert, without blocking the logins.",
+      "b": "Dropping the connections stops the action, so this is preventive.",
+      "c": "Correct. An audit finds problems that already exist; it does not stop them from arising.",
+      "d": "Restoring repairs damage after an incident, so this is corrective.",
+      "e": "A notice that tells people what to do is directive. It cannot notice or report anything.",
+      "f": "Correct. The sensor reports that the door was opened; it does not keep the door shut."
+    },
+    "explanation": "Detective controls identify and report an incident during or after it: alerts, audits, log reviews and alarms. They do not stop the incident themselves."
+  },
+  {
+    "id": "q-1.1-018",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "Pinecrest Hotels wants to discourage theft from its staff areas before anyone attempts it. Which two controls act as deterrents? (Choose two.)",
+    "options": [
+      {
+        "id": "a",
+        "text": "Encryption of the hard drives in the back-office PCs"
+      },
+      {
+        "id": "b",
+        "text": "Signs stating that thieves will be reported to the police"
+      },
+      {
+        "id": "c",
+        "text": "A written procedure that tells staff how to report a lost key card"
+      },
+      {
+        "id": "d",
+        "text": "A sign-in message warning that misuse leads to dismissal"
+      },
+      {
+        "id": "e",
+        "text": "A weekly check of the stock list against the storeroom shelves"
+      },
+      {
+        "id": "f",
+        "text": "A safe bolted to the floor of the manager's office"
+      }
+    ],
+    "correct": [
+      "b",
+      "d"
+    ],
+    "why": {
+      "a": "Encryption stops a thief from reading the data. It blocks the outcome, so it is preventive.",
+      "b": "Correct. The signs warn of consequences in order to discourage an attempt.",
+      "c": "A procedure instructs staff what to do, so it is directive.",
+      "d": "Correct. The message warns of consequences in order to discourage misuse, without blocking anything.",
+      "e": "A check that finds missing stock after the event is detective.",
+      "f": "A safe physically stops a thief from reaching what is inside, so it is preventive."
+    },
+    "explanation": "A deterrent discourages an attempt by warning of consequences or of being caught. It does not block the action, report it or instruct anyone."
+  },
+  {
+    "id": "q-1.1-019",
+    "objective": "1.1",
+    "difficulty": 3,
+    "type": "multi",
+    "prompt": "Which two statements about a compensating control are correct? (Choose two.)",
+    "options": [
+      {
+        "id": "a",
+        "text": "It is used when a required control cannot be implemented as specified."
+      },
+      {
+        "id": "b",
+        "text": "It removes the underlying weakness, so the original requirement no longer applies."
+      },
+      {
+        "id": "c",
+        "text": "It must be in the same category as the control it replaces."
+      },
+      {
+        "id": "d",
+        "text": "It should reduce the same risk to a similar level as the control it replaces."
+      },
+      {
+        "id": "e",
+        "text": "It is any extra control added on top of a required control that is already working."
+      }
+    ],
+    "correct": [
+      "a",
+      "d"
+    ],
+    "why": {
+      "a": "Correct. A compensating control exists because the required control cannot be put in place, for a technical or business reason.",
+      "b": "The weakness remains. The compensating control only reduces the risk until the required control can be put in place, if it ever can.",
+      "c": "The category can differ. A check carried out by a person can compensate for a rule that a system is unable to enforce.",
+      "d": "Correct. An alternative that addresses a different risk, or gives much weaker protection, does not compensate for the missing control.",
+      "e": "That describes layering controls for defense in depth. A compensating control stands in for a control that is missing."
+    },
+    "explanation": "A compensating control is an approved alternative used when the required control cannot be implemented. It must address the same risk to a similar level, and it does not fix the underlying weakness."
+  },
+  {
+    "id": "q-1.1-020",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "categorize",
+    "prompt": "Sort each control into its control category.",
+    "items": [
+      {
+        "id": "c1",
+        "text": "Security awareness training delivered to new staff"
+      },
+      {
+        "id": "c2",
+        "text": "A firewall rule that blocks inbound Telnet"
+      },
+      {
+        "id": "c3",
+        "text": "Bollards in front of the building entrance"
+      },
+      {
+        "id": "c4",
+        "text": "An annual risk assessment reported to the board"
+      },
+      {
+        "id": "c5",
+        "text": "Cable locks that secure laptops to desks"
+      },
+      {
+        "id": "c6",
+        "text": "Encryption of the customer database"
+      },
+      {
+        "id": "c7",
+        "text": "Monthly exercises in which staff practice spotting and reporting suspicious emails"
+      },
+      {
+        "id": "c8",
+        "text": "An information security policy approved by the directors"
+      }
+    ],
+    "buckets": [
+      {
+        "id": "technical",
+        "text": "Technical"
+      },
+      {
+        "id": "managerial",
+        "text": "Managerial"
+      },
+      {
+        "id": "operational",
+        "text": "Operational"
+      },
+      {
+        "id": "physical",
+        "text": "Physical"
+      }
+    ],
+    "correct": {
+      "c1": "operational",
+      "c2": "technical",
+      "c3": "physical",
+      "c4": "managerial",
+      "c5": "physical",
+      "c6": "technical",
+      "c7": "operational",
+      "c8": "managerial"
+    },
+    "explanation": "Ask who or what makes the control work. Hardware or software: technical. Management oversight such as policies and risk assessments: managerial. People carrying out tasks, such as training: operational. Tangible barriers and locks: physical."
+  },
+  {
+    "id": "q-1.1-021",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "categorize",
+    "prompt": "Sort each control into its control type.",
+    "items": [
+      {
+        "id": "t1",
+        "text": "Restoring files from backup after a ransomware attack"
+      },
+      {
+        "id": "t2",
+        "text": "A deadbolt lock on the server room door"
+      },
+      {
+        "id": "t3",
+        "text": "An intrusion detection system that alerts on suspicious traffic"
+      },
+      {
+        "id": "t4",
+        "text": "A sign that reads \"Trespassers will be prosecuted\""
+      },
+      {
+        "id": "t5",
+        "text": "An acceptable use policy that tells staff which software they may install"
+      },
+      {
+        "id": "t6",
+        "text": "An account lockout that blocks logins after five wrong passwords"
+      },
+      {
+        "id": "t7",
+        "text": "Rebuilding a hacked web server from a clean image"
+      },
+      {
+        "id": "t8",
+        "text": "A weekly review of failed login records"
+      }
+    ],
+    "buckets": [
+      {
+        "id": "preventive",
+        "text": "Preventive"
+      },
+      {
+        "id": "deterrent",
+        "text": "Deterrent"
+      },
+      {
+        "id": "detective",
+        "text": "Detective"
+      },
+      {
+        "id": "corrective",
+        "text": "Corrective"
+      },
+      {
+        "id": "directive",
+        "text": "Directive"
+      }
+    ],
+    "correct": {
+      "t1": "corrective",
+      "t2": "preventive",
+      "t3": "detective",
+      "t4": "deterrent",
+      "t5": "directive",
+      "t6": "preventive",
+      "t7": "corrective",
+      "t8": "detective"
+    },
+    "explanation": "Ask what the control does. Stops the action: preventive. Warns of consequences: deterrent. Notices and reports: detective. Repairs afterwards: corrective. Tells people what to do: directive."
+  },
+  {
+    "id": "q-1.1-022",
+    "objective": "1.1",
+    "difficulty": 3,
+    "type": "categorize",
+    "prompt": "Several of these controls look alike. Sort each one into the control type that matches what it does.",
+    "items": [
+      {
+        "id": "k1",
+        "text": "A hidden camera whose recordings are checked after a theft"
+      },
+      {
+        "id": "k2",
+        "text": "A notice that reads \"Staff must wear their badge at all times\""
+      },
+      {
+        "id": "k3",
+        "text": "A network device that drops attack traffic before it reaches the servers"
+      },
+      {
+        "id": "k4",
+        "text": "A fake camera in plain view that records nothing"
+      },
+      {
+        "id": "k5",
+        "text": "A notice that reads \"Thieves will be reported to the police\""
+      },
+      {
+        "id": "k6",
+        "text": "A network device that alerts on attack traffic but lets it pass"
+      },
+      {
+        "id": "k7",
+        "text": "A written procedure that tells administrators to use a separate account for administrative work"
+      },
+      {
+        "id": "k8",
+        "text": "A turnstile that lets through one badge holder at a time"
+      }
+    ],
+    "buckets": [
+      {
+        "id": "preventive",
+        "text": "Preventive"
+      },
+      {
+        "id": "deterrent",
+        "text": "Deterrent"
+      },
+      {
+        "id": "detective",
+        "text": "Detective"
+      },
+      {
+        "id": "directive",
+        "text": "Directive"
+      }
+    ],
+    "correct": {
+      "k1": "detective",
+      "k2": "directive",
+      "k3": "preventive",
+      "k4": "deterrent",
+      "k5": "deterrent",
+      "k6": "detective",
+      "k7": "directive",
+      "k8": "preventive"
+    },
+    "explanation": "Look at what each control does, not what it is called. Instructions are directive; warnings of consequences are deterrent; anything that only reports is detective; anything that blocks is preventive. A deterrent has to be visible, and a detective control has to record or alert."
+  },
+  {
+    "id": "q-1.1-023",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "match",
+    "prompt": "Castlebrook Council tightens visitor security at its head office in four ways. Match each measure to its control category.",
+    "left": [
+      {
+        "id": "l1",
+        "text": "The directors approve a visitor policy and name an owner for visitor risk"
+      },
+      {
+        "id": "l2",
+        "text": "Reception staff walk every visitor from the front desk to their host"
+      },
+      {
+        "id": "l3",
+        "text": "A full-height turnstile is fitted at the staff entrance"
+      },
+      {
+        "id": "l4",
+        "text": "The wireless controller places visitor devices on an internet-only network"
+      }
+    ],
+    "right": [
+      {
+        "id": "r1",
+        "text": "Technical"
+      },
+      {
+        "id": "r2",
+        "text": "Managerial"
+      },
+      {
+        "id": "r3",
+        "text": "Operational"
+      },
+      {
+        "id": "r4",
+        "text": "Physical"
+      }
+    ],
+    "correct": {
+      "l1": "r2",
+      "l2": "r3",
+      "l3": "r4",
+      "l4": "r1"
+    },
+    "explanation": "The same goal can be met by controls in every category. A management decision or policy is managerial; people carrying out a task is operational; a tangible barrier is physical; a system enforcing a rule is technical."
+  },
+  {
+    "id": "q-1.1-024",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "order",
+    "prompt": "An attacker targets a payroll administrator's account at Redfern Freight. The first attempt fails, but a later one succeeds. Put the controls in the order in which they come into play, from before the attacker tries anything to after the account has been compromised.",
+    "items": [
+      {
+        "id": "o1",
+        "text": "An alert fires when the account signs in from an unfamiliar country"
+      },
+      {
+        "id": "o2",
+        "text": "The login page warns that unauthorized access will be prosecuted"
+      },
+      {
+        "id": "o3",
+        "text": "The password is reset and the altered payroll records are restored from backup"
+      },
+      {
+        "id": "o4",
+        "text": "The account locks after five wrong passwords, which stops the password guessing"
+      }
+    ],
+    "correct": [
+      "o2",
+      "o4",
+      "o1",
+      "o3"
+    ],
+    "explanation": "Control types line up with the timeline of an attack: a deterrent discourages the attempt, a preventive control blocks it, a detective control reveals what got through, and a corrective control repairs the damage."
+  },
+  {
+    "id": "q-1.1-025",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Harbourline Logistics requires an electronic badge reader on every door or cabinet that protects network equipment. The network cabinet at a rented depot stands in a shared corridor, and the landlord will not allow a reader to be wired in. Because the required control cannot be used, the company instead fits the cabinet with a keyed lock and gives the only key to the depot manager. Which control type best describes why the keyed lock was introduced?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Preventive"
+      },
+      {
+        "id": "b",
+        "text": "Deterrent"
+      },
+      {
+        "id": "c",
+        "text": "Corrective"
+      },
+      {
+        "id": "d",
+        "text": "Compensating"
+      }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "The lock does work preventively: it stops people from opening the cabinet. But the question asks about its role, and it was introduced to stand in for a required control that cannot be used.",
+      "b": "A deterrent discourages an attempt without blocking it. The lock blocks access, and nothing in the scenario is about discouraging anyone.",
+      "c": "A corrective control repairs damage after an incident. No incident has happened here.",
+      "d": "Correct. The required badge reader cannot be installed, so a different control is used in its place to reduce the same risk. That role is what makes a control compensating."
+    },
+    "explanation": "\"Compensating\" describes why a control is there. When a scenario says that the required control cannot be used and another control is used instead, choose compensating, even if the substitute works by preventing or detecting."
+  }
+]

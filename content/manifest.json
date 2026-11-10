@@ -10,25 +10,25 @@
         {
           "id": "1.1",
           "title": "Compare and contrast various types of security controls",
-          "published": false,
+          "published": true,
           "minQuestions": 20
         },
         {
           "id": "1.2",
           "title": "Summarize fundamental security concepts",
-          "published": false,
+          "published": true,
           "minQuestions": 25
         },
         {
           "id": "1.3",
           "title": "Explain the importance of change management processes and the impact to security",
-          "published": false,
+          "published": true,
           "minQuestions": 20
         },
         {
           "id": "1.4",
           "title": "Explain the importance of using appropriate cryptographic solutions",
-          "published": false,
+          "published": true,
           "minQuestions": 30
         }
       ]

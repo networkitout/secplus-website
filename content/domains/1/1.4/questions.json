@@ -1,0 +1,1053 @@
+[
+  {
+    "id": "q-1.4-001",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "Priya needs to send a confidential salary report to Marcus using asymmetric encryption. Which key must she use to encrypt the report so that only Marcus can read it?",
+    "options": [
+      { "id": "a", "text": "Priya's private key" },
+      { "id": "b", "text": "Priya's public key" },
+      { "id": "c", "text": "Marcus's public key" },
+      { "id": "d", "text": "Marcus's private key" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Anything processed with Priya's private key can be reversed by anyone who has her public key. That is how signing works, and it keeps nothing secret.",
+      "b": "Data encrypted with Priya's public key can only be decrypted with Priya's private key, so Marcus could not read it.",
+      "c": "Only Marcus's private key can decrypt what was encrypted with Marcus's public key, and only Marcus holds that private key.",
+      "d": "A private key never leaves its owner, so Priya should not have Marcus's private key at all."
+    },
+    "explanation": "For confidentiality, encrypt with the recipient's public key; only the recipient's private key can decrypt. The sender's own key pair is used for signatures, not for keeping a message secret."
+  },
+  {
+    "id": "q-1.4-002",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Two branch routers at Calder Freight must end up with the same secret key for an encrypted tunnel. The link between them is untrusted, and the design requires that the secret key itself is never transmitted, not even in encrypted form. Which algorithm is designed for this?",
+    "options": [
+      { "id": "a", "text": "AES-256" },
+      { "id": "b", "text": "Diffie-Hellman" },
+      { "id": "c", "text": "SHA-256" },
+      { "id": "d", "text": "HMAC" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "AES is a symmetric cipher. It uses a shared key once both sides have it, but it does nothing to establish that key.",
+      "b": "With Diffie-Hellman each side sends only a public value and combines the value it receives with its own private value, so both calculate the same secret without sending it.",
+      "c": "SHA-256 is a hash function. It produces a digest of data and cannot establish a shared key between two parties.",
+      "d": "An HMAC needs a shared secret key to exist already. It checks integrity and authenticity; it does not create the key."
+    },
+    "explanation": "Diffie-Hellman is a key exchange algorithm: both sides calculate the same secret from exchanged public values, so the secret never crosses the network. It does not encrypt data itself."
+  },
+  {
+    "id": "q-1.4-003",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A technician is hardening a file-transfer server and finds four symmetric ciphers enabled. Which one should be disabled because it is considered insecure?",
+    "options": [
+      { "id": "a", "text": "AES-128" },
+      { "id": "b", "text": "ChaCha20" },
+      { "id": "c", "text": "AES-256" },
+      { "id": "d", "text": "RC4" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "AES with a 128-bit key is still considered secure. It is the shortest of the three AES key lengths, not a retired cipher.",
+      "b": "ChaCha20 is a modern stream cipher and a current alternative to AES.",
+      "c": "AES with a 256-bit key is the strongest of the standard AES options.",
+      "d": "RC4 is an old stream cipher with known weaknesses. It is insecure and should not be used."
+    },
+    "explanation": "Know the retired symmetric ciphers: DES, 3DES and RC4 are deprecated or insecure. AES (128-, 192- or 256-bit keys) and ChaCha20 are the current choices."
+  },
+  {
+    "id": "q-1.4-004",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "categorize",
+    "prompt": "Sort each algorithm into its family.",
+    "items": [
+      { "id": "t1", "text": "SHA-256" },
+      { "id": "t2", "text": "AES" },
+      { "id": "t3", "text": "RSA" },
+      { "id": "t4", "text": "MD5" },
+      { "id": "t5", "text": "ChaCha20" },
+      { "id": "t6", "text": "ECDSA" },
+      { "id": "t7", "text": "3DES" },
+      { "id": "t8", "text": "SHA-3" },
+      { "id": "t9", "text": "Diffie-Hellman" },
+      { "id": "t10", "text": "RC4" },
+      { "id": "t11", "text": "DES" }
+    ],
+    "buckets": [
+      { "id": "sym", "text": "Symmetric" },
+      { "id": "asym", "text": "Asymmetric" },
+      { "id": "hash", "text": "Hash" }
+    ],
+    "correct": {
+      "t1": "hash",
+      "t2": "sym",
+      "t3": "asym",
+      "t4": "hash",
+      "t5": "sym",
+      "t6": "asym",
+      "t7": "sym",
+      "t8": "hash",
+      "t9": "asym",
+      "t10": "sym",
+      "t11": "sym"
+    },
+    "explanation": "AES, ChaCha20, DES, 3DES and RC4 use one shared key, so they are symmetric (DES, 3DES and RC4 are deprecated or insecure). RSA, ECDSA and Diffie-Hellman work with public and private values, so they are asymmetric; Diffie-Hellman is used only for key exchange. SHA-256, SHA-3 and MD5 are hash functions and use no key; MD5 is broken, but it is still a hash."
+  },
+  {
+    "id": "q-1.4-005",
+    "objective": "1.4",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "Tidewell Insurance replaces a web server certificate that used a 2048-bit RSA key with one that uses a 256-bit ECC key. A manager objects that the new key is eight times shorter, so the site must now be weaker. Which response is accurate?",
+    "options": [
+      { "id": "a", "text": "The manager is right: a shorter key always takes less work to break, whatever the algorithm." },
+      { "id": "b", "text": "Key lengths compare only within one algorithm; 256-bit ECC is at least as strong as 2048-bit RSA." },
+      { "id": "c", "text": "The two keys are equally strong, because a certificate's strength depends only on its hash algorithm." },
+      { "id": "d", "text": "ECC keys are symmetric keys, so 256 bits matches AES-256 and is stronger than any RSA key." }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Key length only measures strength within one algorithm. Different algorithms need very different key lengths for the same strength.",
+      "b": "ECC reaches a given strength with much shorter keys than RSA. A 256-bit ECC key is roughly comparable to a 3072-bit RSA key, so it is not weaker than a 2048-bit one.",
+      "c": "The hash algorithm matters for the signature on a certificate, but the key's algorithm and length matter as well, and these two keys are not identical in strength.",
+      "d": "ECC is asymmetric: it uses a public and a private key. It cannot be compared bit for bit with a symmetric cipher such as AES."
+    },
+    "explanation": "Key length is a fair comparison only within the same algorithm. ECC gives comparable strength with far shorter keys than RSA: a 256-bit ECC key is roughly comparable to a 3072-bit RSA key."
+  },
+  {
+    "id": "q-1.4-006",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A sales manager at Orrin Supply leaves a company laptop in a taxi. The laptop was shut down at the time. Which control, if it was in place, keeps everything stored on the laptop unreadable to whoever finds it?",
+    "options": [
+      { "id": "a", "text": "Full-disk encryption" },
+      { "id": "b", "text": "A Diffie-Hellman key exchange" },
+      { "id": "c", "text": "A digital signature" },
+      { "id": "d", "text": "Transport encryption" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Full-disk encryption encrypts the whole drive, so a powered-off laptop gives up nothing without the key.",
+      "b": "Diffie-Hellman lets two parties arrive at the same key over a network. It does not encrypt anything stored on a drive.",
+      "c": "A digital signature shows who created data and that it is unchanged. It does not hide the data.",
+      "d": "Transport encryption protects data while it crosses a network, not data stored on a drive."
+    },
+    "explanation": "Full-disk encryption protects everything on a drive while the device is powered off, which makes it the standard control for lost or stolen laptops."
+  },
+  {
+    "id": "q-1.4-007",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A finance clerk's laptop uses full-disk encryption. While she is logged in and working, malware that arrived as an email attachment copies her spreadsheets to an attacker's server. Why did full-disk encryption not prevent this?",
+    "options": [
+      { "id": "a", "text": "Full-disk encryption covers only the operating system files, not a user's documents." },
+      { "id": "b", "text": "The malware must have broken the disk encryption key by brute force." },
+      { "id": "c", "text": "Once the disk is unlocked, data is decrypted for any process running on the system." },
+      { "id": "d", "text": "Full-disk encryption is switched off whenever the laptop joins a network." }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Full-disk encryption covers the whole drive, including user documents. Coverage was not the problem.",
+      "b": "The malware had no need to break the key. It ran inside the clerk's session, where the data was already readable.",
+      "c": "After the user unlocks the disk, the operating system decrypts data on the fly for every running program, including malware.",
+      "d": "Network connections do not turn full-disk encryption off. The drive stays encrypted, but the running system can read it."
+    },
+    "explanation": "Full-disk encryption protects a powered-off or locked-down device against theft. It does not protect data on a running, unlocked system, where anything running as the user can read the files."
+  },
+  {
+    "id": "q-1.4-008",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "match",
+    "prompt": "Match each encryption level to the description that fits it.",
+    "left": [
+      { "id": "l1", "text": "Full-disk" },
+      { "id": "l2", "text": "Partition" },
+      { "id": "l3", "text": "Volume" },
+      { "id": "l4", "text": "File" },
+      { "id": "l5", "text": "Database" },
+      { "id": "l6", "text": "Record" }
+    ],
+    "right": [
+      { "id": "r1", "text": "Individual documents are encrypted, often with a key tied to one user account" },
+      { "id": "r2", "text": "A logical drive, which may span several disks or be a mounted container file, is encrypted as one unit" },
+      { "id": "r3", "text": "Individual rows or fields are encrypted separately, so an administrator who queries the tables still sees ciphertext" },
+      { "id": "r4", "text": "Everything on the drive is encrypted, including the operating system and temporary files" },
+      { "id": "r5", "text": "The data files and backups of a data store are encrypted on disk, transparently to the applications that query it" },
+      { "id": "r6", "text": "One section of a physical drive is encrypted, while other sections of the same drive are left unencrypted" }
+    ],
+    "correct": {
+      "l1": "r4",
+      "l2": "r6",
+      "l3": "r2",
+      "l4": "r1",
+      "l5": "r5",
+      "l6": "r3"
+    },
+    "explanation": "Full-disk covers a whole drive. Partition covers one section of a drive. Volume covers one logical drive, which can be smaller than a physical disk or span several. File covers chosen documents. Database covers the database's own files and backups (transparent data encryption). Record covers individual rows or fields."
+  },
+  {
+    "id": "q-1.4-009",
+    "objective": "1.4",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A hospital's patient database uses transparent data encryption (TDE). An audit finds that database administrators can still read patients' national ID numbers by querying the tables. The hospital wants those values to be ciphertext to anyone who lacks the application's key, including the administrators. Which change meets this requirement?",
+    "options": [
+      { "id": "a", "text": "Enable full-disk encryption on the server that hosts the database" },
+      { "id": "b", "text": "Increase the key used for TDE from 128 bits to 256 bits" },
+      { "id": "c", "text": "Move the database files to a partition that has its own encryption key" },
+      { "id": "d", "text": "Encrypt the ID field at record level with a key the application holds" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "Full-disk encryption is unlocked while the server runs, so queries would still return readable ID numbers.",
+      "b": "A longer key makes stolen database files harder to attack, but the database still decrypts data for anyone who can query it.",
+      "c": "Partition encryption protects the files if the disk is stolen. On the running server the database reads them as normal.",
+      "d": "With record-level encryption the ID values stay encrypted inside the database, so a query returns ciphertext unless the caller has the application's key."
+    },
+    "explanation": "Full-disk encryption, partition encryption and TDE all decrypt data automatically on a running, authorized system. They protect stolen disks and backups, not data viewed through queries. Record-level encryption keeps chosen records or fields encrypted until someone with the right key decrypts them."
+  },
+  {
+    "id": "q-1.4-010",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A technician downloads a firmware image, calculates its SHA-256 hash and finds that it is identical to the hash published on the vendor's website. What does the match show?",
+    "options": [
+      { "id": "a", "text": "The image is unchanged from the one the vendor hashed" },
+      { "id": "b", "text": "The image was encrypted while it was being downloaded" },
+      { "id": "c", "text": "The image can be decrypted with the published hash" },
+      { "id": "d", "text": "The image was digitally signed by the technician" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "The same input always gives the same hash and any change gives a different one, so identical hashes mean identical files.",
+      "b": "A hash says nothing about how the file travelled. Encryption in transit is a job for transport encryption such as TLS.",
+      "c": "A hash is not a key. Hashing is one-way, and there is nothing to decrypt.",
+      "d": "Calculating a hash involves no private key, so no signature was created."
+    },
+    "explanation": "Hashing provides integrity. The same input always produces the same hash, and any change to the input produces a different one. A hash does not hide or encrypt anything."
+  },
+  {
+    "id": "q-1.4-011",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "A developer at Fennick Travel is adding salts to the way customer passwords are stored. Which statements about a salt are correct? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "It is a random value generated separately for each password" },
+      { "id": "b", "text": "It must be kept secret in the same way as an encryption key" },
+      { "id": "c", "text": "It makes precomputed rainbow tables useless against the stored hashes" },
+      { "id": "d", "text": "It allows the original password to be recovered from its hash" },
+      { "id": "e", "text": "It makes each hash calculation deliberately slow" }
+    ],
+    "correct": ["a", "c"],
+    "why": {
+      "a": "A salt is unique and random for each password, which is why two users with the same password end up with different hashes.",
+      "b": "A salt is stored next to the hash and is not secret. Its value comes from being unique, not hidden.",
+      "c": "A rainbow table is built in advance without the salts, so its precomputed hashes no longer match anything in the database.",
+      "d": "Hashing stays one-way with or without a salt. Nothing recovers the password from the hash.",
+      "e": "Slowing each calculation is the job of key stretching. A salt adds uniqueness, not cost."
+    },
+    "explanation": "A salt is a unique random value added to each password before hashing. It is stored with the hash and is not secret. It makes identical passwords hash differently and defeats precomputed rainbow tables; slowing guesses down is the job of key stretching."
+  },
+  {
+    "id": "q-1.4-012",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A password database at Quillon Media stores each password as one round of salted SHA-256. A penetration tester shows that a single graphics card can test billions of guesses per second against a stolen copy. Which change most directly makes each guess slower?",
+    "options": [
+      { "id": "a", "text": "Use a longer random salt for every password" },
+      { "id": "b", "text": "Switch to a key-stretching function such as Argon2" },
+      { "id": "c", "text": "Replace SHA-256 with SHA-512 for the single round" },
+      { "id": "d", "text": "Encode the stored hashes in Base64 before saving them" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "The passwords are already salted. A longer salt still defeats precomputed tables, but each guess is calculated just as fast.",
+      "b": "Key-stretching functions are deliberately expensive to calculate, so every guess costs the attacker far more time.",
+      "c": "One round of SHA-512 is still a single fast hash. Guessing would remain extremely quick.",
+      "d": "Encoding only changes how the hash is written down. It adds no work for an attacker."
+    },
+    "explanation": "Key stretching (bcrypt, PBKDF2, scrypt, Argon2) deliberately makes each hash calculation expensive. A normal login is barely affected, but an attacker who needs billions of guesses is slowed enormously."
+  },
+  {
+    "id": "q-1.4-013",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "An application security standard says that stored passwords must be protected with a key-stretching algorithm. Which algorithms meet that requirement? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "bcrypt" },
+      { "id": "b", "text": "MD5" },
+      { "id": "c", "text": "ChaCha20" },
+      { "id": "d", "text": "PBKDF2" },
+      { "id": "e", "text": "ECDSA" }
+    ],
+    "correct": ["a", "d"],
+    "why": {
+      "a": "bcrypt is a password hashing function built to be slow, with a cost setting that can be raised over time.",
+      "b": "MD5 is a fast hash that is also broken for collision resistance. It does nothing to slow down guessing.",
+      "c": "ChaCha20 is a symmetric stream cipher used to encrypt data, not to store passwords.",
+      "d": "PBKDF2 repeats a hash many thousands of times to make each password guess expensive.",
+      "e": "ECDSA is an asymmetric algorithm for digital signatures."
+    },
+    "explanation": "The key-stretching functions to recognize are bcrypt, PBKDF2, scrypt and Argon2. Fast hashes, ciphers and signature algorithms are not designed to slow down password guessing."
+  },
+  {
+    "id": "q-1.4-014",
+    "objective": "1.4",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "Two internal services at Brannock Logistics already share a secret key. Each must be able to confirm that a message from the other was not altered in transit and was produced by a holder of that key. No key pairs or certificates are available. Which mechanism fits?",
+    "options": [
+      { "id": "a", "text": "A plain SHA-256 hash sent with each message" },
+      { "id": "b", "text": "A digital signature on each message" },
+      { "id": "c", "text": "A random salt added to each message" },
+      { "id": "d", "text": "An HMAC calculated over each message" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A plain hash uses no key. Anyone who alters the message can recompute the hash, so it proves nothing about who sent it.",
+      "b": "A digital signature needs the sender's private key and a way to share the matching public key, and the scenario has no key pairs.",
+      "c": "A salt is a random value that makes hashes unique. It does not show that a message is unchanged or who produced it.",
+      "d": "An HMAC is a hash calculated with the shared secret key, so only a holder of the key can produce a value that verifies."
+    },
+    "explanation": "An HMAC combines a hash function with a shared secret key. A valid HMAC shows that the message is unchanged and that it came from someone who holds the key. Because both sides hold the same key, it does not give non-repudiation."
+  },
+  {
+    "id": "q-1.4-015",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "The finance director of Alder & Wren digitally signs a contract before emailing it to a supplier. Which key is used to create the signature?",
+    "options": [
+      { "id": "a", "text": "The finance director's private key" },
+      { "id": "b", "text": "The finance director's public key" },
+      { "id": "c", "text": "The supplier's public key" },
+      { "id": "d", "text": "The supplier's private key" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "A signature is created with the signer's own private key, which only the signer holds.",
+      "b": "The finance director's public key is what the supplier uses to verify the signature, not to create it.",
+      "c": "The supplier's public key would be used to encrypt the contract for the supplier, which is confidentiality, not signing.",
+      "d": "Only the supplier holds the supplier's private key, so the finance director cannot use it."
+    },
+    "explanation": "A digital signature is created with the signer's private key and verified by anyone with the signer's public key. Only the signer holds the private key, which is what makes the signature proof of origin."
+  },
+  {
+    "id": "q-1.4-016",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "A law firm starts digitally signing the documents it sends to clients, without encrypting them. Which security properties does the digital signature provide? (Choose three.)",
+    "options": [
+      { "id": "a", "text": "Confidentiality" },
+      { "id": "b", "text": "Integrity" },
+      { "id": "c", "text": "Availability" },
+      { "id": "d", "text": "Authentication" },
+      { "id": "e", "text": "Obfuscation" },
+      { "id": "f", "text": "Non-repudiation" }
+    ],
+    "correct": ["b", "d", "f"],
+    "why": {
+      "a": "A signed document is still readable by anyone who obtains it. Confidentiality needs encryption.",
+      "b": "The signature is made from a hash of the document, so any change to the document makes verification fail.",
+      "c": "A signature does nothing to keep documents or systems accessible.",
+      "d": "The signature verifies only with the firm's public key, which shows that the firm's private key created it.",
+      "e": "Obfuscation hides data or makes it hard to understand. A signature hides nothing.",
+      "f": "Only the firm holds its private key, so the firm cannot credibly deny having signed the document."
+    },
+    "explanation": "A digital signature provides integrity, authentication and non-repudiation. It does not provide confidentiality: to keep the content secret, the sender must also encrypt it."
+  },
+  {
+    "id": "q-1.4-017",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "order",
+    "prompt": "Elena digitally signs a purchase order and sends it to Tomas, who then verifies the signature. Put the steps in the order they happen.",
+    "items": [
+      { "id": "i1", "text": "Tomas uses Elena's public key to check the signature against his own hash" },
+      { "id": "i2", "text": "Elena calculates a hash of the purchase order" },
+      { "id": "i3", "text": "Tomas calculates his own hash of the purchase order he received" },
+      { "id": "i4", "text": "Elena sends the purchase order with the signature attached" },
+      { "id": "i5", "text": "Elena signs the hash with her private key" }
+    ],
+    "correct": ["i2", "i5", "i4", "i3", "i1"],
+    "explanation": "Signing: hash the message, then sign the hash with the sender's private key. Verifying: hash the received message, then check the signature against that hash with the sender's public key. If the check passes, the message is unchanged and came from the holder of that private key."
+  },
+  {
+    "id": "q-1.4-018",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A shipping consortium records container handovers on a blockchain. An insider at one member company alters the details of a handover that was recorded months ago in that company's copy. What makes the alteration evident to the other members?",
+    "options": [
+      { "id": "a", "text": "Each block is encrypted with a key that only the consortium's auditor holds" },
+      { "id": "b", "text": "Old blocks are deleted automatically once they have been verified" },
+      { "id": "c", "text": "Each block contains the hash of the previous block, so later blocks no longer match" },
+      { "id": "d", "text": "Each member stores its copy of the blocks in a hardware security module" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "A blockchain's tamper evidence does not come from encrypting blocks with one party's key. It comes from hashes that link the blocks.",
+      "b": "A blockchain is append-only. Old blocks are kept, and each new block builds on them.",
+      "c": "Changing an old block changes its hash, which no longer matches the hash stored in the next block, and the mismatch carries through the rest of the chain.",
+      "d": "A hardware security module protects keys. It is not what links blocks together or exposes a changed block."
+    },
+    "explanation": "A blockchain is a distributed, append-only ledger in which every block contains the hash of the block before it. Altering any earlier block breaks the chain of hashes, so tampering is evident to everyone who holds a copy."
+  },
+  {
+    "id": "q-1.4-019",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A charity wants donors, journalists and anyone else to be able to read its record of donations and check for themselves that no entry has been changed, without having to trust the charity's own database. Which technology is designed for this?",
+    "options": [
+      { "id": "a", "text": "Key escrow" },
+      { "id": "b", "text": "A certificate revocation list" },
+      { "id": "c", "text": "A token vault" },
+      { "id": "d", "text": "An open public ledger" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "Key escrow keeps a copy of keys with a trusted third party for recovery. It does not publish records.",
+      "b": "A certificate revocation list is a CA's list of revoked certificates, not a record of transactions.",
+      "c": "A token vault is a protected store that maps tokens to sensitive values. It is kept private, not opened to the public.",
+      "d": "An open public ledger can be read and verified by anyone, which is exactly the transparency the charity wants."
+    },
+    "explanation": "An open public ledger is a ledger that anyone can read and independently verify, usually built on a blockchain. It provides transparency and integrity, not confidentiality."
+  },
+  {
+    "id": "q-1.4-020",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "During an investigation at Marlow Design, an analyst finds that stolen product drawings were concealed inside the pixel data of ordinary-looking holiday photos posted to a public website. Which technique was used?",
+    "options": [
+      { "id": "a", "text": "Tokenization" },
+      { "id": "b", "text": "Steganography" },
+      { "id": "c", "text": "Data masking" },
+      { "id": "d", "text": "Key stretching" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Tokenization replaces a sensitive value with a random token and keeps the real value in a vault. Nothing is hidden inside another file.",
+      "b": "Steganography hides the existence of data inside another file, such as an image, so the carrier looks normal.",
+      "c": "Data masking hides part of a value from the person viewing it, such as most digits of a card number.",
+      "d": "Key stretching makes password hashing slow. It has nothing to do with hiding files."
+    },
+    "explanation": "Steganography hides the existence of data inside another file, such as an image, audio clip or video. The other techniques change or replace data; steganography conceals that it is there at all."
+  },
+  {
+    "id": "q-1.4-021",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Riverbend Outfitters lets customers reorder with a saved payment card. Its order database holds a random stand-in value for each card. The real card numbers are kept only in the payment provider's separate vault, and no key or calculation can turn a stand-in value back into a card number. Which technique is this?",
+    "options": [
+      { "id": "a", "text": "Tokenization" },
+      { "id": "b", "text": "Encryption" },
+      { "id": "c", "text": "Hashing" },
+      { "id": "d", "text": "Data masking" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Tokenization swaps the value for a random token and keeps the mapping in a separate vault. The token cannot be reversed by calculation.",
+      "b": "Encrypted data can be turned back into the original by anyone who has the key. Here there is no key at all.",
+      "c": "A hash is calculated from the card number itself. It is not a random stand-in, and no vault could return the original from it.",
+      "d": "Data masking hides characters of a value from a viewer, such as showing only the last four digits. It does not involve a vault that maps values."
+    },
+    "explanation": "A token is a random substitute with no mathematical link to the original value. The mapping lives only in a separate token vault. Encryption, by contrast, is reversible with a key, and hashing is a one-way calculation on the value itself."
+  },
+  {
+    "id": "q-1.4-022",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A call-center agent's screen shows a customer's card as ************4821. The full card number remains stored in the back-end system, which the agent cannot query. Which technique is being applied to what the agent sees?",
+    "options": [
+      { "id": "a", "text": "Steganography" },
+      { "id": "b", "text": "Hashing" },
+      { "id": "c", "text": "Data masking" },
+      { "id": "d", "text": "Salting" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Steganography hides data inside another file. Here part of the value is simply covered up on screen.",
+      "b": "A hash of the card number would be a fixed-length digest that looks nothing like the number and would not show its last four digits.",
+      "c": "Data masking hides part of a value from the viewer, typically all but the last few characters.",
+      "d": "Salting adds a random value to a password before hashing. It does not control what a user sees."
+    },
+    "explanation": "Data masking hides part or all of a value from the person viewing it, for example every digit of a card number except the last four. The complete value can still exist in the underlying system."
+  },
+  {
+    "id": "q-1.4-023",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "An administrator opens the management page of a new network printer, and the browser warns that the certificate is not trusted. The certificate details show that the issuer and the subject are both the printer itself, and that the certificate was signed with the printer's own key. What type of certificate is this?",
+    "options": [
+      { "id": "a", "text": "Wildcard" },
+      { "id": "b", "text": "Third-party" },
+      { "id": "c", "text": "Intermediate CA" },
+      { "id": "d", "text": "Self-signed" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A wildcard certificate covers many hostnames under one domain. The term says nothing about who signed the certificate.",
+      "b": "A third-party certificate is issued and signed by a public CA, so its issuer would be that CA, and the browser would trust it.",
+      "c": "An intermediate CA certificate belongs to a CA and is signed by the CA above it in the chain, not by a printer.",
+      "d": "A self-signed certificate is signed with its own private key, so issuer and subject match. This one is not in the browser's trust store and no CA vouches for it, hence the warning."
+    },
+    "explanation": "A self-signed certificate is signed by its own key instead of by a CA. It can still encrypt a connection, but unless it has been placed in the trust store, as root CA certificates are, nothing vouches for the identity and browsers warn about it."
+  },
+  {
+    "id": "q-1.4-024",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Pennywhistle Books is launching an online shop for the general public. Customers will use their own phones and computers, which the company does not manage. Which certificate choice lets those browsers trust the shop without warnings or extra setup?",
+    "options": [
+      { "id": "a", "text": "A self-signed certificate created on the web server" },
+      { "id": "b", "text": "A certificate issued by a public third-party CA" },
+      { "id": "c", "text": "A certificate issued by the company's internal CA" },
+      { "id": "d", "text": "A self-signed wildcard certificate for the shop's domain" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "No CA vouches for this certificate and it is not in customers' trust stores, so every customer's browser would show a warning.",
+      "b": "Public CAs have their root certificates preinstalled in browsers and operating systems, so the chain validates on any customer device.",
+      "c": "Customers' devices do not have the company's internal root certificate installed, so the chain would not be trusted.",
+      "d": "A wildcard covers more hostnames, but the certificate is still self-signed and still untrusted by customers' browsers."
+    },
+    "explanation": "Use a certificate from a public third-party CA for anything the public reaches, because its root of trust is already in their devices. Self-signed certificates and internal CAs only work where you control the devices' trust stores."
+  },
+  {
+    "id": "q-1.4-025",
+    "objective": "1.4",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A public CA designs its public key infrastructure (PKI) so that the root CA, which is the root of trust, stays powered off in a vault. Customer certificates are issued by intermediate CAs instead. What is the main security reason for this design?",
+    "options": [
+      { "id": "a", "text": "A compromised intermediate can be revoked without replacing the trusted root" },
+      { "id": "b", "text": "Intermediate CAs use longer keys than the root, so their certificates are harder to forge" },
+      { "id": "c", "text": "Browsers validate only the intermediate certificate, so the root is never needed again" },
+      { "id": "d", "text": "An offline root no longer has to be stored in operating system trust stores" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "The root key is exposed as little as possible. If an intermediate is compromised, the root can revoke it and sign a new one, and devices keep trusting the same root.",
+      "b": "The design is not about key length. Root keys are typically at least as strong as intermediate keys.",
+      "c": "Browsers walk the whole chain and must reach a trusted root. The root certificate is essential to validation.",
+      "d": "The root's certificate must be in trust stores, because it is the anchor every chain is checked against. Only its private key is kept offline."
+    },
+    "explanation": "The root CA is the root of trust: its certificate is preinstalled in trust stores and every chain ends at it. Keeping the root's private key offline and issuing from intermediates limits the damage of a compromise, because an intermediate can be revoked, whereas replacing a root means updating every device."
+  },
+  {
+    "id": "q-1.4-026",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "order",
+    "prompt": "Dana, an administrator at Larkfield Dental, needs a publicly trusted TLS certificate for a new patient-portal server that has no key or certificate yet. Put the steps in the order they happen.",
+    "items": [
+      { "id": "i1", "text": "The CA issues the certificate, signed with the CA's private key" },
+      { "id": "i2", "text": "Dana creates a CSR that contains the public key and the portal's details" },
+      { "id": "i3", "text": "Dana installs the issued certificate on the portal server" },
+      { "id": "i4", "text": "Dana generates a key pair on the portal server" },
+      { "id": "i5", "text": "The CA validates that Larkfield controls the domain named in the CSR" },
+      { "id": "i6", "text": "Dana submits the CSR to the public CA" }
+    ],
+    "correct": ["i4", "i2", "i6", "i5", "i1", "i3"],
+    "explanation": "Generate the key pair, create the CSR from it, submit the CSR, let the CA validate the requester, receive the signed certificate, then install it. The CSR carries the public key; the private key stays on the server throughout."
+  },
+  {
+    "id": "q-1.4-027",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A junior administrator has generated a key pair and a CSR for a new web server. He plans to email both the CSR and the private key file to the public CA so that it can create the certificate. What should he be told?",
+    "options": [
+      { "id": "a", "text": "Send both files, but encrypt the email with the CA's public key first" },
+      { "id": "b", "text": "Send only the private key, because the CA derives the public key from it" },
+      { "id": "c", "text": "Send only the CSR, which carries the public key; the private key stays on the server" },
+      { "id": "d", "text": "Send neither file, because the CA generates the key pair for every applicant" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Protecting the email does not help. The CA has no need for the private key, and sharing it with anyone defeats its purpose.",
+      "b": "The CA works from the public key in the CSR. The private key must never be sent to it.",
+      "c": "The CSR contains the public key and the identifying details the CA needs. The private key never leaves the applicant.",
+      "d": "The applicant generates the key pair, so that only the applicant ever holds the private key. The CA needs the CSR to issue anything."
+    },
+    "explanation": "A CSR contains the applicant's public key and identifying details, and is signed with the applicant's private key. The private key itself is never sent to the CA or to anyone else."
+  },
+  {
+    "id": "q-1.4-028",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Brightwater Energy installs a wildcard certificate that has *.brightwater.example as its only name. Which hostname is covered by this certificate?",
+    "options": [
+      { "id": "a", "text": "billing.eu.brightwater.example" },
+      { "id": "b", "text": "brightwater.example" },
+      { "id": "c", "text": "portal.brightwater.test" },
+      { "id": "d", "text": "portal.brightwater.example" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "This name is two levels below the domain. A wildcard matches only one level.",
+      "b": "The wildcard stands for one label in front of the domain. The bare domain is not covered unless it is listed as a separate name.",
+      "c": "This hostname is in a different domain, which the certificate does not name at all.",
+      "d": "The wildcard replaces exactly one label, so a hostname one level below brightwater.example is covered."
+    },
+    "explanation": "A wildcard certificate covers every hostname exactly one level below the named domain. It does not cover deeper levels, the bare domain itself, or other domains."
+  },
+  {
+    "id": "q-1.4-029",
+    "objective": "1.4",
+    "difficulty": 3,
+    "type": "categorize",
+    "prompt": "Decide whether each statement describes a certificate revocation list (CRL) or the Online Certificate Status Protocol (OCSP).",
+    "items": [
+      { "id": "t1", "text": "The client asks about one certificate and is told good, revoked or unknown" },
+      { "id": "t2", "text": "The CA publishes it on a schedule as a signed file" },
+      { "id": "t3", "text": "A web server can staple a recent response to its TLS handshake" },
+      { "id": "t4", "text": "It contains the serial numbers of the certificates the CA has revoked" },
+      { "id": "t5", "text": "A responder answers each status request as it arrives" },
+      { "id": "t6", "text": "A certificate revoked today may not appear until the next publication" },
+      { "id": "t7", "text": "The client downloads the complete list, even to check a single certificate" }
+    ],
+    "buckets": [
+      { "id": "crl", "text": "CRL" },
+      { "id": "ocsp", "text": "OCSP" }
+    ],
+    "correct": {
+      "t1": "ocsp",
+      "t2": "crl",
+      "t3": "ocsp",
+      "t4": "crl",
+      "t5": "ocsp",
+      "t6": "crl",
+      "t7": "crl"
+    },
+    "explanation": "A CRL is a signed list of revoked serial numbers that the CA publishes periodically and clients download whole, so it can lag behind. OCSP is a query about a single certificate that returns good, revoked or unknown in close to real time; with OCSP stapling, the server attaches a recent response to the handshake."
+  },
+  {
+    "id": "q-1.4-030",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A user opens her bank's website over HTTPS. Once the TLS handshake has finished, what encrypts the web pages and form data that travel between her browser and the server?",
+    "options": [
+      { "id": "a", "text": "The server's public key from its certificate" },
+      { "id": "b", "text": "Symmetric session keys set up during the handshake" },
+      { "id": "c", "text": "The private key of the CA that issued the certificate" },
+      { "id": "d", "text": "A hash of the server's certificate" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "The server's key pair is used during the handshake to prove the server's identity and help agree on keys. It is too slow for encrypting the traffic itself.",
+      "b": "Both sides derive the same symmetric session keys during the handshake, and a fast symmetric cipher uses them for all the data.",
+      "c": "The CA's private key is used only by the CA, to sign certificates. It plays no part in encrypting a session.",
+      "d": "A hash is a one-way digest, not a key, and it cannot encrypt anything."
+    },
+    "explanation": "TLS is hybrid. Asymmetric cryptography is used in the handshake to authenticate the server and agree on keys; the data is then encrypted with symmetric session keys, because symmetric encryption is far faster."
+  },
+  {
+    "id": "q-1.4-031",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "TLS is a hybrid system. Which jobs does asymmetric cryptography perform during the TLS handshake? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "Encrypting the bulk of the application data" },
+      { "id": "b", "text": "Proving the server's identity to the client" },
+      { "id": "c", "text": "Publishing the CA's list of revoked certificates" },
+      { "id": "d", "text": "Stretching the user's password before it is sent" },
+      { "id": "e", "text": "Letting both sides establish the shared session keys" }
+    ],
+    "correct": ["b", "e"],
+    "why": {
+      "a": "Bulk data is encrypted with symmetric session keys, because asymmetric encryption is far too slow for it.",
+      "b": "The server presents a certificate and proves that it holds the matching private key, which authenticates it to the client.",
+      "c": "Revocation lists are published by the CA outside any handshake.",
+      "d": "Key stretching is used when passwords are stored. It is not a step of the TLS handshake.",
+      "e": "The key exchange uses public and private values so that both sides arrive at the same session keys over an untrusted network."
+    },
+    "explanation": "In the TLS handshake, asymmetric cryptography authenticates the server and establishes the shared keys. Symmetric session keys then encrypt the data."
+  },
+  {
+    "id": "q-1.4-032",
+    "objective": "1.4",
+    "difficulty": 3,
+    "type": "order",
+    "prompt": "A browser connects to a web server using TLS 1.2. Put the stages of the connection in the order they happen.",
+    "items": [
+      { "id": "i1", "text": "The browser validates the server's certificate against a trusted root CA" },
+      { "id": "i2", "text": "The key exchange completes and both sides derive the same session keys" },
+      { "id": "i3", "text": "The browser sends a hello offering its TLS version and cipher suites" },
+      { "id": "i4", "text": "Application data is exchanged, encrypted with the symmetric session keys" },
+      { "id": "i5", "text": "The server replies with its chosen cipher suite and its certificate" }
+    ],
+    "correct": ["i3", "i5", "i1", "i2", "i4"],
+    "explanation": "TLS 1.2 in outline: the client's hello offers its TLS version and cipher suites; the server chooses and sends its certificate; the client validates the certificate; the key exchange completes and both sides derive session keys; then data flows under symmetric encryption."
+  },
+  {
+    "id": "q-1.4-033",
+    "objective": "1.4",
+    "difficulty": 3,
+    "type": "multi",
+    "prompt": "Hollis Veterinary Group issues laptops to vets who visit farms. Three requirements must be met. Records on a laptop must be unreadable if it is stolen from a vehicle while switched off. Records must be unreadable to anyone listening on public Wi-Fi while they are uploaded to the group's cloud portal. The IT team must be able to unlock a laptop's data if a vet forgets the passphrase or leaves the group. Which controls meet these requirements? (Choose three.)",
+    "options": [
+      { "id": "a", "text": "Data masking in the portal's user interface" },
+      { "id": "b", "text": "A digital signature on each uploaded record" },
+      { "id": "c", "text": "Full-disk encryption on each laptop" },
+      { "id": "d", "text": "TLS for the connection to the portal" },
+      { "id": "e", "text": "A salted hash of each stored record" },
+      { "id": "f", "text": "Key escrow for the laptops' encryption keys" }
+    ],
+    "correct": ["c", "d", "f"],
+    "why": {
+      "a": "Masking hides parts of values on screen. It protects neither a stolen drive nor traffic on a network.",
+      "b": "A signature shows who sent a record and that it is unchanged, but the record itself would still travel in readable form.",
+      "c": "Full-disk encryption makes the whole drive unreadable while the laptop is powered off, which covers theft from a vehicle.",
+      "d": "TLS is transport encryption. It protects the records while they cross the public Wi-Fi network.",
+      "e": "Hashing is one-way. The vets could never read the records back, and it does not protect data in transit.",
+      "f": "With key escrow, a copy of each laptop's key is held securely, so IT can recover the data when a passphrase is lost or a vet leaves."
+    },
+    "explanation": "Match each control to its threat: full-disk encryption for a stolen, powered-off device; transport encryption such as TLS for data crossing a network; key escrow for recovering data when a key is lost."
+  },
+  {
+    "id": "q-1.4-034",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A laptop's disk encryption key is sealed by a chip on its motherboard. If the drive is removed and connected to a different computer, the key is not available and the drive cannot be read. Which component is this chip?",
+    "options": [
+      { "id": "a", "text": "Trusted Platform Module (TPM)" },
+      { "id": "b", "text": "Hardware security module (HSM)" },
+      { "id": "c", "text": "Key management system" },
+      { "id": "d", "text": "Certificate authority (CA)" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "A TPM is a chip on the motherboard that stores keys for that one device, which is why the key does not follow the drive to another computer.",
+      "b": "An HSM is a separate, dedicated device or service that protects keys for many systems. It is not built into a laptop's motherboard.",
+      "c": "A key management system is a central service for creating, rotating and revoking keys, not a chip inside a device.",
+      "d": "A certificate authority issues and signs certificates. It does not store a laptop's disk key."
+    },
+    "explanation": "A TPM is a chip on the motherboard, bound to one device. It stores that device's keys, such as the disk encryption key, and supports measured boot."
+  },
+  {
+    "id": "q-1.4-035",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "match",
+    "prompt": "Match each tool to the description that fits it.",
+    "left": [
+      { "id": "l1", "text": "Trusted Platform Module (TPM)" },
+      { "id": "l2", "text": "Hardware security module (HSM)" },
+      { "id": "l3", "text": "Key management system" },
+      { "id": "l4", "text": "Secure enclave" }
+    ],
+    "right": [
+      { "id": "r1", "text": "A central service that handles the creation, rotation and revocation of keys across an organization" },
+      { "id": "r2", "text": "An isolated, protected area inside a device's processor for handling sensitive data and keys" },
+      { "id": "r3", "text": "A chip on one device's motherboard that stores that device's keys and supports measured boot" },
+      { "id": "r4", "text": "A dedicated, tamper-resistant device or service that generates, stores and uses keys for many systems" }
+    ],
+    "correct": {
+      "l1": "r3",
+      "l2": "r4",
+      "l3": "r1",
+      "l4": "r2"
+    },
+    "explanation": "TPM: a chip bound to one device. HSM: dedicated, tamper-resistant hardware or a service that protects keys at scale. Key management system: central management of the key lifecycle. Secure enclave: an isolated processing area inside a processor or device."
+  },
+  {
+    "id": "q-1.4-036",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "An engineer leaves Stanmore Robotics without notice. Project files that she encrypted with her own key pair cannot be opened, because nobody else has a copy of her private key. Which arrangement would have let the company recover the files?",
+    "options": [
+      { "id": "a", "text": "Listing her certificate on a CRL" },
+      { "id": "b", "text": "Issuing her a wildcard certificate" },
+      { "id": "c", "text": "Placing her key in key escrow" },
+      { "id": "d", "text": "Applying key stretching to her passphrase" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "A CRL marks a certificate as no longer trusted. It does not give anyone the private key needed to decrypt files.",
+      "b": "A wildcard certificate covers many hostnames under a domain. It has nothing to do with recovering a key.",
+      "c": "With key escrow, a trusted party holds a copy of the key, so the company could have retrieved it and decrypted the files.",
+      "d": "Key stretching makes a passphrase harder to guess. That would make recovery harder, not possible."
+    },
+    "explanation": "Key escrow means a trusted third party holds a copy of keys so that encrypted data can be recovered when a key is lost or its owner is gone. Access to the escrow must be tightly controlled."
+  },
+  {
+    "id": "q-1.4-037",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A warehouse system at Ashgrove Timber sends order records to head office across the internet every few seconds. The drives at both sites are encrypted, but anyone who taps the link between the sites can read the records as they pass. Which type of encryption is designed to close this gap?",
+    "options": [
+      { "id": "a", "text": "Full-disk encryption" },
+      { "id": "b", "text": "Transport encryption" },
+      { "id": "c", "text": "File encryption" },
+      { "id": "d", "text": "Database encryption" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Full-disk encryption protects a drive while the device is powered off. The drives are already encrypted, and the records leave them in readable form.",
+      "b": "Transport encryption, such as TLS or a VPN tunnel, protects data while it moves across a network, which is exactly where these records are exposed.",
+      "c": "File encryption protects chosen files where they are stored. It is not designed to protect a live flow of records between two systems.",
+      "d": "Database encryption protects a database's files and backups on disk. Records sent out by the running system are no longer covered by it."
+    },
+    "explanation": "Encryption levels such as full-disk, file and database protect data at rest. Data in transit needs transport encryption (also called communication encryption), for example TLS or a VPN tunnel."
+  },
+  {
+    "id": "q-1.4-038",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Several servers at Corvane Payments must sign thousands of transactions per second. Policy requires the signing keys to be generated and used only inside dedicated, tamper-resistant hardware that all of the servers reach over the network, so that the keys never exist on the servers themselves. Which solution meets this requirement?",
+    "options": [
+      { "id": "a", "text": "A Trusted Platform Module (TPM) in each server" },
+      { "id": "b", "text": "A secure enclave in each server's processor" },
+      { "id": "c", "text": "A hardware security module (HSM)" },
+      { "id": "d", "text": "A key escrow service" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "A TPM is bound to the one device it is built into and protects that device's keys. It is not shared hardware that many servers reach over the network.",
+      "b": "A secure enclave is an isolated area inside one device's processor. The policy calls for dedicated hardware that is separate from the servers.",
+      "c": "An HSM is dedicated, tamper-resistant hardware that generates, stores and uses keys for many systems, and the keys never leave it.",
+      "d": "Key escrow holds copies of keys so that data can be recovered. It does not perform signing, and it adds a copy of the keys instead of confining them."
+    },
+    "explanation": "An HSM is a dedicated, tamper-resistant device or service that generates, stores and uses keys for many systems at scale. A TPM and a secure enclave each protect the keys of the single device they are part of."
+  },
+  {
+    "id": "q-1.4-039",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A smartphone compares each fingerprint scan with its stored fingerprint data, and performs cryptographic key operations, in an isolated area of its main processor. Even if the phone's operating system is compromised, it cannot read what is inside that area. What is this area called?",
+    "options": [
+      { "id": "a", "text": "Secure enclave" },
+      { "id": "b", "text": "Trusted Platform Module (TPM)" },
+      { "id": "c", "text": "Hardware security module (HSM)" },
+      { "id": "d", "text": "Key management system" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "A secure enclave is an isolated, protected processing area inside a processor, kept separate from the main operating system.",
+      "b": "A TPM is a separate chip on a computer's motherboard that stores that device's keys. It is not an area inside the main processor.",
+      "c": "An HSM is dedicated hardware, separate from the devices that use it, which protects keys for many systems.",
+      "d": "A key management system is a central service for creating, rotating and revoking keys across an organization, not part of a phone's processor."
+    },
+    "explanation": "A secure enclave is an isolated, protected processing area inside a processor or device. Sensitive data and keys handled there stay protected even if the main operating system is compromised."
+  },
+  {
+    "id": "q-1.4-040",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Teviot Health runs dozens of applications that use hundreds of encryption keys between them. Keys are created by hand, some have never been rotated, and nobody can say who is allowed to use which key. The security team wants one place to create keys, rotate them on a schedule, revoke them, set access rules and log every use. Which solution provides this?",
+    "options": [
+      { "id": "a", "text": "A hardware security module (HSM)" },
+      { "id": "b", "text": "A key escrow service" },
+      { "id": "c", "text": "A certificate authority (CA)" },
+      { "id": "d", "text": "A key management system" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "An HSM protects keys inside tamper-resistant hardware. It is not the central service that schedules rotation, sets access rules and logs key use across every application.",
+      "b": "Key escrow keeps copies of keys so that data can be recovered. It does not create, rotate or revoke keys.",
+      "c": "A CA checks identities and signs certificates. It does not manage the encryption keys that applications use.",
+      "d": "A key management system manages keys centrally through their lifecycle: creation, rotation and revocation, with access rules and logging."
+    },
+    "explanation": "A key management system is the central service for the key lifecycle: creation, rotation and revocation, with access rules and logging. An HSM protects keys in hardware; key escrow keeps recovery copies."
+  },
+  {
+    "id": "q-1.4-041",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "A trainee keeps confusing the Trusted Platform Module (TPM) with the hardware security module (HSM). Which statements describe a TPM rather than an HSM? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "It is dedicated hardware that many servers share over the network" },
+      { "id": "b", "text": "It is a chip on the motherboard, bound to the one device it is built into" },
+      { "id": "c", "text": "It supports measured boot by recording hashes of startup components" },
+      { "id": "d", "text": "It is built for high-volume signing, such as a CA signing its customers' certificates" },
+      { "id": "e", "text": "It holds copies of keys so that lost keys can be recovered" }
+    ],
+    "correct": ["b", "c"],
+    "why": {
+      "a": "Shared, dedicated hardware that serves many systems describes an HSM. A TPM serves only the device it is part of.",
+      "b": "A TPM is a chip on a device's motherboard, and the keys it protects are tied to that device.",
+      "c": "Measured boot is a TPM function: it records hashes of the startup components so that a key can be withheld if they have changed.",
+      "d": "High-volume key operations for many systems are the job of an HSM. A TPM protects one device's keys.",
+      "e": "Keeping recovery copies of keys is key escrow, which is neither a TPM nor an HSM."
+    },
+    "explanation": "A TPM is a chip on the motherboard, bound to one device: it stores that device's keys and supports measured boot. An HSM is dedicated, tamper-resistant hardware that protects and uses keys for many systems at scale."
+  },
+  {
+    "id": "q-1.4-042",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Kestrel Bank's CA revoked a server certificate on Monday after the bank reported its private key stolen. Client software that checks revocation only against a list the CA publishes once a week kept accepting the certificate until the next list came out. Which mechanism lets a client ask for the current status of that one certificate on demand?",
+    "options": [
+      { "id": "a", "text": "OCSP" },
+      { "id": "b", "text": "A CRL" },
+      { "id": "c", "text": "A CSR" },
+      { "id": "d", "text": "Key escrow" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "With the Online Certificate Status Protocol, a client asks about one certificate and is told good, revoked or unknown, in close to real time.",
+      "b": "A certificate revocation list is the periodically published list that the clients were already using. It is only as current as its last publication.",
+      "c": "A certificate signing request is what an applicant sends to a CA to obtain a certificate. It has nothing to do with revocation.",
+      "d": "Key escrow keeps a copy of keys for recovery. It does not tell clients whether a certificate has been revoked."
+    },
+    "explanation": "A CRL is a list published on a schedule, so a newly revoked certificate can go unnoticed until the next publication. OCSP answers a query about a single certificate on demand."
+  },
+  {
+    "id": "q-1.4-043",
+    "objective": "1.4",
+    "difficulty": 1,
+    "type": "match",
+    "prompt": "Match each certificate term to the description that fits it.",
+    "left": [
+      { "id": "l1", "text": "Certificate revocation list (CRL)" },
+      { "id": "l2", "text": "Online Certificate Status Protocol (OCSP)" },
+      { "id": "l3", "text": "Certificate signing request (CSR)" },
+      { "id": "l4", "text": "Wildcard certificate" },
+      { "id": "l5", "text": "Self-signed certificate" }
+    ],
+    "right": [
+      { "id": "r1", "text": "A certificate that covers every hostname one level below a domain" },
+      { "id": "r2", "text": "An applicant's public key and identifying details, sent to a CA to obtain a certificate" },
+      { "id": "r3", "text": "A signed list of the serial numbers of revoked certificates, published by the CA on a schedule" },
+      { "id": "r4", "text": "A certificate signed with its own private key instead of by a CA" },
+      { "id": "r5", "text": "A query that returns the status of one certificate: good, revoked or unknown" }
+    ],
+    "correct": {
+      "l1": "r3",
+      "l2": "r5",
+      "l3": "r2",
+      "l4": "r1",
+      "l5": "r4"
+    },
+    "explanation": "CRL: the CA's periodically published list of revoked serial numbers. OCSP: an on-demand status query about one certificate. CSR: the request, carrying the public key, that an applicant sends to a CA. Wildcard: one certificate for all hostnames one level below a domain. Self-signed: signed by its own key, with no CA vouching for it."
+  },
+  {
+    "id": "q-1.4-044",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Three clerks at Dunmore Haulage share one PC, each logging on with a personal account. The PC already uses full-disk encryption. The payroll clerk's spreadsheets must be unreadable to the other two clerks while they are logged on, protected by a key tied to the payroll clerk's own account. Which level of encryption fits?",
+    "options": [
+      { "id": "a", "text": "Full-disk encryption" },
+      { "id": "b", "text": "Partition encryption" },
+      { "id": "c", "text": "File encryption" },
+      { "id": "d", "text": "Transport encryption" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Full-disk encryption is already in place, and it is unlocked for everyone who uses the running PC. It does not separate one user's data from another's.",
+      "b": "Partition encryption covers a whole section of the drive, not one person's chosen documents with a key tied to that person's account.",
+      "c": "File encryption protects individual files, often with a key tied to one user account, so other users of the same computer cannot read them.",
+      "d": "Transport encryption protects data crossing a network. These spreadsheets are stored on the shared PC."
+    },
+    "explanation": "File encryption protects chosen files with a key that can be tied to one user, which keeps them from other users of the same computer. Full-disk encryption does not help once the system is running and unlocked."
+  },
+  {
+    "id": "q-1.4-045",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A field laptop at Wexcombe Surveys has a single disk. A vendor's recovery tool must be able to read the operating system section of the disk without any key, so that section has to stay unencrypted. The other section of the same disk, which holds the survey data, is encrypted as a whole. Which level of encryption does this describe?",
+    "options": [
+      { "id": "a", "text": "Full-disk encryption" },
+      { "id": "b", "text": "Partition encryption" },
+      { "id": "c", "text": "File encryption" },
+      { "id": "d", "text": "Database encryption" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Full-disk encryption would encrypt the whole disk, including the operating system section that must stay readable.",
+      "b": "Partition encryption encrypts one partition (section) of a drive and leaves the other partitions of the same drive unencrypted.",
+      "c": "File encryption protects individually chosen files. Here an entire section of the disk is encrypted as a whole.",
+      "d": "Database encryption protects a database's own files and backups. Nothing in the scenario involves a database."
+    },
+    "explanation": "Partition encryption covers one partition of a drive and leaves the rest of that drive unencrypted. Full-disk encryption covers everything on the drive, including the operating system."
+  },
+  {
+    "id": "q-1.4-046",
+    "objective": "1.4",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A media server at Halden Studios combines two physical disks into a single logical drive, which the operating system shows as drive M. That logical drive is encrypted as one unit, with one key. Which level of encryption is this?",
+    "options": [
+      { "id": "a", "text": "Partition encryption" },
+      { "id": "b", "text": "Full-disk encryption" },
+      { "id": "c", "text": "Record encryption" },
+      { "id": "d", "text": "Volume encryption" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A partition is a section of one physical drive. This logical drive spans two disks.",
+      "b": "Full-disk encryption encrypts one whole physical drive. Here the encrypted unit is a logical drive built across two disks.",
+      "c": "Record encryption protects individual rows or fields inside a database, not a drive.",
+      "d": "Volume encryption encrypts one logical drive as a unit, and a volume can span several physical disks."
+    },
+    "explanation": "A volume is a logical drive. It may be a single partition or span several disks, and volume encryption encrypts it as one unit."
+  },
+  {
+    "id": "q-1.4-047",
+    "objective": "1.4",
+    "difficulty": 3,
+    "type": "categorize",
+    "prompt": "Decide which tool each statement describes.",
+    "items": [
+      { "id": "t1", "text": "Build servers send requests to sign software updates to a shared, tamper-resistant device that the signing key never leaves" },
+      { "id": "t2", "text": "A laptop releases its disk encryption key only if its startup components match the hashes recorded earlier" },
+      { "id": "t3", "text": "One policy rotates every application's encryption keys every 90 days and logs each use of a key" },
+      { "id": "t4", "text": "A CA keeps its signing key in a dedicated, tamper-resistant appliance in its data center" },
+      { "id": "t5", "text": "A laptop's processor runs payment-credential code in an isolated area that the operating system cannot inspect" },
+      { "id": "t6", "text": "A key is tied to a chip on one PC's motherboard and cannot be used on any other PC" },
+      { "id": "t7", "text": "A cloud provider rents out dedicated, tamper-resistant hardware in which a customer's keys are generated and used" }
+    ],
+    "buckets": [
+      { "id": "tpm", "text": "Trusted Platform Module (TPM)" },
+      { "id": "hsm", "text": "Hardware security module (HSM)" },
+      { "id": "kms", "text": "Key management system" },
+      { "id": "enclave", "text": "Secure enclave" }
+    ],
+    "correct": {
+      "t1": "hsm",
+      "t2": "tpm",
+      "t3": "kms",
+      "t4": "hsm",
+      "t5": "enclave",
+      "t6": "tpm",
+      "t7": "hsm"
+    },
+    "explanation": "TPM: a chip bound to one device, which stores that device's keys and supports measured boot. HSM: dedicated, tamper-resistant hardware, on site or as a cloud service, that generates and uses keys for many systems. Key management system: central control of the key lifecycle. Secure enclave: an isolated area inside a processor."
+  }
+]
