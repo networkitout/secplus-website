@@ -116,7 +116,8 @@ export function RewardsProvider({ children }: { children: ReactNode }) {
   // When the provider goes, the learner has signed out: a refresh that is still waiting is dropped, and a
   // report that arrives later (the response to a request of the old session) starts nothing. The next
   // session reads its own numbers.
-  const mounted = useRef(false);
+  // True from the first render, so a report from a child's mount effect (which runs before this one) counts.
+  const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
     return () => {

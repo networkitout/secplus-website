@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, useQuery, type QueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../../api/client';
 import type { DashboardBadge, DashboardResponse } from '../../api/types';
@@ -206,6 +206,27 @@ describe('rewards', () => {
     renderRewards();
     await screen.findByText('2500 XP, level 6');
     expect(banner()).toBeEmptyDOMElement();
+  });
+
+  it('a report made while a screen is being put on the page is not lost', async () => {
+    // A child's effect runs before the provider's own.
+    function ReportsAtOnce() {
+      const { report } = useRewards();
+      useEffect(() => {
+        report({ newBadges: ['first-lesson'] });
+      }, [report]);
+      return null;
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <RewardsProvider>
+          <Header />
+          <RewardsBanner />
+          <ReportsAtOnce />
+        </RewardsProvider>
+      </QueryClientProvider>,
+    );
+    await shows('First Lesson');
   });
 
   it('a badge the dashboard does not know still shows, without a description', async () => {
