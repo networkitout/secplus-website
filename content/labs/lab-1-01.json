@@ -85,7 +85,7 @@
         "c09": "managerial",
         "c10": "physical"
       },
-      "explanation": "The category says who or what makes a control work. The email gateway, the chart alert and the file rollback are carried out by software, so they are technical. The two policies are management deciding and documenting the rules, so they are managerial. Reception staff checking a caller and the administrator reading the log are people carrying out day-to-day tasks, so they are operational. The locked cabinet, the gate sign and the door sensor are tangible barriers and devices that protect the building and its equipment, so they are physical. Notice the pair about callers: the policy that requires the date-of-birth check is managerial, while staff making the check is operational."
+      "explanation": "The category says who or what makes a control work. The email gateway, the chart alert and the file rollback are carried out by software, so they are technical. The two policies are management deciding and documenting the rules, so they are managerial. Reception staff checking a caller and the administrator reading the log are people carrying out day-to-day tasks, so they are operational. A routine check carried out by a member of staff is operational even when management asked for it, which is why the Friday log review belongs there. The locked cabinet, the gate sign and the door sensor are tangible barriers and devices that protect the building and its equipment, so they are physical. Notice the pair about callers: the policy that requires the date-of-birth check is managerial, while staff making the check is operational."
     },
     {
       "id": "lab-1-01-s2",
@@ -169,38 +169,38 @@
         "c09": "directive",
         "c10": "detective"
       },
-      "explanation": "The control type says what a control does about an incident. The email gateway, the caller check by reception staff and the locked cabinet stop the unwanted action, so they are preventive. The chart alert, the Friday log review and the door sensor report what is happening or has happened without stopping it, so they are detective. The file rollback acts after the damage to return things to normal, so it is corrective. The two policies tell staff what they must do and rely on them to comply, so they are directive. The gate sign blocks nobody and instructs nobody; it warns of a consequence, so it is a deterrent. Category and type are independent: the three technical controls on this list are one preventive, one detective and one corrective."
+      "explanation": "The control type says what a control does about an incident. The email gateway, the caller check by reception staff and the locked cabinet stop the unwanted action, so they are preventive. The chart alert, the Friday log review and the door sensor report what is happening or has happened without stopping it, so they are detective. The file rollback acts after the damage to return things to normal, so it is corrective. The two policies tell staff what they must do and rely on them to comply, so they are directive. The gate sign blocks nobody and instructs nobody; it warns of a consequence, so it is a deterrent. Category and type are independent: the three technical controls on this list are one preventive, one detective and one corrective. The two managerial controls here both happen to be directive, because a policy that instructs is directive. Managerial controls can be of other types."
     },
     {
       "id": "lab-1-01-s3",
       "objective": "1.1",
       "difficulty": 2,
       "type": "single",
-      "prompt": "The office administrator is reducing her hours, so the clinic ends her Friday read-through of the chart-access log. From now on, a new rule in the patient records system identifies any chart opened by someone outside that patient's care team and emails the practice manager at once. The rule does not block the access. How has the classification of this control changed?",
+      "prompt": "The office administrator is reducing her hours, so the clinic ends her Friday read-through of the chart-access log. From now on, a new rule in the patient records system identifies any chart opened by someone outside that patient's care team and emails the practice manager at once. The rule does not block the access. Compared with the Friday read-through, how is the new control classified?",
       "options": [
         {
           "id": "a",
-          "text": "The type changes from detective to preventive; the category stays operational."
+          "text": "The category is unchanged; the type becomes preventive."
         },
         {
           "id": "b",
-          "text": "The category changes to technical and the type changes to preventive."
+          "text": "The category becomes technical; the type becomes preventive."
         },
         {
           "id": "c",
-          "text": "The category changes from operational to technical; the type stays detective."
+          "text": "The category becomes technical; the type is unchanged."
         },
         {
           "id": "d",
-          "text": "Nothing changes: the control is still operational and still detective."
+          "text": "The category is unchanged; the type is unchanged."
         }
       ],
       "correct": "c",
       "why": {
-        "a": "The rule only reports the access and does not block it, so the type has not become preventive. The category has changed, because software now does the work.",
-        "b": "The category is now technical, but the rule does not stop anyone from opening a chart, so the type is not preventive.",
-        "c": "Correct. A person carried out the old check, which made it operational. Software carries out the new one, which makes it technical. Both only identify and report, so the type is still detective.",
-        "d": "The job is the same, but who or what makes the control work has changed from a person to software. A person reading the alert does not make the control operational."
+        "a": "Both halves are wrong. Software now does the work that a person did, so the category has changed from operational to technical. The rule only reports the access and does not block it, so the type is still detective.",
+        "b": "The category is now technical, but the rule does not stop anyone from opening a chart, so the type is still detective and has not become preventive.",
+        "c": "Correct. A person carried out the old check, which made it operational. Software carries out the new one, which makes it technical. Both only identify and report, so the type is detective before and after.",
+        "d": "The type is unchanged, but who or what makes the control work has changed from a person to software, so the category is now technical. A person reading the alert does not make the control operational."
       },
       "explanation": "Decide the two labels separately. The category follows who or what makes the control work, and the type follows what it does about an incident. Automating a check moves it from operational to technical without changing its type. It would become preventive only if it blocked the action."
     },
@@ -231,27 +231,27 @@
       "right": [
         {
           "id": "r1",
-          "text": "Bolt its case to the floor and fit a lock over the disk bay, so that the disk cannot be carried away"
+          "text": "Bolt the case down and lock the disk bay"
         },
         {
           "id": "r2",
-          "text": "Fix a notice to it reminding staff that it does not meet the security policy"
+          "text": "Put a notice on it saying it breaks policy"
         },
         {
           "id": "r3",
-          "text": "Put it on its own network segment, behind a firewall that lets it reach only the image archive server"
+          "text": "Isolate it on its own firewalled segment"
         },
         {
           "id": "r4",
-          "text": "Have each operator sign a logbook with their name, the date and the time at the start of every session"
+          "text": "Have operators sign a logbook each session"
         },
         {
           "id": "r5",
-          "text": "Record in writing that the partners accept the risk as it stands"
+          "text": "Record that the partners accept the risk"
         },
         {
           "id": "r6",
-          "text": "Have the operator on duty copy the day's scans to the image archive server every evening"
+          "text": "Copy each day's scans to the archive server"
         }
       ],
       "correct": {
@@ -260,7 +260,7 @@
         "l3": "r3",
         "l4": "r1"
       },
-      "explanation": "A compensating control stands in for a required control that cannot be used, and it must reduce the same risk. Missing patches leave flaws that can be attacked over the network, so the workstation is isolated on a segment that reaches only the one server it needs. A shared login hides who did what, so a signed logbook restores a record of each person's use. An unencrypted disk can be read by whoever takes it, so the workstation is fixed down and its disk bay is locked. Without the backup agent a failure would lose new scans, so they are copied off by hand every evening. The notice is only a reminder and the written acceptance is risk acceptance. Neither reduces any of these risks, so neither is a compensating control."
+      "explanation": "A compensating control stands in for a required control that cannot be used, and it must reduce the same risk. Missing patches leave flaws that can be attacked over the network, so the workstation goes on its own network segment, behind a firewall that lets it reach only the image archive server it needs. A shared login hides who did what, so each operator signs a logbook with their name, the date and the time at the start of every session, which restores a record of each person's use. An unencrypted disk can be read by whoever takes it, so the case is bolted down and the disk bay is locked, and the disk cannot be carried away. Without the backup agent a failure would lose new scans, so the operator on duty copies the day's scans to the archive server every evening. The notice is only a reminder, and recording that the partners accept the risk is risk acceptance. Neither reduces any of these risks, so neither is a compensating control."
     },
     {
       "id": "lab-1-01-s5",

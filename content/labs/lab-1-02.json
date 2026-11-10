@@ -13,15 +13,15 @@
       "objective": "1.3",
       "difficulty": 2,
       "type": "order",
-      "prompt": "Copperleaf's change procedure has three rules. No work is done on a change until its request has been logged. The lab test is planned from the impact analysis. The change advisory board decides only when it has both the impact analysis and the test results. Put the steps of the firewall change in order, from first to last.",
+      "prompt": "Copperleaf's change procedure sets three conditions. Nothing is analyzed or tested until the request is on the change log. The lab test is built from the list of affected systems that the impact analysis produces. Approval is not considered until the impact analysis and the test results are both attached to the request. Put the steps of the firewall change in order, from first to last.",
       "items": [
         {
           "id": "i1",
-          "text": "The change advisory board reviews the request, the impact analysis and the test results, and approves the change and its window"
+          "text": "The request, the impact analysis and the test results are reviewed, and the change and its window are approved"
         },
         {
           "id": "i2",
-          "text": "The engineers check that the card terminals reach the payment system and that Brisk Parcel's updates arrive, and restore the saved configuration if a check fails"
+          "text": "The engineers check the card terminals and Brisk Parcel's updates, and restore the saved configuration if a check fails"
         },
         {
           "id": "i3",
@@ -29,7 +29,7 @@
         },
         {
           "id": "i4",
-          "text": "The network records are brought up to date and the change record is closed"
+          "text": "The documentation is brought up to date and the change record is closed"
         },
         {
           "id": "i5",
@@ -37,11 +37,11 @@
         },
         {
           "id": "i6",
-          "text": "The store managers and the help desk are sent the date and time of the approved window"
+          "text": "Everyone the restart could affect is told the date and time of the approved window"
         },
         {
           "id": "i7",
-          "text": "The engineers work out what the change touches and what could go wrong, including the stores' card terminals and the five-minute restart"
+          "text": "The engineers work out what the change touches and what could go wrong, including the five-minute restart"
         },
         {
           "id": "i8",
@@ -58,7 +58,7 @@
         "i2",
         "i4"
       ],
-      "explanation": "The path of a change is request, impact analysis, test, approval, maintenance window, implementation, verification or backout, and updated documentation. Copperleaf's rules fix the early steps: the request comes first, the test is planned from the impact analysis, and the board will not decide without the test results, so testing comes before approval. The window is proposed in the request and approved with it, so the stakeholders can be told the approved time only after the board has decided, and they must hear it before the work starts. The work then waits for the window, the result is verified with the backout ready, and the change is finished only when the records match the system."
+      "explanation": "The path of a change is request, impact analysis, test, approval, maintenance window, implementation, verification or backout, and updated documentation. Copperleaf's conditions fix the early steps: the request is logged first, the test is built from what the impact analysis finds, and approval is not considered without the test results, so testing comes before approval. The window is proposed in the request and approved with it, so the people the restart affects can be told the approved time only after the approval, and they must hear it before the work starts. The work then waits for the window, the result is verified with the backout ready, and the change is finished only when the records match the system."
     },
     {
       "id": "lab-1-02-s2",
@@ -77,7 +77,7 @@
         },
         {
           "id": "l3",
-          "text": "Answering for the change from request to sign-off, and confirming that delivery updates arrive as the business needs"
+          "text": "Answering for the change from request to sign-off, and confirming that the result meets the business need"
         },
         {
           "id": "l4",
@@ -184,7 +184,7 @@
       "options": [
         {
           "id": "a",
-          "text": "If any check is still failing at 04:00, ask the board for a longer window."
+          "text": "If any check is still failing at 04:00, ask for the window to be extended."
         },
         {
           "id": "b",
