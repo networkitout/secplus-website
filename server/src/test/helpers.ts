@@ -20,7 +20,7 @@ export function fixtureContent(): Content {
 }
 
 export async function testApp(
-  opts: { now?: () => Date; clientDir?: string } = {},
+  opts: { now?: () => Date; clientDir?: string; secureCookies?: boolean; trustProxy?: number } = {},
 ): Promise<{ app: Express; db: Db; content: Content; setNow(d: Date): void }> {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) throw new Error('TEST_DATABASE_URL is not set; tests need a dedicated MySQL database');
@@ -50,7 +50,9 @@ export async function testApp(
     content,
     now: () => current,
     clientDir: opts.clientDir,
-    secureCookies: false,
+    // Tests talk plain http to the app and no proxy sits in front of it: say so, as `npm run dev` does.
+    secureCookies: opts.secureCookies ?? false,
+    trustProxy: opts.trustProxy ?? 0,
     bcryptCost: 4,
   });
   return {

@@ -6,8 +6,20 @@ import { migrate } from './db/migrate.js';
 import { ensureAdmin } from './features/auth/repo.js';
 import { loadDotEnv, readEnv } from './env.js';
 
+/** Prints why the server cannot start and stops it. */
+function fail(message: string): never {
+  console.error(message);
+  process.exit(1);
+}
+
 loadDotEnv();
-const env = readEnv();
+const env = (() => {
+  try {
+    return readEnv();
+  } catch (err) {
+    return fail(`Configuration error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+})();
 const db = connect(env.databaseUrl);
 
 try {
@@ -32,7 +44,8 @@ const app = createApp({
   content,
   now: () => new Date(),
   clientDir: path.resolve(process.cwd(), 'dist/client'),
-  secureCookies: env.nodeEnv === 'production',
+  secureCookies: env.secureCookies,
+  trustProxy: env.trustProxy,
 });
 
 app.listen(env.port, () => {

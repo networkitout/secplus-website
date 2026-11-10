@@ -136,6 +136,37 @@ describe('csrf and headers', () => {
   });
 });
 
+describe('production settings', () => {
+  const failedLogin = (app: any, n: number, forwardedFor: string) =>
+    post(app, '/api/auth/login', { login: `nobody${n}`, password: 'wrong-wrong-wrong' }).set('X-Forwarded-For', forwardedFor);
+
+  test('with secureCookies on, the login cookie carries Secure', async () => {
+    const { app, db } = await testApp({ now: () => T0, secureCookies: true });
+    const u = await createUser(db, { login: 'sue' });
+    const res = await post(app, '/api/auth/login', { login: 'sue', password: u.password });
+    expect(res.status).toBe(200);
+    const cookie = (res.headers['set-cookie'] as unknown as string[])[0]!;
+    expect(cookie).toMatch(/; Secure(;|$)/);
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Lax');
+  });
+
+  test('with trust proxy 1, clients behind the proxy are rate-limited separately by X-Forwarded-For', async () => {
+    const { app } = await testApp({ now: () => T0, trustProxy: 1 });
+    for (let i = 0; i < 10; i++) expect((await failedLogin(app, i, '203.0.113.7')).status).toBe(401);
+    expect((await failedLogin(app, 10, '203.0.113.7')).status).toBe(429);
+    expect((await failedLogin(app, 11, '198.51.100.9')).status).toBe(401); // another visitor is not locked out
+    // Only the last hop is trusted: an address the client put in front of the proxy's own entry is ignored.
+    expect((await failedLogin(app, 12, '192.0.2.1, 203.0.113.7')).status).toBe(429);
+  });
+
+  test('with trust proxy 0, X-Forwarded-For is ignored and every request shares the connection address', async () => {
+    const { app } = await testApp({ now: () => T0, trustProxy: 0 });
+    for (let i = 0; i < 10; i++) expect((await failedLogin(app, i, '203.0.113.7')).status).toBe(401);
+    expect((await failedLogin(app, 10, '198.51.100.9')).status).toBe(429);
+  });
+});
+
 describe('invites', () => {
   const body = (token: string, extra: object = {}) => ({
     token,

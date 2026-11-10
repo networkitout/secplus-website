@@ -21,6 +21,8 @@ export type AppDeps = {
   now: () => Date;
   clientDir?: string;
   secureCookies: boolean;
+  /** Reverse proxies in front of the app (Express `trust proxy` hop count): whose `X-Forwarded-For` entry gives `req.ip`. */
+  trustProxy: number;
   /** bcrypt cost for new passwords; defaults to 12 (tests lower it). */
   bcryptCost?: number;
 };
@@ -40,7 +42,7 @@ const DB_UNAVAILABLE_CODES = new Set([
 export function createApp(deps: AppDeps): Express {
   const app = express();
   app.locals.deps = deps;
-  if (deps.secureCookies) app.set('trust proxy', 1); // production sits behind Hostinger's proxy
+  app.set('trust proxy', deps.trustProxy);
   app.use(
     helmet({
       contentSecurityPolicy: {
