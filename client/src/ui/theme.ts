@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 export type Theme = 'dark' | 'light';
 
 const listeners = new Set<() => void>();
@@ -40,4 +42,9 @@ export function onThemeChange(listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+/** The theme on the page, kept up to date when any control changes it. */
+export function useTheme(): Theme {
+  return useSyncExternalStore(onThemeChange, currentTheme);
 }

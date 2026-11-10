@@ -1,6 +1,6 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DashboardBadge, DashboardResponse, MockHistoryEntry, User } from '../../api/types';
@@ -75,7 +75,10 @@ beforeEach(() => {
   client = createQueryClient();
   client.setDefaultOptions({ queries: { ...client.getDefaultOptions().queries, retry: false } }); // no 1 s retry wait
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  onlineManager.setOnline(true);
+});
 
 function renderDashboard(user: User = learner) {
   const auth = { user, loading: false, login: vi.fn(), logout: vi.fn(), refresh: vi.fn() };
@@ -102,9 +105,12 @@ describe('dashboard', () => {
   it('dashboard: new learner renders with zeros and "Not yet" plus each missing reason', async () => {
     renderDashboard();
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Loading your dashboard…');
+    const loading = screen.getByRole('status');
+    expect(loading).toHaveTextContent('Loading your dashboard…');
 
     const readiness = await region('Exam readiness');
+    expect(loading).toBeInTheDocument();
+    expect(loading).toBeEmptyDOMElement();
     expect(within(readiness).getByText('Not yet')).toBeInTheDocument();
     expect(within(readiness).queryByText('Ready')).not.toBeInTheDocument();
     expect(within(readiness).getAllByRole('listitem').map((li) => li.textContent)).toEqual(MISSING_NEW);
@@ -268,6 +274,23 @@ describe('dashboard', () => {
     expect(screen.getByText('review screen')).toBeInTheDocument();
   });
 
+  it('an objective at 100% is "Mastered" in words and has no "Practice now", which would lead to an empty page', async () => {
+    handler = () =>
+      json(200, fresh({
+        weakest: [
+          { objective: '1.3', title: 'Explain the importance of change management processes', mastery: 99 },
+          { objective: '1.1', title: 'Compare and contrast various types of security controls', mastery: 100 },
+        ],
+      }));
+    renderDashboard();
+    const [almost, mastered] = within(await region('Weakest objectives')).getAllByRole('listitem');
+    expect(within(almost!).getByRole('link', { name: 'Practice now: objective 1.3' })).toHaveAttribute('href', '/practice/1.3');
+    expect(almost).not.toHaveTextContent('Mastered');
+    expect(within(mastered!).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(mastered!).getByText('Mastered')).toBeInTheDocument();
+    expect(within(mastered!).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+  });
+
   it('says one card "is" due', async () => {
     handler = () => json(200, fresh({ reviewsDue: 1 }));
     renderDashboard();
@@ -294,10 +317,13 @@ describe('dashboard', () => {
     handler = () => json(200, fresh({ xp: 250, level: 2, nextLevelXp: 400 }));
     renderDashboard();
     expect(await region('Your progress')).toHaveTextContent('XP250');
+    // The live region is on the page before it has anything to say: only its text changes.
+    const live = screen.getByRole('status');
+    expect(live).toBeEmptyDOMElement();
 
     handler = () => Promise.reject(new TypeError('Failed to fetch'));
     await act(() => client.refetchQueries({ queryKey: ['dashboard'] }));
-    expect(await screen.findByText("Couldn't refresh your dashboard. What you see may be out of date.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't refresh your dashboard. What you see may be out of date.")).toBe(live);
     expect(await region('Your progress')).toHaveTextContent('XP250');
 
     handler = () => json(200, fresh({ xp: 300, level: 2, nextLevelXp: 400 }));
@@ -306,8 +332,37 @@ describe('dashboard', () => {
     await userEvent.keyboard('{Enter}');
     expect(await screen.findByText('100 XP to level 3')).toBeInTheDocument();
     expect(screen.queryByText(/Couldn't refresh/)).not.toBeInTheDocument();
+    expect(live).toBeInTheDocument();
+    expect(live).toBeEmptyDOMElement();
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
     expect(document.body).not.toHaveFocus(); // the button is gone; focus did not fall off the page
+  });
+
+  it('offline, a refresh that has to wait says that the numbers may be out of date, until it has happened', async () => {
+    handler = () => json(200, fresh({ xp: 250, level: 2, nextLevelXp: 400 }));
+    renderDashboard();
+    expect(await region('Your progress')).toHaveTextContent('XP250');
+    const live = screen.getByRole('status');
+
+    act(() => onlineManager.setOnline(false));
+    handler = () => json(200, fresh({ xp: 300, level: 2, nextLevelXp: 400 }));
+    act(() => void client.invalidateQueries({ queryKey: ['dashboard'] }));
+    await waitFor(() => expect(live).toHaveTextContent('You are offline. What you see may be out of date.'));
+    expect(await region('Your progress')).toHaveTextContent('XP250');
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+
+    act(() => onlineManager.setOnline(true));
+    expect(await screen.findByText('100 XP to level 3')).toBeInTheDocument();
+    expect(live).toBeEmptyDOMElement();
+  });
+
+  it('offline on the first visit, it says so instead of "Loading" without end', async () => {
+    act(() => onlineManager.setOnline(false));
+    renderDashboard();
+    expect(await screen.findByText('You are offline: your dashboard will load when you are back online.')).toHaveAttribute('role', 'status');
+    expect(fetchMock).not.toHaveBeenCalled();
+    act(() => onlineManager.setOnline(true));
+    expect(await region('Exam readiness')).toBeInTheDocument();
   });
 
   it('a server error on the first load offers "Try again" and recovers', async () => {

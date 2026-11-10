@@ -142,8 +142,9 @@ describe('practice', () => {
     expect(summary).toHaveTextContent('XP earned10');
     expect(screen.getByRole('link', { name: 'Back to dashboard' })).toHaveAttribute('href', '/dashboard');
     expect(screen.getByRole('link', { name: 'Back to path' })).toHaveAttribute('href', '/');
-    // Mastery changed, whatever the XP: the dashboard and the path read their numbers again.
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['dashboard'] });
+    // The last answer earned no XP, so nothing was reported that would refresh the dashboard, and its
+    // mastery has changed: the page asks for it once, with the path.
+    expect(invalidate.mock.calls.filter(([f]) => f?.queryKey?.[0] === 'dashboard')).toHaveLength(1);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['path'] });
     expect(calls(ANSWERS)).toHaveLength(2);
     first.unmount();
@@ -311,6 +312,31 @@ describe('practice', () => {
     handlers[PRACTICE] = () => json(200, { questions: [q1] });
     await userEvent.click(button('Try again'));
     expect(await screen.findByRole('heading', { name: 'Question 1 of 1' })).toBeInTheDocument();
+  });
+
+  it('leaves the dashboard to `report` when the last marked answer earned XP: the page refreshes only the path', async () => {
+    handlers[PRACTICE] = () => json(200, { questions: [q1, q3] });
+    const replies = [answered(false, 'A hash shows that data has changed.'), answered(true, 'The control plane decides.', 10)];
+    handlers[ANSWERS] = () => json(200, replies[calls(ANSWERS).length - 1]);
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const page = renderPractice();
+    await userEvent.click(await screen.findByRole('radio', { name: 'Confidentiality' }));
+    await userEvent.click(button('Check'));
+    await within(result()).findByText('A hash shows that data has changed.');
+    await userEvent.click(button('Next'));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Control plane' }));
+    await userEvent.click(button('Check'));
+    await within(result()).findByText('The control plane decides.');
+    // The report of the XP reads the dashboard after it, which also covers the wrong answer before it.
+    expect(report).toHaveBeenLastCalledWith({ xp: 10, newBadges: [] });
+
+    await userEvent.click(button('Finish'));
+    await screen.findByRole('heading', { name: 'Practice complete' });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['path'] });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['dashboard'] });
+    page.unmount();
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['dashboard'] });
+    expect(invalidate).toHaveBeenCalledTimes(1);
   });
 
   it('leaving half way still tells the dashboard and the path to read their numbers again', async () => {

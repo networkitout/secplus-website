@@ -5,8 +5,7 @@ import type { SettingsResponse, SettingsUpdate, User } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Field } from '../../ui/Field';
-import { saveTheme, type Theme } from '../../ui/theme';
-import { useTheme } from '../../ui/ThemeToggle';
+import { saveTheme, useTheme, type Theme } from '../../ui/theme';
 import { useAuth } from '../auth/AuthProvider';
 
 /** The account settings as the form holds them. The exam date is `''` when there is none. */
@@ -137,11 +136,19 @@ function AccountForm({ user }: { user: User }) {
     setSaved('');
     setFormError('');
     setErrors({});
-    const fromButton = document.activeElement instanceof HTMLButtonElement && formRef.current?.contains(document.activeElement) === true;
+    const sent = form;
     try {
       const { user: fresh } = await api.put<SettingsResponse>('settings', update);
-      setStored(formOf(fresh));
-      setForm(formOf(fresh));
+      const answer = formOf(fresh);
+      setStored(answer);
+      // The fields stay open during the request. A field that was changed meanwhile keeps what the learner
+      // typed (it is not saved yet, and Save says so); the others take what the server stored.
+      setForm((now) => ({
+        name: now.name === sent.name ? answer.name : now.name,
+        timeZone: now.timeZone === sent.timeZone ? answer.timeZone : now.timeZone,
+        examDate: now.examDate === sent.examDate ? answer.examDate : now.examDate,
+        hideFromLeaderboard: now.hideFromLeaderboard === sent.hideFromLeaderboard ? answer.hideFromLeaderboard : now.hideFromLeaderboard,
+      }));
       // The time zone and the exam date change what the dashboard counts; the name and the visibility
       // change the leaderboard.
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -152,7 +159,8 @@ function AccountForm({ user }: { user: User }) {
       } catch {
         message = 'Settings saved. Reload the page to see the change everywhere.';
       }
-      focusStatus.current = fromButton;
+      // Only when focus is still on a button of the form: the learner may have gone on to a field.
+      focusStatus.current = document.activeElement instanceof HTMLButtonElement && formRef.current?.contains(document.activeElement) === true;
       setSaved(message);
     } catch (err) {
       const field = err instanceof ApiError && err.status === 400 ? fieldOf(err.message, update) : null;

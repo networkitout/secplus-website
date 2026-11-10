@@ -23,14 +23,25 @@ export function formatDay(date: string, locale?: string): string {
   return formatCalendar(date, { weekday: 'long', day: 'numeric', month: 'long' }, locale);
 }
 
+/** A date with its time of day. The zone is named: the time may be in another zone than the device's clock. */
+const DATE_TIME: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
+};
+
 /**
- * An ISO timestamp from the server as a date (with `time`, also the time of day) in the given time zone:
- * the learner's own, so that the day agrees with the days the server counts.
+ * An ISO timestamp from the server as a date in the given time zone: the learner's own, so that the day
+ * agrees with the days the server counts. With `time` the time of day follows, with the short name of its
+ * zone ("Nov 8, 2026, 6:30 PM EST").
  */
 export function formatInstant(iso: string, timeZone: string, { time = false, locale }: { time?: boolean; locale?: string } = {}): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  const style: Intl.DateTimeFormatOptions = time ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' };
+  const style: Intl.DateTimeFormatOptions = time ? DATE_TIME : { dateStyle: 'medium' };
   try {
     return new Intl.DateTimeFormat(locale, { ...style, timeZone }).format(at);
   } catch {

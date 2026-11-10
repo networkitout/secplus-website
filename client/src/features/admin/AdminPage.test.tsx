@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminUser, User } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
+import { formatInstant } from '../../lib/dates';
 import { AuthContext } from '../auth/AuthProvider';
 import { AdminPage } from './AdminPage';
 
@@ -99,6 +100,9 @@ describe('admin', () => {
     expect(field).toHaveAttribute('readonly');
     expect(field).toHaveFocus();
     expect(panel.querySelector('time')).toHaveAttribute('datetime', EXPIRES);
+    // The time is in the admin's stored zone, which need not be the device's: it is named.
+    expect(panel.querySelector('time')).toHaveTextContent(formatInstant(EXPIRES, 'UTC', { time: true }));
+    expect(panel.querySelector('time')).toHaveTextContent(/ UTC$/);
     expect(panel).toHaveTextContent(/Expires/);
     expect(panel).toHaveTextContent(/shown only once/i);
     // The link is a secret: it is on the page and nowhere else.
@@ -144,7 +148,8 @@ describe('admin', () => {
 
     const [, lastActive, ...rest] = cellsOf(await rowOf('Root'));
     expect(rest.slice(0, 3)).toEqual(['1, 2', '780', 'Yes']);
-    expect(lastActive).toMatch(/2026/);
+    expect(lastActive).toBe(formatInstant('2026-11-10T09:15:00.000Z', 'UTC', { time: true }));
+    expect(lastActive).toMatch(/2026.* UTC$/);
     expect((await rowOf('Root')).querySelector('time')).toHaveAttribute('datetime', '2026-11-10T09:15:00.000Z');
     expect(cellsOf(await rowOf('Bo')).slice(0, 5)).toEqual(['bo', expect.stringMatching(/2026/), '1', '640', 'Yes']);
     expect(cellsOf(await rowOf('Cy')).slice(0, 5)).toEqual(['cy', 'Never', 'None', 'None', 'No']);
@@ -264,16 +269,126 @@ describe('admin', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Can't reach the server. No link was made."));
   });
 
-  it('two presses on "Create invite link" make one link', async () => {
+  it('two presses on "Create invite link" make one link, and the button and a status say that it is being made', async () => {
     let finish!: (r: Response) => void;
     handlers[INVITES] = () => new Promise<Response>((resolve) => (finish = resolve));
     renderAdmin();
     await rowOf('Bo');
-    fireEvent.click(button('Create invite link'));
-    fireEvent.click(button('Create invite link'));
+    const create = button('Create invite link');
+    create.focus();
+    fireEvent.click(create);
+    fireEvent.click(create);
     expect(calls(INVITES)).toHaveLength(1);
+    // Pending is shown and announced; the button is not disabled, so focus stays on it.
+    expect(create).toHaveTextContent('Creating link…');
+    expect(create).toHaveAttribute('aria-busy', 'true');
+    expect(create).toBeEnabled();
+    expect(create).toHaveFocus();
+    expect(screen.getByText('Making the invite link…')).toHaveAttribute('role', 'status');
+
     await act(async () => finish(json(200, { url: '/invite/tok-invite-abc', expiresAt: EXPIRES })));
     expect(await screen.findByRole('region', { name: 'Invite link' })).toBeInTheDocument();
+    expect(create).toHaveTextContent('Create invite link');
+    expect(create).not.toHaveAttribute('aria-busy');
+    expect(screen.queryByText('Making the invite link…')).not.toBeInTheDocument();
+    expect(calls(INVITES)).toHaveLength(1);
+  });
+
+  it('a reset link that is being made shows on its own button, and other link buttons wait for it', async () => {
+    let finish!: (r: Response) => void;
+    handlers[INVITES] = () => new Promise<Response>((resolve) => (finish = resolve));
+    renderAdmin();
+    await rowOf('Bo');
+    const reset = button('Password reset link for Bo');
+    await userEvent.click(reset);
+    expect(reset).toHaveAccessibleName('Creating link… for Bo');
+    expect(reset).toHaveAttribute('aria-busy', 'true');
+    expect(reset).toBeEnabled();
+    expect(screen.getByText('Making the password reset link for Bo…')).toHaveAttribute('role', 'status');
+    // Only the pressed button is busy.
+    expect(button('Create invite link')).not.toHaveAttribute('aria-busy');
+    expect(button('Password reset link for Root')).not.toHaveAttribute('aria-busy');
+
+    // One link at a time: the page shows one, and a second would be made unseen.
+    await userEvent.click(button('Create invite link'));
+    expect(calls(INVITES)).toHaveLength(1);
+    expect(screen.getByText('Making the password reset link for Bo…')).toBeInTheDocument();
+
+    await act(async () => finish(json(200, { url: '/reset/tok-reset-xyz', expiresAt: EXPIRES })));
+    expect(await screen.findByRole('region', { name: 'Password reset link for Bo' })).toBeInTheDocument();
+    expect(calls(INVITES)).toHaveLength(1);
+  });
+
+  it('a confirmed change is carried out while a link is being made; nothing confirmed is dropped', async () => {
+    let finishLink!: (r: Response) => void;
+    handlers[INVITES] = () => new Promise<Response>((resolve) => (finishLink = resolve));
+    renderAdmin();
+    await rowOf('Bo');
+    await userEvent.click(button('Create invite link'));
+    expect(calls(INVITES)).toHaveLength(1);
+
+    await userEvent.click(button('Deactivate Bo'));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Deactivate' }));
+    expect(await screen.findByText('Bo is deactivated.')).toBeInTheDocument();
+    expect(bodies(patch(3))).toEqual([{ active: false }]);
+    // The link is still on its way, and still says so.
+    expect(screen.getByText(/Making the invite link…/)).toBeInTheDocument();
+
+    await act(async () => finishLink(json(200, { url: '/invite/tok-invite-abc', expiresAt: EXPIRES })));
+    expect(await screen.findByRole('region', { name: 'Invite link' })).toBeInTheDocument();
+    expect(screen.getByText('Bo is deactivated.')).toBeInTheDocument();
+  });
+
+  it('a link that arrives while the dialog is open does not take focus out of the dialog', async () => {
+    let finishLink!: (r: Response) => void;
+    handlers[INVITES] = () => new Promise<Response>((resolve) => (finishLink = resolve));
+    renderAdmin();
+    await rowOf('Bo');
+    await userEvent.click(button('Create invite link'));
+    await userEvent.click(button('Deactivate Bo'));
+    const dialog = screen.getByRole('dialog');
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' });
+    expect(cancel).toHaveFocus();
+
+    await act(async () => finishLink(json(200, { url: '/invite/tok-invite-abc', expiresAt: EXPIRES })));
+    expect(await screen.findByRole('region', { name: 'Invite link' })).toBeInTheDocument();
+    expect(cancel).toHaveFocus();
+  });
+
+  it('an account that is being changed says so on its button, and cannot be asked about again meanwhile', async () => {
+    let finish!: () => void;
+    const change = handlers[patch(3)]!;
+    handlers[patch(3)] = (url, init) => new Promise<Response>((resolve) => (finish = () => resolve(change(url, init))));
+    handlers[patch(4)] = (_url, init) => {
+      users = users.map((u) => (u.id === 4 ? { ...u, active: JSON.parse(String(init?.body)).active } : u));
+      return json(200, { ok: true });
+    };
+    renderAdmin();
+    await rowOf('Bo');
+    const deactivate = button('Deactivate Bo');
+    await userEvent.click(deactivate);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Deactivate' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(deactivate).toHaveAccessibleName('Deactivating… Bo');
+    expect(deactivate).toHaveAttribute('aria-busy', 'true');
+    expect(deactivate).toBeEnabled();
+    expect(deactivate).toHaveFocus();
+    expect(screen.getByText('Updating Bo…')).toHaveAttribute('role', 'status');
+
+    // The same account is not asked about twice.
+    await userEvent.click(deactivate);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // Another account is changed meanwhile, and both changes arrive.
+    await userEvent.click(button('Activate Cy'));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Activate' }));
+    expect(await screen.findByText(/Cy is active again\./)).toBeInTheDocument();
+    expect(bodies(patch(4))).toEqual([{ active: true }]);
+
+    await act(async () => finish());
+    expect(await screen.findByText(/Bo is deactivated\./)).toBeInTheDocument();
+    expect(calls(patch(3))).toHaveLength(1);
+    expect(await screen.findByRole('button', { name: 'Activate Bo' })).not.toHaveAttribute('aria-busy');
   });
 
   it('without a clipboard it says so and selects the link, which stays on the page', async () => {

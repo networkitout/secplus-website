@@ -19,9 +19,12 @@ const MEDALS = [
 ];
 
 const LINK = 'text-accent underline underline-offset-2';
-const CELL = 'px-3 py-2';
+const CELL = 'px-2 py-2 sm:px-3';
 const NUMBER = `${CELL} text-right font-mono`;
 const MINE = 'bg-accent/10 font-semibold';
+// A display name may be 64 characters without a space. `anywhere` also lets the column become narrower than
+// such a name, which `break-word` does not: the table then fits a narrow screen instead of widening the page.
+const NAME = `${CELL} [overflow-wrap:anywhere]`;
 
 const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
 
@@ -96,7 +99,7 @@ function Board({ board }: { board: LeaderboardResponse }) {
                     {r.rank}
                   </span>
                 </td>
-                <td className={`${CELL} break-words`}>{r.isMe ? `${r.name} (you)` : r.name}</td>
+                <td className={NAME}>{r.isMe ? `${r.name} (you)` : r.name}</td>
                 <td className={NUMBER}>{r.level}</td>
                 <td className={NUMBER}>{r.xp}</td>
                 <td className={NUMBER}>{days(r.streak)}</td>
@@ -108,7 +111,7 @@ function Board({ board }: { board: LeaderboardResponse }) {
                   <span className="sr-only">Your rank: </span>
                   {pinned.rank}
                 </td>
-                <td className={`${CELL} break-words`}>{`${user?.name ?? 'You'} (you)`}</td>
+                <td className={NAME}>{`${user?.name ?? 'You'} (you)`}</td>
                 <td className={NUMBER}>{mine.data ? mine.data.level : <Unknown />}</td>
                 <td className={NUMBER}>{pinned.xp}</td>
                 <td className={NUMBER}>{mine.data ? days(mine.data.streak) : <Unknown />}</td>
@@ -133,11 +136,13 @@ function Unknown() {
 export function LeaderboardPage() {
   const [period, setPeriod] = useState<LeaderboardPeriod>('week');
   // While the other period loads, the rows on screen stay: when the new ones arrive, each learner's row
-  // moves to its new place.
+  // moves to its new place. A period that cannot be fetched is reported in its panel (`QueryStatus`), with
+  // the tabs still there: it must not replace the whole app with the error screen.
   const board = useQuery({
     queryKey: ['leaderboard', period],
     queryFn: () => api.get<LeaderboardResponse>(`leaderboard?period=${period}`),
     placeholderData: keepPreviousData,
+    throwOnError: false,
   });
   const tabs = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -196,7 +201,8 @@ export function LeaderboardPage() {
         className="space-y-4 rounded-sm"
       >
         <QueryStatus query={board} what="the leaderboard" />
-        {board.data && <Board board={board.data} />}
+        {/* Offline, the wait for the other period has no end in sight: its tab does not keep showing the rows of this one. */}
+        {board.data && !(board.isPlaceholderData && board.isPaused) && <Board board={board.data} />}
       </div>
     </div>
   );

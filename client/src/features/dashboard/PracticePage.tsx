@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
 import { api, ApiError, isUnavailable } from '../../api/client';
@@ -8,6 +8,7 @@ import { Button } from '../../ui/Button';
 import { usePressGuard } from '../../ui/pressGuard';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { useRewards } from '../rewards/RewardsProvider';
+import { Stat } from './Stat';
 
 const LINK = 'text-accent underline underline-offset-2';
 
@@ -28,15 +29,6 @@ type Marked = { answer: Answer; feedback: Feedback; xp: number };
 /** Why an answer was not marked. Only a failure that may pass (no connection, a server fault) is worth another try. */
 type Problem = { message: string; canRetry: boolean };
 
-function Stat({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-4">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="font-mono text-xl font-semibold">{children}</dd>
-    </div>
-  );
-}
-
 /** One practice session: the questions it began with, one at a time, then a summary. */
 function PracticeSession({ questions }: { questions: PublicQuestion[] }) {
   const queryClient = useQueryClient();
@@ -50,8 +42,12 @@ function PracticeSession({ questions }: { questions: PublicQuestion[] }) {
   // Ids of the questions whose answer is on its way or has been marked. Set and read in the same tick, which
   // state is not: two presses in a row must not send twice.
   const sent = useRef(new Set<string>());
-  // An answer was marked since the dashboard and the path last read their numbers.
+  // An answer was marked since the path last read its numbers.
   const stale = useRef(false);
+  // The dashboard has not heard of the latest marked answer. `report` reads the dashboard again after an
+  // answer that earned XP, and that read has every answer before it; an answer without XP changes mastery
+  // all the same, and nothing is read for it.
+  const dashboardStale = useRef(false);
 
   const heading = useRef<HTMLHeadingElement>(null);
   const container = useRef<HTMLElement>(null);
@@ -73,13 +69,13 @@ function PracticeSession({ questions }: { questions: PublicQuestion[] }) {
   }, [index]);
 
   // Mastery changes with every marked answer, whether or not it earned XP. At the end, and when the session
-  // is left half way, the dashboard and the path read their numbers again.
+  // is left half way, the path reads its numbers again, and the dashboard too where `report` has not seen to it.
   useEffect(() => {
     function refresh() {
-      if (!stale.current) return;
+      if (dashboardStale.current) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      if (stale.current) void queryClient.invalidateQueries({ queryKey: ['path'] });
+      dashboardStale.current = false;
       stale.current = false;
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      void queryClient.invalidateQueries({ queryKey: ['path'] });
     }
     if (finished) refresh();
     return refresh;
@@ -120,6 +116,7 @@ function PracticeSession({ questions }: { questions: PublicQuestion[] }) {
     try {
       const { feedback, xp, newBadges } = await api.post<AnswerResponse>('answers', { questionId: q.id, answer });
       stale.current = true;
+      dashboardStale.current = xp <= 0;
       setProblem(null);
       setMarked((m) => ({ ...m, [q.id]: { answer, feedback, xp } }));
       report({ xp, newBadges });

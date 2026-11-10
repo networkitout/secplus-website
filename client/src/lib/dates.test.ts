@@ -39,8 +39,19 @@ describe('dates', () => {
 
   it('an instant is shown in the time zone given, and an unknown zone does not break the page', () => {
     expect(formatInstant('2026-11-08T23:30:00.000Z', 'America/New_York', { locale: 'en-GB' })).toBe('8 Nov 2026');
-    expect(formatInstant('2026-11-08T23:30:00.000Z', 'Asia/Tokyo', { locale: 'en-GB', time: true })).toBe('9 Nov 2026, 08:30');
     expect(formatInstant('2026-11-08T12:00:00.000Z', 'Not/AZone', { locale: 'en-GB' })).toContain('2026');
     expect(formatInstant('not a date', 'UTC', { locale: 'en-GB' })).toBe('not a date');
+  });
+
+  it('a time of day names its time zone, so that it cannot be taken for the time on the device', () => {
+    const at = '2026-11-08T23:30:00.000Z';
+    expect(formatInstant(at, 'UTC', { locale: 'en-GB', time: true })).toBe('8 Nov 2026, 23:30 UTC');
+    expect(formatInstant(at, 'Asia/Tokyo', { locale: 'en-GB', time: true })).toBe('9 Nov 2026, 08:30 GMT+9');
+    expect(formatInstant(at, 'America/New_York', { locale: 'en-US', time: true })).toBe('Nov 8, 2026, 6:30 PM EST');
+    // A date alone names none.
+    expect(formatInstant(at, 'UTC', { locale: 'en-GB' })).toBe('8 Nov 2026');
+    // An unknown zone falls back to the device's, and says which that is.
+    process.env.TZ = 'Asia/Tokyo';
+    expect(formatInstant(at, 'Not/AZone', { locale: 'en-GB', time: true })).toBe('9 Nov 2026, 08:30 GMT+9');
   });
 });

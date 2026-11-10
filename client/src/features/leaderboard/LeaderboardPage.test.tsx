@@ -1,10 +1,11 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LeaderboardResponse, LeaderboardRow, User } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
+import { ErrorBoundary } from '../../ui/ErrorBoundary';
 import { AuthContext } from '../auth/AuthProvider';
 import { LeaderboardPage } from './LeaderboardPage';
 
@@ -60,7 +61,10 @@ beforeEach(() => {
   client = createQueryClient();
   client.setDefaultOptions({ queries: { ...client.getDefaultOptions().queries, retry: false } }); // no 1 s retry wait
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  onlineManager.setOnline(true);
+});
 
 function renderBoard(user: User = sam) {
   const auth = { user, loading: false, login: vi.fn(), logout: vi.fn(), refresh: vi.fn() };
@@ -209,6 +213,91 @@ describe('leaderboard', () => {
     handlers[WEEK] = () => json(200, week);
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(screen.queryByText(/Couldn't refresh/)).not.toBeInTheDocument());
+  });
+
+  it('a tab whose rows cannot be fetched keeps the page: the tabs stay, with an error and "Try again" in the panel', async () => {
+    // With the app's error screen around the page, as in the app.
+    const auth = { user: sam, loading: false, login: vi.fn(), logout: vi.fn(), refresh: vi.fn() };
+    render(
+      <QueryClientProvider client={client}>
+        <AuthContext.Provider value={auth}>
+          <MemoryRouter initialEntries={['/leaderboard']}>
+            <ErrorBoundary>
+              <LeaderboardPage />
+            </ErrorBoundary>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </QueryClientProvider>,
+      { onCaughtError: () => {} },
+    );
+    await screen.findByRole('table', { name: 'Leaderboard: this week' });
+
+    handlers[ALL] = () => Promise.reject(new TypeError('Failed to fetch'));
+    await userEvent.click(tab('All time'));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load the leaderboard.");
+    expect(screen.queryByRole('heading', { name: "Can't reach the server" })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Leaderboard' })).toBeInTheDocument();
+    expect(tab('All time')).toHaveAttribute('aria-selected', 'true');
+    // The rows of the other period are not shown under this tab.
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+
+    // The other tab still has its rows.
+    await userEvent.click(tab('This week'));
+    expect(await screen.findByRole('table', { name: 'Leaderboard: this week' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    await userEvent.click(tab('All time'));
+    await screen.findByRole('alert');
+    handlers[ALL] = () => json(200, allTime);
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('table', { name: 'Leaderboard: all time' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('offline, a tab that was not loaded yet says so instead of showing the rows of the other tab', async () => {
+    renderBoard();
+    await screen.findByRole('table', { name: 'Leaderboard: this week' });
+
+    act(() => onlineManager.setOnline(false));
+    await userEvent.click(tab('All time'));
+    expect(await screen.findByText('You are offline: the leaderboard will load when you are back online.')).toHaveAttribute('role', 'status');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(calls(ALL)).toHaveLength(0);
+    // The tab that was loaded still shows its rows.
+    await userEvent.click(tab('This week'));
+    expect(screen.getByRole('table', { name: 'Leaderboard: this week' })).toBeInTheDocument();
+    expect(screen.queryByText(/You are offline: the leaderboard will load/)).not.toBeInTheDocument();
+
+    await userEvent.click(tab('All time'));
+    act(() => onlineManager.setOnline(true));
+    expect(await screen.findByRole('table', { name: 'Leaderboard: all time' })).toBeInTheDocument();
+    expect(screen.queryByText(/You are offline/)).not.toBeInTheDocument();
+  });
+
+  it('while the other tab is on its way, the rows on screen stay and a status says that it is loading', async () => {
+    let finish!: (r: Response) => void;
+    handlers[ALL] = () => new Promise<Response>((resolve) => (finish = resolve));
+    renderBoard();
+    const table = await screen.findByRole('table', { name: 'Leaderboard: this week' });
+    await userEvent.click(tab('All time'));
+    expect(await screen.findByText('Loading the leaderboard…')).toHaveAttribute('role', 'status');
+    expect(table).toBeInTheDocument(); // still named for the week it shows
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-busy', 'true');
+
+    await act(async () => finish(json(200, allTime)));
+    expect(await screen.findByRole('table', { name: 'Leaderboard: all time' })).toBeInTheDocument();
+    expect(screen.queryByText('Loading the leaderboard…')).not.toBeInTheDocument();
+    expect(screen.getByRole('tabpanel')).not.toHaveAttribute('aria-busy');
+  });
+
+  it('the first load failing on the network also stays on the page', async () => {
+    handlers[WEEK] = () => Promise.reject(new TypeError('Failed to fetch'));
+    renderBoard();
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load the leaderboard.");
+    expect(screen.getByRole('tablist', { name: 'Period' })).toBeInTheDocument();
+    handlers[WEEK] = () => json(200, week);
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('table', { name: 'Leaderboard: this week' })).toBeInTheDocument();
   });
 
   it('a server error offers "Try again"', async () => {

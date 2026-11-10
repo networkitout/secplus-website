@@ -1,10 +1,4 @@
-import { useSyncExternalStore } from 'react';
-import { currentTheme, onThemeChange, saveTheme, type Theme } from './theme';
-
-/** The theme on the page, kept up to date when any control changes it. */
-export function useTheme(): Theme {
-  return useSyncExternalStore(onThemeChange, currentTheme);
-}
+import { saveTheme, useTheme, type Theme } from './theme';
 
 export function ThemeToggle() {
   const theme = useTheme();

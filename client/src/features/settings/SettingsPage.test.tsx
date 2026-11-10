@@ -215,6 +215,47 @@ describe('settings', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('what is typed while a save is on its way is kept, and is sent by the next save', async () => {
+    let finish!: (r: Response) => void;
+    handler = () => new Promise<Response>((resolve) => (finish = resolve));
+    renderSettings();
+    await userEvent.type(name(), '  K'); // sent trimmed; the server answers with "Sam K"
+    await userEvent.click(save());
+    expect(bodies()).toEqual([{ name: 'Sam  K' }]);
+
+    // The fields stay open during the request.
+    expect(name()).toBeEnabled();
+    await userEvent.type(name(), 'ay');
+    await userEvent.click(hide());
+    fireEvent.change(examDate(), { target: { value: '2027-03-01' } });
+    await userEvent.click(name());
+
+    finish(json(200, { user: { ...sam, name: 'Sam K' } }));
+    expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
+    expect(name()).toHaveValue('Sam  Kay');
+    expect(hide()).toBeChecked();
+    expect(examDate()).toHaveValue('2027-03-01');
+    expect(zone()).toHaveValue('Europe/London');
+    // Focus stays where the learner is typing, and what is not saved yet can be saved.
+    expect(name()).toHaveFocus();
+    expect(save()).toBeEnabled();
+
+    handler = accept({ ...sam, name: 'Sam K' });
+    await userEvent.click(save());
+    await waitFor(() => expect(bodies()).toHaveLength(2));
+    expect(bodies()[1]).toEqual({ name: 'Sam  Kay', examDate: '2027-03-01', hideFromLeaderboard: true });
+  });
+
+  it('a field that was not touched during the save takes the value the server stored', async () => {
+    handler = () => json(200, { user: { ...sam, name: 'Sam K' } });
+    renderSettings();
+    await userEvent.type(name(), ' K  ');
+    await userEvent.click(save());
+    expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
+    expect(name()).toHaveValue('Sam K'); // as the server trimmed it
+    expect(save()).toBeDisabled();
+  });
+
   it('when the server cannot be reached the form keeps what was typed and says it is not saved', async () => {
     handler = () => Promise.reject(new TypeError('Failed to fetch'));
     renderSettings();

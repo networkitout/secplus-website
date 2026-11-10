@@ -11,6 +11,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { BadgeGrid } from './BadgeGrid';
 import { MockHistoryChart } from './MockHistoryChart';
 import { ReadinessCard } from './ReadinessCard';
+import { Stat } from './Stat';
 
 const LINK = 'text-accent underline underline-offset-2';
 const BUTTON_LINK = 'inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90';
@@ -30,15 +31,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
         {children}
       </Card>
     </section>
-  );
-}
-
-function Stat({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-border bg-bg p-4">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="font-mono text-xl font-semibold">{children}</dd>
-    </div>
   );
 }
 
@@ -75,9 +67,15 @@ function Dashboard({ data }: { data: DashboardResponse }) {
     <>
       <Section title="Your progress">
         <dl className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-3">
-          <Stat label="Level">{data.level}</Stat>
-          <Stat label="XP">{data.xp}</Stat>
-          <Stat label="Streak">{count(data.streak, 'day', 'days')}</Stat>
+          <Stat inset label="Level">
+            {data.level}
+          </Stat>
+          <Stat inset label="XP">
+            {data.xp}
+          </Stat>
+          <Stat inset label="Streak">
+            {count(data.streak, 'day', 'days')}
+          </Stat>
         </dl>
         <p className="text-sm text-muted">{`${Math.max(0, data.nextLevelXp - data.xp)} XP to level ${data.level + 1}`}</p>
       </Section>
@@ -117,10 +115,18 @@ function Dashboard({ data }: { data: DashboardResponse }) {
                 <div className="min-w-0 flex-1 basis-56">
                   <MasteryBar value={o.mastery} label={`${o.objective} ${o.title}`} />
                 </div>
-                <Link to={`/practice/${encodeURIComponent(o.objective)}`} className={SECONDARY_BUTTON_LINK}>
-                  Practice now
-                  <span className="sr-only">{`: objective ${o.objective}`}</span>
-                </Link>
+                {o.mastery >= 100 ? (
+                  // Nothing is left to practice: the link would lead to an empty page.
+                  <p className="inline-flex shrink-0 items-baseline gap-1.5 py-2 text-sm font-semibold text-ok">
+                    <span aria-hidden="true">✓</span>
+                    <span>Mastered</span>
+                  </p>
+                ) : (
+                  <Link to={`/practice/${encodeURIComponent(o.objective)}`} className={SECONDARY_BUTTON_LINK}>
+                    Practice now
+                    <span className="sr-only">{`: objective ${o.objective}`}</span>
+                  </Link>
+                )}
               </li>
             ))}
           </ul>

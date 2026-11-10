@@ -13,6 +13,8 @@ import { useAuth } from '../auth/AuthProvider';
 type ShownLink = { title: string; reset: boolean; url: string; expiresAt: string };
 
 const CELL = 'px-3 py-2 align-top';
+/** For text that holds a display name: a name of 64 characters without a space breaks where the line ends. */
+const NAMED = '[overflow-wrap:anywhere]';
 const HEAD = 'px-3 py-2 font-medium';
 
 /** The server's own words for a request it refused; a general message for anything else. */
@@ -26,9 +28,10 @@ function LinkPanel({ link, timeZone, onHide }: { link: ShownLink; timeZone: stri
   const [note, setNote] = useState('');
   const headingId = useId();
 
-  // The link is what the admin asked for: focus goes to it, and it is selected.
+  // The link is what the admin asked for: focus goes to it, and it is selected. Not while a dialog is
+  // open, though: a link can arrive during one, and focus belongs to the dialog then.
   useEffect(() => {
-    field.current?.focus();
+    if (!document.querySelector('[role="dialog"]')) field.current?.focus();
   }, []);
 
   async function copy() {
@@ -47,7 +50,7 @@ function LinkPanel({ link, timeZone, onHide }: { link: ShownLink; timeZone: stri
   return (
     <section aria-labelledby={headingId}>
       <Card className="space-y-3 border-accent">
-        <h2 id={headingId} className="text-lg font-semibold">
+        <h2 id={headingId} className={`${NAMED} text-lg font-semibold`}>
           {link.title}
         </h2>
         <div className="flex flex-wrap items-center gap-3">
@@ -85,23 +88,31 @@ export function AdminPage() {
   const accounts = useQuery({ queryKey: ['admin', 'users'], queryFn: () => api.get<AdminUsersResponse>('admin/users') });
   const [link, setLink] = useState<ShownLink | null>(null);
   const [confirming, setConfirming] = useState<AdminUser | null>(null);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  // One request at a time. Set and read in the same tick, which state is not: two presses in a row must
-  // not make two links.
-  const busy = useRef(false);
+  // Each kind of request has its own pending state, message and error: neither waits for, hides or drops
+  // the other. The refs are set and read in the same tick, which state is not: two presses in a row must
+  // not send twice.
+  // The link that is being made: for an account (a reset link) or for nobody yet (an invite).
+  const [makingLink, setMakingLink] = useState<{ target?: AdminUser } | null>(null);
+  const linkBusy = useRef(false);
+  const [linkError, setLinkError] = useState('');
+  // The accounts whose change is on its way.
+  const [updating, setUpdating] = useState<AdminUser[]>([]);
+  const updatingIds = useRef(new Set<number>());
+  const [accountNote, setAccountNote] = useState('');
+  const [accountError, setAccountError] = useState('');
   const linkOpener = useRef<HTMLElement | null>(null);
   const inviteId = useId();
   const inviteHeadingId = useId();
   const accountsHeadingId = useId();
   const timeZone = user?.timeZone ?? 'UTC';
 
+  /** One link at a time: the page shows one link, and a second one would be made without ever being seen. */
   async function makeLink(target?: AdminUser) {
-    if (busy.current) return;
-    busy.current = true;
+    if (linkBusy.current) return;
+    linkBusy.current = true;
+    setMakingLink({ target });
     linkOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setError('');
-    setMessage('');
+    setLinkError('');
     try {
       const made = await api.post<AdminLink>('admin/invites', target ? { purpose: 'reset', userId: target.id } : { purpose: 'invite' });
       setLink({
@@ -111,9 +122,10 @@ export function AdminPage() {
         expiresAt: made.expiresAt,
       });
     } catch (err) {
-      setError(refusal(err, "Can't reach the server. No link was made.", "Couldn't make the link. Try again."));
+      setLinkError(refusal(err, "Can't reach the server. No link was made.", "Couldn't make the link. Try again."));
     } finally {
-      busy.current = false;
+      linkBusy.current = false;
+      setMakingLink(null);
     }
   }
 
@@ -124,24 +136,35 @@ export function AdminPage() {
     setLink(null);
   }
 
+  /** The dialog for an account opens only while no change of that account is on its way. */
+  function ask(target: AdminUser) {
+    if (!updatingIds.current.has(target.id)) setConfirming(target);
+  }
+
   async function setActive(target: AdminUser, active: boolean) {
     setConfirming(null);
-    if (busy.current) return;
-    busy.current = true;
-    setError('');
-    setMessage(`Updating ${target.name}…`);
+    // A second press on the confirm button, before the dialog has gone: the change is already on its way.
+    if (updatingIds.current.has(target.id)) return;
+    updatingIds.current.add(target.id);
+    setUpdating((list) => [...list, target]);
+    setAccountError('');
+    setAccountNote('');
     try {
       await api.patch<{ ok: true }>(`admin/users/${target.id}`, { active });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       void queryClient.invalidateQueries({ queryKey: ['leaderboard'] }); // a deactivated learner leaves it
-      setMessage(active ? `${target.name} is active again.` : `${target.name} is deactivated.`);
+      setAccountNote(active ? `${target.name} is active again.` : `${target.name} is deactivated.`);
     } catch (err) {
-      setMessage('');
-      setError(refusal(err, "Can't reach the server. Nothing was changed.", "Couldn't change the account. Try again."));
+      setAccountError(refusal(err, "Can't reach the server. Nothing was changed.", "Couldn't change the account. Try again."));
     } finally {
-      busy.current = false;
+      updatingIds.current.delete(target.id);
+      setUpdating((list) => list.filter((u) => u.id !== target.id));
     }
   }
+
+  const makingInvite = makingLink !== null && makingLink.target === undefined;
+  const linkNote = makingLink ? (makingLink.target ? `Making the password reset link for ${makingLink.target.name}…` : 'Making the invite link…') : '';
+  const accountStatus = [...updating.map((u) => `Updating ${u.name}…`), accountNote].filter(Boolean).join(' ');
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -153,15 +176,19 @@ export function AdminPage() {
             Invite a learner
           </h2>
           <p className="text-muted">An invite link lets one person create an account. No email is sent: you pass the link on yourself.</p>
-          <Button id={inviteId} onClick={() => void makeLink()}>
-            Create invite link
+          {/* Not disabled while the link is made: a disabled button would drop keyboard focus. */}
+          <Button id={inviteId} aria-busy={makingInvite || undefined} onClick={() => void makeLink()}>
+            {makingInvite ? 'Creating link…' : 'Create invite link'}
           </Button>
         </Card>
       </section>
 
-      {error && (
+      <p role="status" className={`${NAMED} text-sm`}>
+        {linkNote}
+      </p>
+      {linkError && (
         <p role="alert" className="text-bad">
-          {error}
+          {linkError}
         </p>
       )}
 
@@ -171,9 +198,14 @@ export function AdminPage() {
         <h2 id={accountsHeadingId} className="text-lg font-semibold">
           Learners
         </h2>
-        <p role="status" className="text-sm">
-          {message}
+        <p role="status" className={`${NAMED} text-sm`}>
+          {accountStatus}
         </p>
+        {accountError && (
+          <p role="alert" className="text-bad">
+            {accountError}
+          </p>
+        )}
         <QueryStatus query={accounts} what="the accounts" />
         {accounts.data && (
           // `relative`: the visually hidden parts of the button names are positioned inside the scrolling
@@ -196,9 +228,11 @@ export function AdminPage() {
                 {accounts.data.users.map((u) => {
                   const own = u.id === user?.id;
                   const tags = [u.role === 'admin' ? 'admin' : '', own ? 'you' : ''].filter(Boolean);
+                  const changing = updating.some((x) => x.id === u.id);
+                  const makingReset = makingLink?.target?.id === u.id;
                   return (
                     <tr key={u.id} className="border-b border-border last:border-b-0">
-                      <th scope="row" className={`${CELL} font-semibold`}>
+                      <th scope="row" className={`${CELL} ${NAMED} max-w-64 min-w-32 font-semibold`}>
                         {u.name}
                         {tags.length > 0 && <span className="font-normal text-muted">{` (${tags.join(', ')})`}</span>}
                       </th>
@@ -213,16 +247,16 @@ export function AdminPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           {/* The server makes reset links for active accounts only. */}
                           {u.active && (
-                            <Button variant="secondary" onClick={() => void makeLink(u)}>
-                              {'Password reset link '}
+                            <Button variant="secondary" aria-busy={makingReset || undefined} onClick={() => void makeLink(u)}>
+                              {makingReset ? 'Creating link… ' : 'Password reset link '}
                               <span className="sr-only">{`for ${u.name}`}</span>
                             </Button>
                           )}
                           {own ? (
                             <span className="text-muted">You can't deactivate your own account.</span>
                           ) : (
-                            <Button variant="secondary" onClick={() => setConfirming(u)}>
-                              {u.active ? 'Deactivate ' : 'Activate '}
+                            <Button variant="secondary" aria-busy={changing || undefined} onClick={() => ask(u)}>
+                              {changing ? (u.active ? 'Deactivating… ' : 'Activating… ') : u.active ? 'Deactivate ' : 'Activate '}
                               <span className="sr-only">{u.name}</span>
                             </Button>
                           )}
@@ -237,27 +271,31 @@ export function AdminPage() {
         )}
       </section>
 
-      {confirming &&
-        (confirming.active ? (
-          <ConfirmDialog
-            title={`Deactivate ${confirming.name}?`}
-            confirmLabel="Deactivate"
-            onConfirm={() => void setActive(confirming, false)}
-            onCancel={() => setConfirming(null)}
-          >
-            <p>{`${confirming.name} will be signed out and will not be able to sign in until you activate the account again.`}</p>
-            <p className="text-sm text-muted">Their progress is kept. They leave the leaderboard while the account is not active.</p>
-          </ConfirmDialog>
-        ) : (
-          <ConfirmDialog
-            title={`Activate ${confirming.name}?`}
-            confirmLabel="Activate"
-            onConfirm={() => void setActive(confirming, true)}
-            onCancel={() => setConfirming(null)}
-          >
-            <p>{`${confirming.name} will be able to sign in again.`}</p>
-          </ConfirmDialog>
-        ))}
+      {confirming && (
+        // `overflow-wrap` is inherited: the dialog's title and text break a long name as well.
+        <div className={NAMED}>
+          {confirming.active ? (
+            <ConfirmDialog
+              title={`Deactivate ${confirming.name}?`}
+              confirmLabel="Deactivate"
+              onConfirm={() => void setActive(confirming, false)}
+              onCancel={() => setConfirming(null)}
+            >
+              <p>{`${confirming.name} will be signed out and will not be able to sign in until you activate the account again.`}</p>
+              <p className="text-sm text-muted">Their progress is kept. They leave the leaderboard while the account is not active.</p>
+            </ConfirmDialog>
+          ) : (
+            <ConfirmDialog
+              title={`Activate ${confirming.name}?`}
+              confirmLabel="Activate"
+              onConfirm={() => void setActive(confirming, true)}
+              onCancel={() => setConfirming(null)}
+            >
+              <p>{`${confirming.name} will be able to sign in again.`}</p>
+            </ConfirmDialog>
+          )}
+        </div>
+      )}
     </div>
   );
 }
