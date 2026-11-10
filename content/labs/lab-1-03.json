@@ -45,7 +45,7 @@
       "objective": "1.4",
       "difficulty": 2,
       "type": "order",
-      "prompt": "No key or certificate exists yet for the portal. Put the steps for obtaining and using its certificate in the order they happen.",
+      "prompt": "No key or certificate exists yet for the portal. Put the steps for obtaining and using its certificate in the order they happen. In the steps, CSR means certificate signing request and CA means certificate authority.",
       "items": [
         {
           "id": "i1",
@@ -57,7 +57,7 @@
         },
         {
           "id": "i3",
-          "text": "You create a certificate signing request (CSR) holding the public key and the portal's name details, signed with the private key"
+          "text": "You create a CSR holding the public key and the portal's name details, signed with the private key"
         },
         {
           "id": "i4",
@@ -73,7 +73,7 @@
         },
         {
           "id": "i7",
-          "text": "You submit the CSR to the certificate authority (CA), while the private key stays where it was generated"
+          "text": "You submit the CSR to the CA, while the private key stays where it was generated"
         }
       ],
       "correct": [
