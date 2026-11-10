@@ -16,7 +16,7 @@
         {
           "id": "1.2",
           "title": "Summarize fundamental security concepts",
-          "published": false,
+          "published": true,
           "minQuestions": 25
         },
         {
