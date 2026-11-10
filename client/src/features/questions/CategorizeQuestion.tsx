@@ -38,7 +38,12 @@ export function CategorizeQuestion({
   labelledBy: string;
 }) {
   const id = useId();
-  const placements = value?.placements ?? {};
+  // Only placements of the question's items into its buckets; anything else in the value is ignored.
+  const placements: Record<string, string> = {};
+  for (const item of question.items) {
+    const bucket = value?.placements[item.id];
+    if (question.buckets.some((b) => b.id === bucket)) placements[item.id] = bucket!;
+  }
   const correct = feedback?.correctAnswer.type === 'categorize' ? feedback.correctAnswer.placements : null;
   const unplaced = question.items.filter((i) => !placements[i.id]);
   const layoutKey = question.items.map((i) => placements[i.id] ?? '').join(' ');
@@ -117,7 +122,7 @@ export function CategorizeQuestion({
       accessibility={{ announcements }}
     >
       <div role="group" aria-labelledby={labelledBy} className="space-y-3">
-        {!feedback && (
+        {!locked && (
           <p className="text-sm text-muted">Pick a bucket from each item's menu, or drag the item into a bucket.</p>
         )}
         {!(feedback && unplaced.length === 0) && (
@@ -216,7 +221,7 @@ function ItemCard({
         layoutId={layoutId}
         layout="position"
         layoutDependency={layoutKey}
-        className={`rounded-md border bg-surface p-2 ${border} ${isDragging ? 'shadow-lg' : ''}`}
+        className={`rounded-md border bg-surface p-2 ${border} ${isDragging ? 'ring-2 ring-accent' : ''}`}
       >
         <div className="flex flex-wrap items-center gap-2">
           <span

@@ -1,9 +1,31 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
-import { isComplete, QuestionView } from './QuestionView';
+import { initialAnswer, isComplete, QuestionView } from './QuestionView';
+
+/**
+ * jsdom has no `matchMedia`. This stands in for the system "reduce motion" setting, and tells whoever is
+ * listening when a test changes it, the way a browser does. It is installed before Motion first reads it.
+ */
+const motionPreference = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const reducedMotion = {
+    matches: false,
+    addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+    removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+  };
+  const other = { matches: false, addEventListener: () => {}, removeEventListener: () => {} };
+  window.matchMedia = ((query: string) =>
+    query.includes('prefers-reduced-motion') ? reducedMotion : other) as unknown as typeof window.matchMedia;
+  return {
+    set(reduce: boolean) {
+      reducedMotion.matches = reduce;
+      for (const listener of listeners) listener();
+    },
+  };
+});
 
 const base = { objective: '1.1', difficulty: 1 as const };
 
@@ -118,8 +140,11 @@ function expectMarking(control: HTMLElement, icon: '✓' | '✗', description: R
   expect(control).toHaveAccessibleDescription(description);
 }
 
+const rowTexts = () => screen.getAllByRole('listitem').map((row) => row.querySelector('p')?.textContent);
+
 afterEach(() => {
   vi.restoreAllMocks();
+  motionPreference.set(false);
 });
 
 describe('questions', () => {
@@ -184,18 +209,28 @@ describe('questions', () => {
     expect(screen.queryByText(/^Choose/)).not.toBeInTheDocument();
   });
 
-  it('order: starts from the served item order and reports it as the initial answer', () => {
+  it('order: shows the served item order and emits nothing until the learner acts', () => {
     const onChange = vi.fn();
-    render(<Harness question={order} onChange={onChange} />);
+    const { unmount } = render(<Harness question={order} onChange={onChange} />);
 
-    const rows = within(screen.getByRole('list', { name: order.prompt })).getAllByRole('listitem');
-    expect(rows.map((r) => r.textContent)).toEqual([
-      expect.stringContaining('Request'),
-      expect.stringContaining('Approve'),
-      expect.stringContaining('Implement'),
-    ]);
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith({ type: 'order', order: ['a', 'b', 'c'] });
+    expect(within(screen.getByRole('list', { name: order.prompt })).getAllByRole('listitem')).toHaveLength(3);
+    expect(rowTexts()).toEqual(['Request', 'Approve', 'Implement']);
+    expect(onChange).not.toHaveBeenCalled();
+    unmount();
+
+    // Showing a question is never a write, including under the double mount of development builds.
+    render(
+      <StrictMode>
+        <Harness question={order} onChange={onChange} />
+      </StrictMode>,
+    );
+    expect(rowTexts()).toEqual(['Request', 'Approve', 'Implement']);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('initialAnswer is the served order for an order question and null for every other type', () => {
+    expect(initialAnswer(order)).toEqual({ type: 'order', order: ['a', 'b', 'c'] });
+    for (const question of [single, multi, match, categorize]) expect(initialAnswer(question)).toBeNull();
   });
 
   it('order: "Move down" on the first item emits the swapped order; first item has no enabled "Move up"', async () => {
@@ -260,19 +295,25 @@ describe('questions', () => {
     expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r1' } });
     expect(confidentiality).toHaveValue('r1');
 
+    const moved = 'Encryption moved to Integrity. Confidentiality has no match.';
+    expect(screen.queryByText(moved)).not.toBeInTheDocument();
+
     await user.selectOptions(integrity, 'Encryption');
     expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l2: 'r1' } });
     expect(confidentiality).toHaveValue('');
     expect(integrity).toHaveValue('r1');
+    // The row that lost its pair is not the one in focus, so the loss is announced.
+    expect(screen.getByText(moved)).toHaveAttribute('aria-live', 'polite');
 
     await user.selectOptions(confidentiality, 'Hashing');
     expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r2', l2: 'r1' } });
+    expect(screen.queryByText(moved)).not.toBeInTheDocument();
 
     await user.selectOptions(integrity, '');
     expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r2' } });
   });
 
-  it('match: dragging an answer onto a left item pairs them', () => {
+  it('match: dragging an answer onto a left item pairs them, taking it from the row that had it; a drop on its own row emits nothing', () => {
     const boxes = new Map<Element, Box>();
     stubLayout((el) => boxes.get(el));
     const onChange = vi.fn();
@@ -288,7 +329,15 @@ describe('questions', () => {
 
     mouseDrag(chip, from, to);
 
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l2: 'r2' } });
+    expect(screen.getByRole('combobox', { name: 'Match for Integrity' })).toHaveValue('r2');
+    expect(screen.getByRole('combobox', { name: 'Match for Confidentiality' })).toHaveValue('');
+    expect(screen.getByText('Hashing moved to Integrity. Confidentiality has no match.')).toBeInTheDocument();
+
+    mouseDrag(chip, from, to);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('combobox', { name: 'Match for Integrity' })).toHaveValue('r2');
   });
 
@@ -355,12 +404,12 @@ describe('questions', () => {
     const { rerender } = render(<QuestionView question={single} value={answer} onChange={onChange} />);
 
     // The live region is in the page before the result arrives, so screen readers announce what is added to it.
-    const status = screen.getByRole('status');
+    const status = screen.getByRole('status', { name: 'Result' });
     expect(status).toBeEmptyDOMElement();
 
     rerender(<QuestionView question={single} value={answer} onChange={onChange} feedback={feedback} />);
 
-    expect(screen.getByRole('status')).toBe(status);
+    expect(screen.getByRole('status', { name: 'Result' })).toBe(status);
     expect(status).toHaveTextContent('✗');
     expect(status).toHaveTextContent('Incorrect');
     expect(status).toHaveTextContent(feedback.explanation);
@@ -406,7 +455,7 @@ describe('questions', () => {
         feedback={{ correct: true, fraction: 1, correctAnswer: { type: 'single', choice: 'a' }, explanation: 'Right.' }}
       />,
     );
-    const status = screen.getByRole('status');
+    const status = screen.getByRole('status', { name: 'Result' });
     expect(status).toHaveTextContent('✓');
     expect(status).toHaveTextContent('Correct');
     expect(status).not.toHaveTextContent('Incorrect');
@@ -428,7 +477,9 @@ describe('questions', () => {
     expect(rows[1]).toHaveTextContent(/✗\s*Incorrect\. Correct position: 3/);
     expect(rows[2]).toHaveTextContent(/✗\s*Incorrect\. Correct position: 2/);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
-    expect(screen.getByText('Approval comes before the work.')).toBeInTheDocument();
+    // The drag-and-drop types carry a second live region for drag announcements; the result is found by name.
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(1);
+    expect(screen.getByRole('status', { name: 'Result' })).toHaveTextContent('Approval comes before the work.');
     unmountOrder();
 
     const { unmount: unmountMatch } = render(
@@ -470,12 +521,190 @@ describe('questions', () => {
     const { unmount } = render(<QuestionView question={multi} value={null} onChange={onChange} disabled />);
     for (const box of screen.getAllByRole('checkbox')) expect(box).toBeDisabled();
     await user.click(screen.getByText('Bollards'));
-    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    expect(screen.getByRole('status', { name: 'Result' })).toBeEmptyDOMElement();
     unmount();
 
-    render(<QuestionView question={order} value={null} onChange={onChange} disabled />);
+    const orderView = render(<QuestionView question={order} value={null} onChange={onChange} disabled />);
     for (const button of screen.getAllByRole('button')) expect(button).toBeDisabled();
+    orderView.unmount();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('disabled: match and categorize offer no dragging', () => {
+    const boxes = new Map<Element, Box>();
+    stubLayout((el) => boxes.get(el));
+    const onChange = vi.fn();
+    const from = { x: 0, y: 300, width: 100, height: 30 };
+    const to = { x: 0, y: 60, width: 300, height: 50 };
+
+    const open = render(<QuestionView question={match} value={null} onChange={onChange} />);
+    expect(screen.getByText(/drag an answer onto its item/)).toBeInTheDocument();
+    open.unmount();
+    const matchView = render(<QuestionView question={match} value={null} onChange={onChange} disabled />);
+    expect(screen.queryByText(/drag an answer onto its item/)).not.toBeInTheDocument();
+    for (const select of screen.getAllByRole('combobox')) expect(select).toBeDisabled();
+    const chip = screen.getByText('Hashing', { ignore: 'option' });
+    boxes.set(chip, from);
+    boxes.set(screen.getByRole('combobox', { name: 'Match for Integrity' }).closest('li')!, to);
+    mouseDrag(chip, from, to);
+    matchView.unmount();
+
+    const openCategorize = render(<QuestionView question={categorize} value={null} onChange={onChange} />);
+    expect(screen.getByText(/drag the item into a bucket/)).toBeInTheDocument();
+    openCategorize.unmount();
+    render(<QuestionView question={categorize} value={null} onChange={onChange} disabled />);
+    expect(screen.queryByText(/drag the item into a bucket/)).not.toBeInTheDocument();
+    for (const select of screen.getAllByRole('combobox')) expect(select).toBeDisabled();
+    const item = screen.getByText('Audit log');
+    boxes.set(item, from);
+    boxes.set(screen.getByRole('group', { name: 'Detective' }), to);
+    mouseDrag(item, from, to);
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('ignores ids in the value that the question does not have', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    // order: anything but an exact permutation of the items is treated as unanswered.
+    for (const bad of [['a', 'x', 'c'], ['c', 'a'], ['a', 'a', 'b'], ['c', 'b', 'a', 'a']]) {
+      const view = render(<QuestionView question={order} value={{ type: 'order', order: bad }} onChange={onChange} />);
+      expect(rowTexts()).toEqual(['Request', 'Approve', 'Implement']);
+      view.unmount();
+    }
+    const orderView = render(
+      <QuestionView question={order} value={{ type: 'order', order: ['c', 'x', 'a'] }} onChange={onChange} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Move down: Request' }));
+    expect(onChange).toHaveBeenLastCalledWith({ type: 'order', order: ['b', 'a', 'c'] });
+    orderView.unmount();
+
+    // categorize: an unknown bucket leaves the item in the pool; an unknown item is dropped.
+    const categorizeView = render(
+      <QuestionView
+        question={categorize}
+        value={{ type: 'categorize', placements: { i1: 'zz', ghost: 'b1', i2: 'b2' } }}
+        onChange={onChange}
+      />,
+    );
+    expect(within(screen.getByRole('group', { name: 'Not placed yet' })).getByText('Fence')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Bucket for Fence' })).toHaveValue('');
+    expect(within(screen.getByRole('group', { name: 'Detective' })).getByText('Audit log')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Preventive' })).queryByRole('listitem')).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Bucket for Audit log' }), 'Preventive');
+    expect(onChange).toHaveBeenLastCalledWith({ type: 'categorize', placements: { i2: 'b1' } });
+    categorizeView.unmount();
+
+    // match: an unknown right item leaves the row empty; unknown ids are never sent back.
+    render(
+      <QuestionView
+        question={match}
+        value={{ type: 'match', pairs: { l1: 'zz', ghost: 'r1', l2: 'r2' } }}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByRole('combobox', { name: 'Match for Confidentiality' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Match for Integrity' })).toHaveValue('r2');
+    expect(screen.getByText('Encryption', { ignore: 'option' })).not.toHaveTextContent('in use');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Match for Integrity' }), 'Encryption');
+    expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l2: 'r1' } });
+  });
+
+  it('a value of the wrong type renders as unanswered', () => {
+    const onChange = vi.fn();
+    const singleView = render(
+      <QuestionView question={single} value={{ type: 'multi', choices: ['a'] }} onChange={onChange} />,
+    );
+    for (const radio of screen.getAllByRole('radio')) expect(radio).not.toBeChecked();
+    singleView.unmount();
+
+    const multiView = render(<QuestionView question={multi} value={{ type: 'single', choice: 'a' }} onChange={onChange} />);
+    for (const box of screen.getAllByRole('checkbox')) expect(box).not.toBeChecked();
+    multiView.unmount();
+
+    const orderView = render(
+      <QuestionView question={order} value={{ type: 'multi', choices: ['c', 'b', 'a'] }} onChange={onChange} />,
+    );
+    expect(rowTexts()).toEqual(['Request', 'Approve', 'Implement']);
+    orderView.unmount();
+
+    const matchView = render(
+      <QuestionView question={match} value={{ type: 'categorize', placements: { l1: 'r1' } }} onChange={onChange} />,
+    );
+    for (const select of screen.getAllByRole('combobox')) expect(select).toHaveValue('');
+    matchView.unmount();
+
+    render(<QuestionView question={categorize} value={{ type: 'match', pairs: { i1: 'b1' } }} onChange={onChange} />);
+    expect(within(screen.getByRole('group', { name: 'Not placed yet' })).getAllByRole('listitem')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('a new question replaces the old one without stale state', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { rerender } = render(<QuestionView question={order} value={null} onChange={onChange} />);
+    await user.click(screen.getByRole('button', { name: 'Move down: Request' }));
+    expect(screen.getByText('Request moved to position 2 of 3.')).toBeInTheDocument();
+
+    const nextOrder: PublicQuestion = {
+      ...order, id: 'q-1.1-006', prompt: 'Put the incident steps in order.',
+      items: [{ id: 'x', text: 'Detect' }, { id: 'y', text: 'Contain' }],
+    };
+    rerender(<QuestionView question={nextOrder} value={null} onChange={onChange} />);
+    expect(screen.getByRole('list', { name: nextOrder.prompt })).toBeInTheDocument();
+    expect(rowTexts()).toEqual(['Detect', 'Contain']);
+    expect(screen.queryByText(/Request/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Move down: Contain' })).toBeDisabled();
+
+    const matchView = { ...match, id: 'q-1.1-007' };
+    rerender(<QuestionView question={matchView} value={{ type: 'match', pairs: { l1: 'r1' } }} onChange={onChange} />);
+    expect(screen.queryByRole('list', { name: nextOrder.prompt })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Match for Integrity' }), 'Encryption');
+    expect(screen.getByText(/Confidentiality has no match/)).toBeInTheDocument();
+
+    const nextMatch: PublicQuestion = { ...match, id: 'q-1.1-008', prompt: 'Match again.' };
+    rerender(<QuestionView question={nextMatch} value={null} onChange={onChange} />);
+    expect(screen.queryByText(/has no match/)).not.toBeInTheDocument();
+    for (const select of screen.getAllByRole('combobox')) expect(select).toHaveValue('');
+
+    rerender(<QuestionView question={single} value={null} onChange={onChange} />);
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: single.prompt })).toBeInTheDocument();
+    for (const radio of screen.getAllByRole('radio')) expect(radio).not.toBeChecked();
+  });
+
+  it('reduced motion: no result pulse is rendered and order rows move without a transition', () => {
+    // The pulse ring is the only decorative element directly inside the question.
+    const pulse = (container: HTMLElement) => container.querySelector(':scope > div > span[aria-hidden="true"]');
+    const marked = (
+      <QuestionView
+        question={single}
+        value={{ type: 'single', choice: 'a' }}
+        onChange={vi.fn()}
+        feedback={{ correct: true, fraction: 1, correctAnswer: { type: 'single', choice: 'a' }, explanation: 'Right.' }}
+      />
+    );
+    const list = <QuestionView question={order} value={null} onChange={vi.fn()} />;
+
+    const withMotion = render(marked);
+    expect(pulse(withMotion.container)).not.toBeNull();
+    withMotion.unmount();
+    const listWithMotion = render(list);
+    expect(screen.getAllByRole('listitem')[0]!.style.transition).not.toBe('none');
+    listWithMotion.unmount();
+
+    // Motion prints a one-off development notice when it first sees the setting; nothing else may be logged.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    motionPreference.set(true);
+
+    const reduced = render(marked);
+    expect(pulse(reduced.container)).toBeNull();
+    expect(screen.getByRole('status', { name: 'Result' })).toHaveTextContent('Correct');
+    reduced.unmount();
+    render(list);
+    for (const row of screen.getAllByRole('listitem')) expect(row.style.transition).toBe('none');
+    for (const [message] of warn.mock.calls) expect(String(message)).toContain('Reduced Motion enabled');
   });
 
   it('renders text from the API as text, never as HTML', () => {
@@ -520,5 +749,22 @@ describe('questions', () => {
     // An answer of the wrong shape never completes a question.
     expect(isComplete(single, { type: 'multi', choices: ['a'] })).toBe(false);
     expect(isComplete(match, { type: 'categorize', placements: { l1: 'r1', l2: 'r2' } })).toBe(false);
+  });
+
+  it('isComplete counts only ids that the question has', () => {
+    expect(isComplete(single, { type: 'single', choice: 'zz' })).toBe(false);
+
+    expect(isComplete(multi, { type: 'multi', choices: ['zz'] })).toBe(false);
+    expect(isComplete(multi, { type: 'multi', choices: ['zz', 'a'] })).toBe(true);
+
+    expect(isComplete(match, { type: 'match', pairs: { l1: 'r1', l2: 'zz' } })).toBe(false);
+    expect(isComplete(match, { type: 'match', pairs: { l1: 'r1', ghost: 'r2' } })).toBe(false);
+    expect(isComplete(match, { type: 'match', pairs: { l1: 'r1', l2: 'r2', ghost: 'r1' } })).toBe(true);
+
+    expect(isComplete(categorize, { type: 'categorize', placements: { i1: 'b1', i2: 'zz' } })).toBe(false);
+    expect(isComplete(categorize, { type: 'categorize', placements: { i1: 'b1', ghost: 'b2' } })).toBe(false);
+    expect(isComplete(categorize, { type: 'categorize', placements: { i1: 'b1', i2: 'b2', ghost: 'b1' } })).toBe(true);
+
+    expect(isComplete(order, { type: 'order', order: ['zz'] })).toBe(true);
   });
 });

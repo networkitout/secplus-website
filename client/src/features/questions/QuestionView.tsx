@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { useId } from 'react';
-import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
+import type { Answer, Feedback, Item, PublicQuestion } from '../../../../shared/types';
 import { CategorizeQuestion } from './CategorizeQuestion';
 import { FeedbackPanel } from './FeedbackPanel';
 import { MatchQuestion } from './MatchQuestion';
@@ -12,26 +12,38 @@ const SHAKE = [0, -8, 8, -5, 5, 0];
 const PULSE = { opacity: [0.9, 0], scale: [1, 1.015] };
 const PULSE_REST = { opacity: 0, scale: 1 };
 
-/** True when the answer can be submitted. An `order` question always can: its served order is an answer. */
+/**
+ * True when the answer can be submitted. Only ids that the question has count. An `order` question always
+ * can be submitted: its served order is an answer (see `initialAnswer`).
+ */
 export function isComplete(q: PublicQuestion, a: Answer | null): boolean {
+  const has = (items: Item[], id: string | undefined) => items.some((item) => item.id === id);
   switch (q.type) {
     case 'single':
-      return a?.type === 'single' && a.choice !== '';
+      return a?.type === 'single' && has(q.options, a.choice);
     case 'multi':
-      return a?.type === 'multi' && a.choices.length >= 1;
+      return a?.type === 'multi' && a.choices.some((choice) => has(q.options, choice));
     case 'order':
       return true;
     case 'match': {
       if (a?.type !== 'match') return false;
       const { pairs } = a;
-      return q.left.every((item) => Boolean(pairs[item.id]));
+      return q.left.every((item) => has(q.right, pairs[item.id]));
     }
     case 'categorize': {
       if (a?.type !== 'categorize') return false;
       const { placements } = a;
-      return q.items.every((item) => Boolean(placements[item.id]));
+      return q.items.every((item) => has(q.buckets, placements[item.id]));
     }
   }
+}
+
+/**
+ * The answer a question has before the learner touches it: the served order for an `order` question, none
+ * for the other types. `QuestionView` never emits it; a screen submits `value ?? initialAnswer(question)`.
+ */
+export function initialAnswer(q: PublicQuestion): Answer | null {
+  return q.type === 'order' ? { type: 'order', order: q.items.map((item) => item.id) } : null;
 }
 
 /**
@@ -90,8 +102,11 @@ export function QuestionView({
           {...common}
         />
       )}
-      {/* Always in the page, so that the result is announced when it is added. */}
-      <div role="status">{feedback && <FeedbackPanel feedback={feedback} />}</div>
+      {/* Always in the page, so that the result is announced when it is added. Named, because the
+          drag-and-drop types add live regions of their own. */}
+      <div role="status" aria-label="Result">
+        {feedback && <FeedbackPanel feedback={feedback} />}
+      </div>
       {!reduced && (
         <motion.span
           aria-hidden="true"

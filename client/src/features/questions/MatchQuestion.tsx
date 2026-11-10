@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import type { Answer, Feedback, Item, PublicQuestion } from '../../../../shared/types';
 import { Mark } from './FeedbackPanel';
 
@@ -30,9 +30,15 @@ export function MatchQuestion({
   locked: boolean;
   labelledBy: string;
 }) {
-  const pairs = value?.pairs ?? {};
+  // Only pairs between items the question has; anything else in the value is ignored and never sent back.
+  const pairs: Record<string, string> = {};
+  for (const left of question.left) {
+    const right = value?.pairs[left.id];
+    if (question.right.some((r) => r.id === right)) pairs[left.id] = right!;
+  }
   const correctPairs = feedback?.correctAnswer.type === 'match' ? feedback.correctAnswer.pairs : null;
   const used = new Set(Object.values(pairs));
+  const [announcement, setAnnouncement] = useState('');
 
   // Mouse and touch only: the menus are the keyboard route. A touch drag starts after a short press so
   // that swiping over an answer still scrolls the page.
@@ -48,7 +54,7 @@ export function MatchQuestion({
     onDragStart: ({ active }) => `Picked up ${rightText(active.id)}.`,
     onDragOver: ({ active, over }) => (over ? `${rightText(active.id)} is over ${leftText(over.id)}.` : undefined),
     onDragEnd: ({ active, over }) =>
-      over
+      over && pairs[over.id] !== active.id
         ? `${rightText(active.id)} matched to ${leftText(over.id)}.`
         : `${rightText(active.id)} dropped. Nothing changed.`,
     onDragCancel: ({ active }) => `Matching ${rightText(active.id)} cancelled.`,
@@ -61,11 +67,16 @@ export function MatchQuestion({
       const right = left.id === leftId ? rightId : pairs[left.id];
       if (right && (left.id === leftId || right !== rightId)) next[left.id] = right;
     }
+    // The row that loses its pair is not the one being worked on, so say what happened to it.
+    const emptied = question.left.find((left) => left.id !== leftId && pairs[left.id] === rightId);
+    setAnnouncement(
+      emptied ? `${rightText(rightId)} moved to ${leftText(leftId)}. ${emptied.text} has no match.` : '',
+    );
     onChange({ type: 'match', pairs: next });
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
-    if (over) pair(String(over.id), String(active.id));
+    if (over && pairs[over.id] !== active.id) pair(String(over.id), String(active.id));
   }
 
   return (
@@ -91,7 +102,9 @@ export function MatchQuestion({
         </ul>
         {!feedback && (
           <div className="space-y-2">
-            <p className="text-sm text-muted">Pick a match from each menu, or drag an answer onto its item.</p>
+            {!locked && (
+              <p className="text-sm text-muted">Pick a match from each menu, or drag an answer onto its item.</p>
+            )}
             <ul role="list" className="flex flex-wrap gap-2">
               {question.right.map((right) => (
                 <AnswerChip key={right.id} item={right} used={used.has(right.id)} locked={locked} />
@@ -99,6 +112,9 @@ export function MatchQuestion({
             </ul>
           </div>
         )}
+        <p aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
       </div>
     </DndContext>
   );
@@ -172,8 +188,8 @@ function AnswerChip({ item, used, locked }: { item: Item; used: boolean; locked:
         {...listeners}
         style={{ transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined }}
         className={`inline-flex touch-manipulation select-none items-center gap-2 rounded-md border bg-surface px-3 py-2 text-sm [-webkit-touch-callout:none] ${
-          isDragging ? 'border-accent shadow-lg' : 'border-border'
-        } ${locked ? '' : 'cursor-grab'}`}
+          isDragging ? 'border-accent ring-2 ring-accent' : 'border-border'
+        } ${locked ? 'text-muted' : 'cursor-grab'}`}
       >
         {item.text}
         {used && <span className="text-xs text-muted">in use</span>}

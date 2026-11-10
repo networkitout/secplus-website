@@ -46,7 +46,13 @@ export function OrderQuestion({
   labelledBy: string;
 }) {
   const served = question.items.map((i) => i.id);
-  const order = value?.order ?? served;
+  // An order that is not exactly the question's items, each once, is not an answer to this question.
+  const answered =
+    value !== null &&
+    value.order.length === served.length &&
+    new Set(value.order).size === served.length &&
+    value.order.every((id) => served.includes(id));
+  const order = answered ? value.order : served;
   const items = order.flatMap((id) => question.items.find((i) => i.id === id) ?? []);
   const correctOrder = feedback?.correctAnswer.type === 'order' ? feedback.correctAnswer.order : null;
 
@@ -58,13 +64,6 @@ export function OrderQuestion({
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-
-  // An untouched list is already a complete answer, so report the served order as the starting value.
-  const unanswered = value === null && !locked;
-  useEffect(() => {
-    if (unanswered) onChange({ type: 'order', order: served });
-    // Deliberately keyed on `unanswered` alone: once per unanswered question, not on every new callback.
-  }, [unanswered]);
 
   // Reordering moves the row's DOM node, which drops keyboard focus, and a row that reaches either end
   // has its pressed button disabled. Put focus back on the row's button that still works.
@@ -194,7 +193,7 @@ function Row({
       <motion.div
         layout="position"
         layoutDependency={layoutKey}
-        className={`flex items-center gap-2 rounded-md border bg-surface p-2 ${border} ${isDragging ? 'shadow-lg' : ''}`}
+        className={`flex items-center gap-2 rounded-md border bg-surface p-2 ${border} ${isDragging ? 'ring-2 ring-accent' : ''}`}
       >
         {showControls && (
           <button
