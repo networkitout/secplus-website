@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { loadContent } from './content/loader.js';
 import { connect } from './db/db.js';
 import { migrate } from './db/migrate.js';
+import { ensureAdmin } from './features/auth/repo.js';
 import { loadDotEnv, readEnv } from './env.js';
 
 loadDotEnv();
@@ -17,6 +18,8 @@ try {
   console.error(`Database unavailable at startup: ${[e.code, e.message].filter(Boolean).join(' ') || String(err)}`);
   process.exit(1);
 }
+
+await ensureAdmin(db, env, new Date());
 
 const content = loadContent('content');
 const app = createApp({

@@ -4,6 +4,9 @@ export interface Env {
   port: number;
   nodeEnv: string;
   databaseUrl: string;
+  adminLogin?: string;
+  adminPassword?: string;
+  adminName?: string;
 }
 
 /** Loads `.env` from the working directory for local development, if present. Never overrides real variables. */
@@ -19,5 +22,8 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     port: Number.isInteger(port) && port > 0 ? port : 3000,
     nodeEnv: source.NODE_ENV || 'development',
     databaseUrl,
+    adminLogin: source.ADMIN_LOGIN || undefined,
+    adminPassword: source.ADMIN_PASSWORD || undefined,
+    adminName: source.ADMIN_NAME || undefined,
   };
 }

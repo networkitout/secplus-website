@@ -1,7 +1,10 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import path from 'node:path';
+import helmet from 'helmet';
 import type { Content } from './content/loader.js';
 import type { Db } from './db/db.js';
+import { authRouter } from './features/auth/routes.js';
+import { requireCsrfHeader } from './http.js';
 
 export type AppDeps = {
   db: Db;
@@ -9,6 +12,8 @@ export type AppDeps = {
   now: () => Date;
   clientDir?: string;
   secureCookies: boolean;
+  /** bcrypt cost for new passwords; defaults to 12 (tests lower it). */
+  bcryptCost?: number;
 };
 
 const DB_UNAVAILABLE_CODES = new Set([
@@ -25,11 +30,30 @@ const DB_UNAVAILABLE_CODES = new Set([
 
 export function createApp(deps: AppDeps): Express {
   const app = express();
+  app.locals.deps = deps;
+  if (deps.secureCookies) app.set('trust proxy', 1); // production sits behind Hostinger's proxy
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          'default-src': ["'self'"],
+          'style-src': ["'self'", "'unsafe-inline'"],
+          'img-src': ["'self'", 'data:'],
+          'script-src': ["'self'"],
+          'frame-ancestors': ["'none'"],
+        },
+      },
+    }),
+  );
+  app.use('/api', requireCsrfHeader);
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
   });
+
+  app.use('/api/auth', authRouter(deps));
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });

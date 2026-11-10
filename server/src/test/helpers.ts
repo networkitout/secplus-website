@@ -51,6 +51,7 @@ export async function testApp(
     now: () => current,
     clientDir: opts.clientDir,
     secureCookies: false,
+    bcryptCost: 4,
   });
   return {
     app,
