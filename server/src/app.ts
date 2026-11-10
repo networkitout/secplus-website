@@ -5,6 +5,7 @@ import type { Content } from './content/loader.js';
 import type { Db } from './db/db.js';
 import { adminRouter } from './features/admin/routes.js';
 import { authRouter } from './features/auth/routes.js';
+import { reviewRouter } from './features/review/routes.js';
 import { requireCsrfHeader } from './http.js';
 
 export type AppDeps = {
@@ -56,6 +57,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.use('/api/auth', authRouter(deps));
   app.use('/api/admin', adminRouter(deps));
+  app.use('/api/review', reviewRouter(deps));
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });
