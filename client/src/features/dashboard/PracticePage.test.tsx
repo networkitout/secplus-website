@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import type { Feedback, PublicQuestion } from '../../../../shared/types';
 import type { AnswerResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
+import { holdPressClock } from '../../test/pressClock';
+import { SETTLE_MS } from '../../ui/pressGuard';
 import { RewardsContext, type RewardsValue } from '../rewards/RewardsProvider';
 import { PracticePage } from './PracticePage';
 
@@ -162,9 +164,8 @@ describe('practice', () => {
     await userEvent.click(await screen.findByRole('radio', { name: 'Integrity' }));
 
     const check = button('Check');
-    fireEvent.click(check, { detail: 1 });
-    fireEvent.click(check, { detail: 2 });
-    fireEvent.click(check, { detail: 1 });
+    await userEvent.dblClick(check);
+    await userEvent.click(check);
     expect(calls(ANSWERS)).toHaveLength(1);
 
     pending.resolve(json(200, answered(true, 'A hash shows that data has changed.', 10)));
@@ -173,17 +174,57 @@ describe('practice', () => {
     expect(report).toHaveBeenCalledTimes(1);
   });
 
-  it('the second click of a double click on Check does not press Next', async () => {
+  // Ordinary presses, sent straight after the button under them has changed. Time stands still unless the
+  // test moves it, so each press is inside or outside the settle window exactly as written.
+  it('a press straight after the button changed is ignored: Check does not run into Next, Next does not grade an untouched order question', async () => {
+    const clock = holdPressClock();
     handlers[ANSWERS] = () => json(200, answered(true, 'A hash shows that data has changed.', 10));
     renderPractice();
     await userEvent.click(await screen.findByRole('radio', { name: 'Integrity' }));
-    fireEvent.click(button('Check'), { detail: 1 });
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Check'));
+
+    // "Next" is now where "Check" was.
     const next = await screen.findByRole('button', { name: 'Next' });
-    fireEvent.click(next, { detail: 2 });
+    await userEvent.click(next);
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(next);
     expect(screen.getByRole('heading', { name: 'Question 1 of 2' })).toBeInTheDocument();
+    expect(within(result()).getByText('A hash shows that data has changed.')).toBeInTheDocument();
+    expect(next).toBeEnabled();
     expect(calls(ANSWERS)).toHaveLength(1);
 
-    fireEvent.click(next, { detail: 1 });
+    clock.advance(1);
+    await userEvent.click(next);
+    expect(await screen.findByRole('heading', { name: 'Question 2 of 2' })).toBeInTheDocument();
+    // The order question is complete as it was served: its Check is live, and must not be pressed unseen.
+    expect(button('Check')).toBeEnabled();
+    await userEvent.click(button('Check'));
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(button('Check'));
+    expect(calls(ANSWERS)).toHaveLength(1);
+    expect(result()).toBeEmptyDOMElement();
+
+    clock.advance(1);
+    await userEvent.click(button('Check'));
+    await screen.findByRole('button', { name: 'Finish' });
+    expect(bodies(ANSWERS)[1]).toEqual({ questionId: q2.id, answer: { type: 'order', order: ['i2', 'i1', 'i3'] } });
+  });
+
+  it('a press straight after a question could not be marked does not skip it', async () => {
+    const clock = holdPressClock();
+    handlers[ANSWERS] = () => json(404, { error: 'Question not found' });
+    renderPractice();
+    await userEvent.click(await screen.findByRole('radio', { name: 'Integrity' }));
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Check'));
+
+    // "Skip this question" is now where "Check" was.
+    const skip = await screen.findByRole('button', { name: 'Skip this question' });
+    await userEvent.click(skip);
+    expect(screen.getByRole('heading', { name: 'Question 1 of 2' })).toBeInTheDocument();
+    clock.advance(SETTLE_MS);
+    await userEvent.click(skip);
     expect(await screen.findByRole('heading', { name: 'Question 2 of 2' })).toBeInTheDocument();
   });
 

@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from 'react';
 import { formatDay } from '../../lib/dates';
 import { Button } from '../../ui/Button';
+import { usePressGuard } from '../../ui/pressGuard';
 import { BOXES, count, pathLink, type ReviewedCard } from './parts';
 
 function Stat({ label, children }: { label: string; children: ReactNode }) {
@@ -39,6 +40,8 @@ export function RoundSummary({
   moreError: string;
   onMore(): void;
 }) {
+  // The summary takes the place of the last card: a press that arrives with it does not start another round.
+  const guard = usePressGuard();
   // All of this is the server's: each response gives the card's box before and after, and its next date.
   const movedUp = responses.filter((r) => r.box > r.previousBox).length;
   const backToOne = responses.filter((r) => r.box === 1).length;
@@ -75,7 +78,7 @@ export function RoundSummary({
       {remaining > 0 && (
         <div className="space-y-2">
           <p>{`${count(remaining, 'more card is', 'more cards are')} due today.`}</p>
-          <Button aria-disabled={loadingMore} className="aria-disabled:cursor-progress aria-disabled:opacity-60" onClick={onMore}>
+          <Button aria-disabled={loadingMore} className="aria-disabled:cursor-progress aria-disabled:opacity-60" onClick={() => guard.settled() && onMore()}>
             {loadingMore ? 'Loading more cards…' : 'Review more'}
           </Button>
           <p role="status" aria-label="Loading" className="sr-only">

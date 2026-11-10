@@ -10,11 +10,13 @@ import type { User } from '../api/types';
 import { AuthContext } from '../features/auth/AuthProvider';
 import { RewardsProvider, useRewards } from '../features/rewards/RewardsProvider';
 import { createQueryClient } from '../queryClient';
+import { holdPressClock } from '../test/pressClock';
 import { AppShell } from './AppShell';
 import { Celebration } from './Celebration';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBoundary } from './ErrorBoundary';
 import { MasteryBar } from './MasteryBar';
+import { SETTLE_MS } from './pressGuard';
 import { ProgressRing } from './ProgressRing';
 import { SaveIndicator } from './SaveIndicator';
 import { ThemeToggle } from './ThemeToggle';
@@ -338,6 +340,34 @@ describe('ui', () => {
 
       await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
       expect(onConfirm).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a press that arrives as it opens: the second half of a double click neither confirms nor cancels', async () => {
+      const clock = holdPressClock();
+      const onConfirm = vi.fn();
+      render(<Host onConfirm={onConfirm} />);
+      // The second click of a double click on the opener lands on whatever the dialog has put there.
+      await userEvent.click(opener());
+      await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+      fireEvent.mouseDown(dialog().parentElement!);
+      // A held Enter repeats on the button that has focus, which is the cancel button.
+      await userEvent.keyboard('{Enter}{Enter}');
+      clock.advance(SETTLE_MS - 1);
+      await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(dialog()).toBeInTheDocument();
+
+      clock.advance(1);
+      await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      expect(onConfirm).toHaveBeenCalledTimes(1);
+      await userEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      // Escape is a key of its own, not a press that was meant for something else: it works at once.
+      await userEvent.click(opener());
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('while busy the confirm button says so and does not confirm again', async () => {

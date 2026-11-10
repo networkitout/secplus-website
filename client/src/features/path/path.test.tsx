@@ -5,6 +5,8 @@ import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PathDomain, PathObjective, PathResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
+import { holdPressClock } from '../../test/pressClock';
+import { SETTLE_MS } from '../../ui/pressGuard';
 import { PathPage } from './PathPage';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
@@ -190,6 +192,27 @@ describe('path', () => {
     expect(JSON.parse(String(init.body))).toEqual({ kind: 'domain', scope: '1' });
     // The path now has an exam in progress: it is read again for the next visit.
     await waitFor(() => expect(calls('GET /api/path')).toHaveLength(2));
+  });
+
+  it('a second press that lands on the dialog straight after "Domain exam" neither starts the exam nor closes the dialog', async () => {
+    const clock = holdPressClock();
+    handlers['POST /api/assessments'] = () => json(201, { id: 7 });
+    renderPath();
+    const open = await domainCard(1);
+    await userEvent.click(within(open).getByRole('button', { name: 'Domain exam, Domain 1' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Start the Domain 1 exam?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Start exam' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Start exam' }));
+    expect(calls('POST /api/assessments')).toHaveLength(0);
+    expect(dialog).toBeInTheDocument();
+
+    clock.advance(1);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Start exam' }));
+    expect(await screen.findByText('exam screen 7')).toBeInTheDocument();
+    expect(calls('POST /api/assessments')).toHaveLength(1);
   });
 
   it('offers "Resume domain exam" for an exam in progress and opens it without asking or creating anything', async () => {

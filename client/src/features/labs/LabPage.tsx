@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
 import { api, ApiError, isUnavailable } from '../../api/client';
 import type { LabSubmitResponse, LabView } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { Celebration } from '../../ui/Celebration';
+import { usePressGuard } from '../../ui/pressGuard';
 import { Mark } from '../questions/FeedbackPanel';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { wholePercent } from './percent';
@@ -118,6 +119,9 @@ function LabRunner({ lab }: { lab: LabView }) {
   const resultsHeading = useRef<HTMLHeadingElement>(null);
   const celebrationBox = useRef<HTMLDivElement>(null);
   const noteId = useId();
+  // "Submit lab" gives way to the results with "Try again", and "Try again" to a new attempt with "Submit
+  // lab". A press that arrives straight after either change is ignored.
+  const guard = usePressGuard(`${attempt}:${outcome ? 'results' : 'steps'}`);
 
   // The button that was pressed is gone: focus goes to the results, or back to the top of a fresh attempt.
   useEffect(() => {
@@ -141,8 +145,8 @@ function LabRunner({ lab }: { lab: LabView }) {
     for (const key of ['dashboard', 'path', 'labs']) void queryClient.invalidateQueries({ queryKey: [key] });
   }
 
-  async function submit(e: MouseEvent) {
-    if (e.detail > 1 || sending.current || outcome) return;
+  async function submit() {
+    if (!guard.settled() || sending.current || outcome) return;
     // Only a lab with every step answered is sent: an order step counts as served, the rest as chosen.
     const sent: Record<string, Answer> = {};
     for (const step of steps) {
@@ -165,9 +169,8 @@ function LabRunner({ lab }: { lab: LabView }) {
     }
   }
 
-  function tryAgain(e: MouseEvent) {
-    // The second click of a double click on "Submit lab" can land here, once the results are shown.
-    if (e.detail > 1) return;
+  function tryAgain() {
+    if (!guard.settled()) return;
     setOutcome(null);
     setAnswers({});
     setCelebrating(false);
@@ -255,7 +258,7 @@ function LabRunner({ lab }: { lab: LabView }) {
                   : `${incomplete.length} ${incomplete.length === 1 ? 'step still needs' : 'steps still need'} an answer: ${stepList.format(incomplete)}.`}
               </p>
               {(!problem || problem.canRetry) && (
-                <Button disabled={incomplete.length > 0} aria-describedby={noteId} onClick={(e) => void submit(e)}>
+                <Button disabled={incomplete.length > 0} aria-describedby={noteId} onClick={() => void submit()}>
                   {busy ? 'Submitting…' : problem ? 'Try again' : 'Submit lab'}
                 </Button>
               )}

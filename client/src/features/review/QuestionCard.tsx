@@ -1,9 +1,10 @@
-import { useRef, useState, type MouseEvent } from 'react';
+import { useRef, useState } from 'react';
 import type { Answer } from '../../../../shared/types';
 import { api, isUnavailable } from '../../api/client';
 import type { ReviewCard, ReviewResponse } from '../../api/types';
 import { formatDay } from '../../lib/dates';
 import { Button } from '../../ui/Button';
+import { usePressGuard } from '../../ui/pressGuard';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { BOXES, cardUrl, type CardProps } from './parts';
 import { problemOf, ProblemNote, type Problem } from './ProblemNote';
@@ -28,10 +29,12 @@ export function QuestionCard({
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
   const container = useRef<HTMLDivElement>(null);
+  // Check gives way to Next in the same place, and the card itself has taken the place of the one before:
+  // a press that arrives straight after either is ignored.
+  const guard = usePressGuard(marked !== null);
 
-  async function check(e: MouseEvent) {
-    // The second click of a double click on the button before this one can land here.
-    if (e.detail > 1) return;
+  async function check() {
+    if (!guard.settled()) return;
     const answer = value ?? initialAnswer(question);
     if (sending.current || !answer || marked) return;
     sending.current = true;
@@ -53,10 +56,8 @@ export function QuestionCard({
     }
   }
 
-  function next(e: MouseEvent) {
-    // The second click of a double click on Check can land here, once the button has changed.
-    if (e.detail > 1) return;
-    onNext();
+  function next() {
+    if (guard.settled()) onNext();
   }
 
   return (
@@ -75,7 +76,7 @@ export function QuestionCard({
           <Button onClick={next}>{last ? 'Finish' : 'Next'}</Button>
         ) : (
           (!problem || problem.canRetry) && (
-            <Button disabled={!isComplete(question, value)} onClick={(e) => void check(e)}>
+            <Button disabled={!isComplete(question, value)} onClick={() => void check()}>
               {problem ? 'Try again' : 'Check'}
             </Button>
           )

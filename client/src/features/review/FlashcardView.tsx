@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef, type MouseEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { Button } from '../../ui/Button';
+import { usePressGuard } from '../../ui/pressGuard';
 
 const FACE = 'col-start-1 row-start-1 flex min-h-56 flex-col items-center justify-center gap-3 rounded-xl border bg-surface p-6 text-center';
 const EYEBROW = 'font-mono text-xs uppercase tracking-wide text-accent';
@@ -25,6 +26,9 @@ function Key({ children }: { children: string }) {
  * Shortcuts: Space or Enter shows the answer, 1 and 2 answer. They are also written on the page. They act
  * on keys pressed inside `scope` (by default the card itself) or on the page around it, never on a key
  * pressed with focus on a control elsewhere.
+ *
+ * A press or a key that arrives straight after the card appeared, or straight after its answer did, is
+ * ignored (see `usePressGuard`): a second tap on "Show answer" would otherwise land on "I knew it".
  */
 export function FlashcardView({
   term,
@@ -54,11 +58,13 @@ export function FlashcardView({
   const revealed = definition !== null;
   const answer = useRef<HTMLParagraphElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  // The buttons and the shortcut keys both come through here, so the pause is the same for both.
+  const guard = usePressGuard(revealed);
   const reveal = () => {
-    if (!busy) onReveal();
+    if (!busy && guard.settled()) onReveal();
   };
   const grade = (knewIt: boolean) => {
-    if (!busy) onGrade(knewIt);
+    if (!busy && guard.settled()) onGrade(knewIt);
   };
 
   // Reading the answer is the next thing to do: focus goes to it (which also reads it out), and the two
@@ -93,11 +99,6 @@ export function FlashcardView({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   });
-
-  /** For a button: ignores the second click of a double click, which may land on a button that has just appeared. */
-  const once = (action: () => void) => (e: MouseEvent) => {
-    if (e.detail <= 1) action();
-  };
 
   const front = (
     <>
@@ -167,7 +168,7 @@ export function FlashcardView({
         (revealed ? (
           <div className="space-y-2">
             <div role="group" aria-label="How did you do?" className="flex flex-wrap gap-3">
-              <Button aria-keyshortcuts="1" aria-disabled={busy !== null} className={WAITING} onClick={once(() => grade(true))}>
+              <Button aria-keyshortcuts="1" aria-disabled={busy !== null} className={WAITING} onClick={() => grade(true)}>
                 I knew it<Key>1</Key>
               </Button>
               <Button
@@ -175,7 +176,7 @@ export function FlashcardView({
                 aria-keyshortcuts="2"
                 aria-disabled={busy !== null}
                 className={WAITING}
-                onClick={once(() => grade(false))}
+                onClick={() => grade(false)}
               >
                 I didn't<Key>2</Key>
               </Button>
@@ -184,7 +185,7 @@ export function FlashcardView({
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <Button aria-keyshortcuts="Space Enter" aria-disabled={busy !== null} className={WAITING} onClick={once(reveal)}>
+            <Button aria-keyshortcuts="Space Enter" aria-disabled={busy !== null} className={WAITING} onClick={reveal}>
               {busy === 'reveal' ? 'Loading the answer…' : 'Show answer'}
             </Button>
             <p className="text-sm text-muted">or press Space or Enter</p>

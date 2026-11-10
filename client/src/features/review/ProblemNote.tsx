@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ApiError, isUnavailable } from '../../api/client';
 import { Button } from '../../ui/Button';
+import { usePressGuard } from '../../ui/pressGuard';
 
 /** What went wrong with a card, and what the learner can do about it. `stillDue`: skipping it leaves it due today. */
 export type Problem = { message: string; canRetry: boolean; canSkip: boolean; stillDue: boolean };
@@ -27,6 +28,8 @@ export function ProblemNote({
   onSkip(stillDue: boolean): void;
 }) {
   const note = useRef<HTMLDivElement>(null);
+  // The note appears by the card's buttons, or in their place: a press that arrives with it is ignored.
+  const guard = usePressGuard(problem);
   // Without a retry the card's own buttons are gone, and "Skip this card" is the only button here. If
   // one of the buttons that went had focus, it goes to the way forward.
   useEffect(() => {
@@ -37,12 +40,12 @@ export function ProblemNote({
     <div ref={note} role="alert" className="flex flex-wrap items-center gap-3 text-sm text-bad">
       <p>{problem.message}</p>
       {problem.canRetry && onRetry && (
-        <Button variant="secondary" onClick={onRetry}>
+        <Button variant="secondary" onClick={() => guard.settled() && onRetry()}>
           Try again
         </Button>
       )}
       {problem.canSkip && (
-        <Button variant="secondary" onClick={() => onSkip(problem.stillDue)}>
+        <Button variant="secondary" onClick={() => guard.settled() && onSkip(problem.stillDue)}>
           Skip this card
         </Button>
       )}

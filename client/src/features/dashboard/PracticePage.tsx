@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
 import { api, ApiError, isUnavailable } from '../../api/client';
 import type { AnswerResponse, PracticeResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
+import { usePressGuard } from '../../ui/pressGuard';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { useRewards } from '../rewards/RewardsProvider';
 
@@ -58,6 +59,10 @@ function PracticeSession({ questions }: { questions: PublicQuestion[] }) {
 
   const question = questions[index];
   const finished = index >= total;
+  // Check, Next and "Skip this question" take each other's place. A press that arrives straight after one
+  // of them has given way to another is ignored: it was meant for the button that was there before.
+  const skippable = problem !== null && !problem.canRetry;
+  const guard = usePressGuard(`${index}:${question && marked[question.id] ? 'marked' : skippable ? 'skip' : 'open'}`);
 
   // On a new question (or the summary), focus goes to its heading: the button that was pressed is gone.
   const shown = useRef(index);
@@ -107,7 +112,7 @@ function PracticeSession({ questions }: { questions: PublicQuestion[] }) {
 
   async function check() {
     const q = question;
-    if (!q) return;
+    if (!q || !guard.settled()) return;
     const answer = value ?? initialAnswer(q);
     if (!answer || sent.current.has(q.id)) return;
     sent.current.add(q.id);
@@ -132,9 +137,8 @@ function PracticeSession({ questions }: { questions: PublicQuestion[] }) {
     }
   }
 
-  function next(e: MouseEvent) {
-    // The second click of a double click on Check can land here, once the button has changed.
-    if (e.detail > 1) return;
+  function next() {
+    if (!guard.settled()) return;
     setValue(null);
     setProblem(null);
     setIndex(index + 1);
@@ -173,7 +177,7 @@ function PracticeSession({ questions }: { questions: PublicQuestion[] }) {
         <div className="flex flex-wrap justify-end gap-3">
           {done ? (
             <Button onClick={next}>{last ? 'Finish' : 'Next'}</Button>
-          ) : problem && !problem.canRetry ? (
+          ) : skippable ? (
             <Button variant="secondary" onClick={next}>
               Skip this question
             </Button>

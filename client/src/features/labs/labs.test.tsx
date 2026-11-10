@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Feedback, PublicQuestion } from '../../../../shared/types';
 import type { LabSubmitResponse, LabSummary, LabView, PathDomain, PathResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
+import { holdPressClock } from '../../test/pressClock';
+import { SETTLE_MS } from '../../ui/pressGuard';
 import { LabPage } from './LabPage';
 import { LabsPage } from './LabsPage';
 import { wholePercent } from './percent';
@@ -282,7 +284,7 @@ describe('labs', () => {
     expect(calls(SUBMIT)).toHaveLength(1);
   });
 
-  it('lab: a double click on Submit lab posts once, and a stray click on Try again does not throw the results away', async () => {
+  it('lab: a double click on Submit lab posts once', async () => {
     const answer = deferred<Response>();
     handlers[SUBMIT] = () => answer.promise;
     await answerAll();
@@ -294,9 +296,43 @@ describe('labs', () => {
 
     answer.resolve(json(200, submitted()));
     await screen.findByRole('heading', { level: 2, name: 'Results' });
-    fireEvent.click(button('Try again'), { detail: 2 });
-    expect(screen.getByRole('heading', { level: 2, name: 'Results' })).toBeInTheDocument();
     expect(calls(SUBMIT)).toHaveLength(1);
+  });
+
+  // Ordinary presses, sent straight after the button under them has changed. Time stands still unless the
+  // test moves it, so each press is inside or outside the settle window exactly as written.
+  it('lab: a press straight after the results appear does not throw them away, and one straight after a new attempt begins does not submit it', async () => {
+    const clock = holdPressClock();
+    // A lab whose steps are all complete as served: "Submit lab" is live from the start.
+    handlers[LAB] = () => json(200, { ...lab, steps: [s3] });
+    handlers[SUBMIT] = () => json(200, submitted({ steps: { 'lab-1-01-s3': submitted().steps['lab-1-01-s3']! } }));
+    renderAt('/labs/lab-1-01');
+    await screen.findByRole('heading', { level: 1, name: 'Classify the controls' });
+
+    // A press that arrives with the lab does not submit it unread.
+    await userEvent.click(button('Submit lab'));
+    expect(calls(SUBMIT)).toHaveLength(0);
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Submit lab'));
+    await screen.findByRole('heading', { level: 2, name: 'Results' });
+    expect(calls(SUBMIT)).toHaveLength(1);
+
+    const again = button('Try again');
+    await userEvent.click(again);
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(again);
+    expect(screen.getByRole('heading', { level: 2, name: 'Results' })).toBeInTheDocument();
+    expect(again).toBeEnabled();
+
+    clock.advance(1);
+    await userEvent.click(again);
+    expect(screen.queryByRole('heading', { level: 2, name: 'Results' })).not.toBeInTheDocument();
+    await userEvent.click(button('Submit lab'));
+    expect(calls(SUBMIT)).toHaveLength(1);
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Submit lab'));
+    await screen.findByRole('heading', { level: 2, name: 'Results' });
+    expect(calls(SUBMIT)).toHaveLength(2);
   });
 
   it('lab: keeps the answers and offers a retry when the submission cannot be sent', async () => {

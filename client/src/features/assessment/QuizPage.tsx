@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router';
 import type { Answer, Feedback } from '../../../../shared/types';
 import { api, ApiError, isUnavailable } from '../../api/client';
 import type { AnswerSaveResponse, AssessmentResult, AssessmentStarted, AssessmentView, SubmitResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
+import { usePressGuard } from '../../ui/pressGuard';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { LoadState, pathLink } from './LoadState';
 import { ResultsView } from './ResultsView';
@@ -64,6 +65,9 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
   }, [index]);
 
   const question = questions[index];
+  // Check, Next and "See results" take each other's place. A press that arrives straight after one of them
+  // has given way to the next is ignored: it was meant for the button that was there before.
+  const guard = usePressGuard(`${index}:${question && marked[question.id] ? 'marked' : 'open'}`);
   if (!question) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
@@ -89,6 +93,11 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
     }
   }
 
+  /** For a press on Check or "See results": not straight after the button appeared, and one request at a time. */
+  const guarded = async (action: () => Promise<void>) => {
+    if (guard.settled()) await exclusively(action);
+  };
+
   /** The server says this question has an answer already, or the quiz is finished: show what it holds. */
   async function showWhatTheServerHas(questionId: string) {
     const fresh = await reload();
@@ -98,7 +107,7 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
   }
 
   const check = () =>
-    exclusively(async () => {
+    guarded(async () => {
       const answer = value ?? initialAnswer(question);
       if (!answer || done) return;
       try {
@@ -124,16 +133,15 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
       if (container.current?.contains(document.activeElement)) container.current.focus();
     });
 
-  function next(e: MouseEvent) {
-    // The second click of a double click on Check can land here, once the button has changed.
-    if (e.detail > 1) return;
+  function next() {
+    if (!guard.settled()) return;
     setValue(null);
     setError('');
     setIndex(index + 1);
   }
 
   const finish = () =>
-    exclusively(async () => {
+    guarded(async () => {
       try {
         await api.post<SubmitResponse>(`assessments/${view.id}/submit`);
         await reload(); // the page now shows the results
@@ -196,10 +204,12 @@ function QuizResults({ view, result, fresh }: { view: AssessmentView; result: As
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const starting = useRef(false);
+  // The results take the place of the last question: a press that arrives with them does not start a new quiz.
+  const guard = usePressGuard();
 
   async function retake() {
     // The button is not disabled meanwhile: a disabled button would drop keyboard focus.
-    if (starting.current) return;
+    if (starting.current || !guard.settled()) return;
     starting.current = true;
     setError('');
     try {

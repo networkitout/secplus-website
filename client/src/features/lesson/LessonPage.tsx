@@ -6,18 +6,10 @@ import { api, ApiError, isUnavailable } from '../../api/client';
 import type { AssessmentStarted, LessonProgressResponse, LessonResponse, Rewards } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { Celebration } from '../../ui/Celebration';
+import { usePressGuard } from '../../ui/pressGuard';
 import type { CheckResult } from './InlineCheck';
 import { SectionView } from './SectionView';
 import { isTransient } from './transient';
-
-/**
- * After the screen changes, presses on the lesson's own buttons are ignored for this long. A double click
- * or double tap, or a held Enter key, sends its second press when the next screen may already be showing;
- * without the pause that press would move on (or start the quiz) unseen. A time window is used because it
- * works the same for mouse, touch and keyboard: the click count in `event.detail` is 0 for the keyboard
- * and is not counted alike for touch in every browser.
- */
-const SETTLE_MS = 500;
 
 const pathLink = (
   <Link to="/" className="text-accent underline underline-offset-2">
@@ -120,10 +112,13 @@ function LessonPlayer({
   const celebrationBox = useRef<HTMLDivElement>(null);
   const hintId = useId();
 
-  // Read by the button handlers. Refs, not state, so that a press always sees the current values, even one
+  // Read by the button handlers. A ref, not state, so that a press always sees the current value, even one
   // that is handled before the next render.
   const busy = useRef(false);
-  const changedAt = useRef<number | null>(null);
+  // After the screen changes, presses on the lesson's own buttons are ignored for a moment: the second
+  // press of a double click or double tap, or of a held Enter key, arrives when the next screen may already
+  // be showing, and would move on (or start the quiz) unseen.
+  const guard = usePressGuard(index);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -141,11 +136,13 @@ function LessonPlayer({
 
   /** False while a request of this screen is on its way, and for a moment after the screen changed. */
   function ready(): boolean {
-    return !busy.current && (changedAt.current === null || performance.now() - changedAt.current >= SETTLE_MS);
+    return !busy.current && guard.settled();
   }
 
   function show(to: number) {
-    changedAt.current = performance.now();
+    // The pause begins here, not only when the new screen is in the page: `busy` has just been released,
+    // and a press that is handled before the next render must find the lesson closed to it.
+    guard.restart();
     setSaveError(null);
     setIndex(to);
   }

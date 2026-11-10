@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Feedback, LessonProgressView, LessonView, PublicQuestion } from '../../../../shared/types';
 import type { LessonResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
+import { holdPressClock } from '../../test/pressClock';
+import { SETTLE_MS } from '../../ui/pressGuard';
 import { PathPage } from '../path/PathPage';
 import { InlineCheck } from './InlineCheck';
 import { LessonPage } from './LessonPage';
@@ -87,20 +89,18 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 
   // The player ignores presses for a moment after the screen changes (so that the second click of a
-  // double click cannot act on the next screen). `read()` lets that moment pass without waiting.
-  const now = performance.now.bind(performance);
-  readingTime = 0;
-  vi.spyOn(performance, 'now').mockImplementation(() => now() + readingTime);
+  // double click cannot act on the next screen). Here that moment only passes when a test says so, with
+  // `read()`: a press without it comes straight after the change.
+  clock = holdPressClock();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-let readingTime = 0;
-const read = () => {
-  readingTime += 5000;
-};
+let clock: ReturnType<typeof holdPressClock>;
+/** The learner takes the time to read what is on screen. */
+const read = () => clock.advance(5000);
 
 /** A response that the test releases when it chooses. */
 function deferred(status: number, body: unknown) {
@@ -440,8 +440,11 @@ describe('lesson: pressing a control twice', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'The CIA triad' })).toBeInTheDocument();
     expect(screen.getByText('Section 2 of 3')).toBeInTheDocument();
 
-    // Once the learner has had time to see the section, Next works again.
-    read();
+    // Once the learner has had time to see the section, Next works again: not a moment before.
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(next());
+    expect(screen.getByRole('heading', { level: 2, name: 'The CIA triad' })).toBeInTheDocument();
+    clock.advance(1);
     await userEvent.click(next());
     expect(await screen.findByRole('heading', { level: 2, name: 'Summary' })).toBeInTheDocument();
   });
@@ -460,9 +463,45 @@ describe('lesson: pressing a control twice', () => {
     expect(requests('POST /api/assessments')).toHaveLength(0);
     expect(screen.getByRole('heading', { level: 2, name: "You've finished this lesson" })).toBeInTheDocument();
 
-    read();
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(screen.getByRole('button', { name: 'Take the quiz' }));
+    expect(requests('POST /api/assessments')).toHaveLength(0);
+    clock.advance(1);
     await userEvent.click(screen.getByRole('button', { name: 'Take the quiz' }));
     expect(await screen.findByText('quiz screen 12')).toBeInTheDocument();
+  });
+
+  it('a press that lands on a check straight after its section appeared does not mark it unseen', async () => {
+    const sections = lesson().sections;
+    // An order question is complete as it is served, so its "Check answer" is live from the start.
+    sections[1]!.blocks = [{ kind: 'check', question: order }];
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1'], { sections }));
+    handlers['POST /api/answers'] = () =>
+      json(200, { feedback: { correct: false, fraction: 0, correctAnswer: { type: 'order', order: ['a', 'b', 'c'] }, explanation: 'Request comes first.' }, xp: 0, newBadges: [] });
+    renderLesson();
+    // The lesson opens on the section with the check: a press that arrives with it is ignored.
+    await screen.findByRole('heading', { level: 2, name: 'The CIA triad' });
+    const check = screen.getByRole('button', { name: 'Check answer' });
+    expect(check).toBeEnabled();
+    await userEvent.click(check);
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(check);
+    expect(requests('POST /api/answers')).toHaveLength(0);
+    expect(check).toBeEnabled();
+
+    // The same when the section is reached from another one: the press was meant for that one's button.
+    clock.advance(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Previous' }));
+    await sectionHeading('Control categories');
+    await userEvent.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'The CIA triad' });
+    await userEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    expect(requests('POST /api/answers')).toHaveLength(0);
+
+    clock.advance(SETTLE_MS);
+    await userEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    expect(await within(screen.getByRole('status', { name: 'Result' })).findByText('Request comes first.')).toBeInTheDocument();
+    expect(requests('POST /api/answers')).toHaveLength(1);
   });
 
   it('two presses on Next while the save is still on its way post once, and say that it is saving', async () => {
@@ -737,6 +776,7 @@ describe('lesson: second review round', () => {
     // The parent here never passes `result` back, which holds the check in the moment between the
     // response and the page's next render: the button is still there.
     render(<InlineCheck question={single} onAnswered={onAnswered} />);
+    read();
     await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
     const button = screen.getByRole('button', { name: 'Check answer' });
     await userEvent.click(button);
@@ -752,8 +792,10 @@ describe('lesson: second review round', () => {
   it('a failed check can be sent again', async () => {
     handlers['POST /api/answers'] = () => json(503, { error: 'Service unavailable' });
     render(<InlineCheck question={single} onAnswered={vi.fn()} />);
+    read();
     await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
     await userEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    // Straight away: a failure does not start the pause again.
     await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(requests('POST /api/answers')).toHaveLength(2));
   });

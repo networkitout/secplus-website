@@ -7,6 +7,8 @@ import type { Feedback, PublicQuestion } from '../../../../shared/types';
 import type { ReviewCard, ReviewDueResponse, ReviewResponse } from '../../api/types';
 import { formatDay } from '../../lib/dates';
 import { createQueryClient } from '../../queryClient';
+import { holdPressClock } from '../../test/pressClock';
+import { SETTLE_MS } from '../../ui/pressGuard';
 import { ReviewPage } from './ReviewPage';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
@@ -377,8 +379,6 @@ describe('review', () => {
     await userEvent.dblClick(button('Show answer'));
     await screen.findByText('A measure put in place to reduce risk.');
     expect(calls(reveal(first))).toHaveLength(1);
-    // The second half of a double click that lands on a button which has just appeared is ignored.
-    fireEvent.click(button('I knew it'), { detail: 2 });
     expect(writes()).toEqual([]);
 
     await userEvent.dblClick(button("I didn't"));
@@ -426,7 +426,7 @@ describe('review', () => {
     expect(writes()).toEqual([post(first)]);
   });
 
-  it('a double click on Check posts once and does not skip the feedback; an untouched order question sends its served order', async () => {
+  it('a double click on Check posts once; an untouched order question sends its served order', async () => {
     const [first, second] = [questionCard(single), questionCard(order)];
     serve([first, second]);
     const answer = deferred<Response>();
@@ -444,14 +444,9 @@ describe('review', () => {
     answer.resolve(json(200, moved(2, '2026-11-12', 2, { feedback: right })));
     expect(await within(result()).findByText('Correct')).toBeInTheDocument();
     expect(screen.getByText(/Now in box 2 of 5\. Due again .*\b12\b/)).toBeInTheDocument();
-    fireEvent.click(button('Next'), { detail: 2 });
-    expect(screen.getByRole('heading', { level: 2, name: 'Card 1 of 2: question' })).toBeInTheDocument();
-    fireEvent.click(button('Next'), { detail: 1 });
+    await userEvent.click(button('Next'));
 
     await cardHeading('Card 2 of 2: question');
-    // A stray extra click that lands on the next card's Check does not grade it.
-    fireEvent.click(button('Check'), { detail: 2 });
-    expect(calls(post(second))).toHaveLength(0);
     await userEvent.click(button('Check'));
     expect(await within(result()).findByText('Request comes first.')).toBeInTheDocument();
     expect(bodies(post(second))).toEqual([{ answer: { type: 'order', order: ['c', 'a', 'b'] } }]);
@@ -818,5 +813,151 @@ describe('review', () => {
     }
     // Something that is not a date is shown as it came, not as "Invalid Date".
     expect(formatDay('soon')).toBe('soon');
+  });
+});
+
+// Ordinary presses, sent straight after the button under them has changed. Time stands still unless the
+// test moves it, so each press is inside or outside the settle window exactly as written.
+describe('review: a press that lands on a button which has just appeared', () => {
+  it('"Show answer" pressed twice does not grade the card unseen', async () => {
+    const clock = holdPressClock();
+    const [first, second] = [flash(1), flash(2)];
+    serve([first, second]);
+    handlers[post(first)] = () => json(200, moved(2, '2026-11-12', 2));
+    renderReview();
+    await cardHeading('Card 1 of 2: flashcard');
+    clock.advance(SETTLE_MS);
+
+    await userEvent.click(button('Show answer'));
+    // "I knew it" is now where "Show answer" was; the second press lands on it.
+    const knewIt = await screen.findByRole('button', { name: 'I knew it' });
+    await userEvent.click(knewIt);
+    await userEvent.click(button("I didn't"));
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(knewIt);
+    expect(writes()).toEqual([]);
+    // Nothing else came of the ignored presses: the card is still open, and the button is not switched off.
+    expect(screen.getByRole('heading', { level: 2, name: 'Card 1 of 2: flashcard' })).toBeInTheDocument();
+    expect(knewIt).toBeEnabled();
+    expect(knewIt).not.toHaveAttribute('aria-disabled', 'true');
+    expect(knewIt).toHaveFocus();
+
+    clock.advance(1);
+    await userEvent.click(knewIt);
+    await cardHeading('Card 2 of 2: flashcard');
+    expect(bodies(post(first))).toEqual([{ knewIt: true }]);
+
+    // The press that follows at once lands on the next card's "Show answer": it stays hidden.
+    await userEvent.click(button('Show answer'));
+    expect(calls(reveal(second))).toHaveLength(0);
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Show answer'));
+    expect(await screen.findByText('How a control is implemented.')).toBeInTheDocument();
+  });
+
+  it('the shortcut keys keep to the same pause: a key straight after the answer appears does not grade', async () => {
+    const clock = holdPressClock();
+    const [first, second] = [flash(1), flash(2)];
+    serve([first, second]);
+    handlers[post(first)] = () => json(200, moved(1, '2026-11-11', 0));
+    renderReview();
+    await cardHeading('Card 1 of 2: flashcard');
+
+    // A key that arrives with the card does not show its answer.
+    await userEvent.keyboard(' ');
+    await userEvent.keyboard('{Enter}');
+    expect(calls(reveal(first))).toHaveLength(0);
+    clock.advance(SETTLE_MS);
+    await userEvent.keyboard(' ');
+    await screen.findByText('A measure put in place to reduce risk.');
+
+    await userEvent.keyboard('1');
+    await userEvent.keyboard('2');
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.keyboard('1');
+    expect(writes()).toEqual([]);
+    clock.advance(1);
+    await userEvent.keyboard('2');
+    await cardHeading('Card 2 of 2: flashcard');
+    expect(bodies(post(first))).toEqual([{ knewIt: false }]);
+
+    // And the key that follows at once does not show the next card's answer.
+    await userEvent.keyboard('{Enter}');
+    expect(calls(reveal(second))).toHaveLength(0);
+  });
+
+  it('Check then an immediate second press does not skip the feedback, and Next then an immediate press does not grade an untouched order question', async () => {
+    const clock = holdPressClock();
+    const [first, second] = [questionCard(single), questionCard(order)];
+    serve([first, second]);
+    handlers[post(first)] = () => json(200, moved(2, '2026-11-12', 2, { feedback: right }));
+    handlers[post(second)] = () =>
+      json(200, moved(1, '2026-11-11', 0, {
+        feedback: { correct: false, fraction: 0, correctAnswer: { type: 'order', order: ['a', 'b', 'c'] }, explanation: 'Request comes first.' },
+      }));
+    renderReview();
+    await cardHeading('Card 1 of 2: question');
+    clock.advance(SETTLE_MS);
+    await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
+    await userEvent.click(button('Check'));
+
+    // "Next" is now where "Check" was.
+    const next = await screen.findByRole('button', { name: 'Next' });
+    await userEvent.click(next);
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(next);
+    expect(screen.getByRole('heading', { level: 2, name: 'Card 1 of 2: question' })).toBeInTheDocument();
+    expect(within(result()).getByText('Correct')).toBeInTheDocument();
+    expect(next).toBeEnabled();
+
+    clock.advance(1);
+    await userEvent.click(next);
+    await cardHeading('Card 2 of 2: question');
+    // The order question is complete as it was served: its Check is live, and must not be pressed unseen.
+    expect(button('Check')).toBeEnabled();
+    await userEvent.click(button('Check'));
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(button('Check'));
+    expect(calls(post(second))).toHaveLength(0);
+    expect(result()).toBeEmptyDOMElement();
+
+    clock.advance(1);
+    await userEvent.click(button('Check'));
+    expect(await within(result()).findByText('Request comes first.')).toBeInTheDocument();
+    expect(calls(post(second))).toHaveLength(1);
+  });
+
+  it('a press straight after a card could not be saved does not skip it, and one straight after the summary appears does not load more', async () => {
+    const clock = holdPressClock();
+    const first = flash(1);
+    serve([first], 31);
+    handlers[post(first)] = () => json(500, { error: 'Internal error' });
+    renderReview();
+    await cardHeading('Card 1 of 1: flashcard');
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Show answer'));
+    await screen.findByRole('button', { name: 'I knew it' });
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('I knew it'));
+
+    // The note with "Try again" and "Skip this card" appears where the answer buttons were.
+    const skip = await screen.findByRole('button', { name: 'Skip this card' });
+    await userEvent.click(skip);
+    await userEvent.click(button('Try again'));
+    expect(screen.getByRole('heading', { level: 2, name: 'Card 1 of 1: flashcard' })).toBeInTheDocument();
+    expect(calls(post(first))).toHaveLength(1);
+
+    clock.advance(SETTLE_MS);
+    await userEvent.click(skip);
+    await screen.findByRole('heading', { level: 2, name: 'Review complete' });
+    await userEvent.click(button('Review more'));
+    expect(calls(DUE)).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Loading more cards…' })).not.toBeInTheDocument();
+
+    clock.advance(SETTLE_MS);
+    serve([flash(2)], 30);
+    await userEvent.click(button('Review more'));
+    await cardHeading('Card 1 of 1: flashcard');
+    expect(calls(DUE)).toHaveLength(2);
   });
 });

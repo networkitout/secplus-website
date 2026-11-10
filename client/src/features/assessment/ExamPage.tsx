@@ -5,6 +5,7 @@ import type { Answer } from '../../../../shared/types';
 import { api } from '../../api/client';
 import type { AssessmentResult, AssessmentView, SubmitResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
+import { usePressGuard } from '../../ui/pressGuard';
 import { SaveIndicator } from '../../ui/SaveIndicator';
 import { QuestionView } from '../questions/QuestionView';
 import { answerState } from './answerState';
@@ -143,6 +144,9 @@ function ExamRunner({
   const heading = useRef<HTMLHeadingElement>(null);
   const status = useRef<HTMLParagraphElement>(null);
   const headingId = useId();
+  // Each phase of a submission brings its own buttons (Cancel; the three about unsaved answers; Try again),
+  // often where the ones before were. A press that arrives straight after a phase began is ignored.
+  const guard = usePressGuard(phase);
 
   // The saves tell the page that is open when the server refuses one because the exam is over.
   useEffect(() => {
@@ -262,12 +266,14 @@ function ExamRunner({
   }
 
   function saveAgain() {
+    if (!guard.settled()) return;
     backToQuestion();
     saves.retry();
     void submit();
   }
 
   function cancel() {
+    if (!guard.settled()) return;
     backToQuestion();
     attempt.current++;
     setPhase(null);
@@ -346,6 +352,7 @@ function ExamRunner({
             <Button
               variant="secondary"
               onClick={() => {
+                if (!guard.settled()) return;
                 backToQuestion();
                 void submit({ anyway: true });
               }}
@@ -355,6 +362,7 @@ function ExamRunner({
             <Button
               variant="secondary"
               onClick={() => {
+                if (!guard.settled()) return;
                 backToQuestion();
                 setPhase(null);
               }}
@@ -376,6 +384,7 @@ function ExamRunner({
           <Button
             variant="secondary"
             onClick={() => {
+              if (!guard.settled()) return;
               backToQuestion();
               // Once the exam is finalized there is nothing to submit again, only results to read.
               void (phase === 'unread' ? readResults(ended ?? 'closed') : submit());

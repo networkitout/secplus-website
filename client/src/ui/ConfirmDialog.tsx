@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Button } from './Button';
+import { usePressGuard } from './pressGuard';
 
 /** What Tab stops at: the body may hold links and fields besides the dialog's own two buttons. */
 const FOCUSABLE =
@@ -9,6 +10,10 @@ const FOCUSABLE =
  * Asks before something that cannot be taken back. A modal dialog: focus starts on the choice that changes
  * nothing, Tab stays inside, Escape cancels, and focus goes back to where it was when the dialog closes.
  * Render it only while it is open.
+ *
+ * It opens over the button that was pressed. A press that arrives straight after it opened (the second half
+ * of a double click or double tap, a held Enter) is ignored: it neither confirms nor cancels. Escape is a
+ * key of its own and works at once.
  */
 export function ConfirmDialog({
   title,
@@ -32,6 +37,7 @@ export function ConfirmDialog({
   const titleId = useId();
   const bodyId = useId();
   const box = useRef<HTMLDivElement>(null);
+  const guard = usePressGuard();
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -75,7 +81,7 @@ export function ConfirmDialog({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel();
+        if (e.target === e.currentTarget && guard.settled()) onCancel();
       }}
     >
       <div
@@ -94,10 +100,10 @@ export function ConfirmDialog({
           {children}
         </div>
         <div className="flex flex-wrap justify-end gap-3">
-          <Button variant="secondary" data-autofocus onClick={onCancel}>
+          <Button variant="secondary" data-autofocus onClick={() => guard.settled() && onCancel()}>
             {cancelLabel}
           </Button>
-          <Button aria-busy={busy} onClick={() => !busy && onConfirm()}>
+          <Button aria-busy={busy} onClick={() => !busy && guard.settled() && onConfirm()}>
             {confirmLabel}
           </Button>
         </div>

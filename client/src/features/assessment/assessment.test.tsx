@@ -8,6 +8,8 @@ import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types'
 import { api } from '../../api/client';
 import type { AssessmentResult, AssessmentView, DashboardMocks, MockHistoryEntry, PathDomain, PathResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
+import { holdPressClock } from '../../test/pressClock';
+import { SETTLE_MS } from '../../ui/pressGuard';
 import { ExamLobbyPage } from './ExamLobbyPage';
 import { examSaves } from './examSaves';
 import { ExamPage } from './ExamPage';
@@ -368,7 +370,7 @@ describe('quiz', () => {
     expect(screen.getByText('Quiz passed')).toBeInTheDocument();
   });
 
-  it('a double click on Check sends one answer and does not skip the feedback', async () => {
+  it('a double click on Check sends one answer', async () => {
     const open = quiz(2);
     const answer = deferred<Response>();
     handlers['GET /api/assessments/12'] = () => json(200, open);
@@ -381,11 +383,73 @@ describe('quiz', () => {
 
     answer.resolve(json(200, { feedback: marked(open.questions[0]!, false) }));
     expect(await within(result()).findByText('Alpha was the answer.')).toBeInTheDocument();
-    // The second half of a double click that lands on the button after it has become "Next" is ignored.
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }), { detail: 2 });
-    expect(screen.getByRole('heading', { level: 2, name: 'Question 1 of 2' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }), { detail: 1 });
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(await heading('Question 2 of 2')).toBeInTheDocument();
+  });
+
+  // Ordinary presses, sent straight after the button under them has changed. Time stands still unless the
+  // test moves it, so each press is inside or outside the settle window exactly as written.
+  it('a press straight after the button changed is ignored: Check does not run into Next or "See results", Next does not grade an untouched order question', async () => {
+    const clock = holdPressClock();
+    const open = quiz(2, { questions: [single(1), order] });
+    const done = finished(open, 1);
+    handlers['GET /api/assessments/12'] = () => json(200, open);
+    handlers['PUT /api/assessments/12/answers'] = (_url, init) =>
+      json(200, { feedback: marked(JSON.parse(String(init!.body)).questionId === order.id ? order : single(1), true) });
+    handlers['POST /api/assessments/12/submit'] = () => json(200, { result: done.result });
+    renderAt('/quiz/12');
+    await heading('Question 1 of 2');
+    clock.advance(SETTLE_MS);
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await userEvent.click(button('Check'));
+
+    // "Next" is now where "Check" was.
+    const next = await screen.findByRole('button', { name: 'Next' });
+    await userEvent.click(next);
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(next);
+    expect(screen.getByRole('heading', { level: 2, name: 'Question 1 of 2' })).toBeInTheDocument();
+    expect(within(result()).getByText('Alpha is right.')).toBeInTheDocument();
+    expect(next).toBeEnabled();
+
+    clock.advance(1);
+    await userEvent.click(next);
+    await heading('Question 2 of 2');
+    // The order question is complete as it was served: its Check is live, and must not be pressed unseen.
+    expect(button('Check')).toBeEnabled();
+    await userEvent.click(button('Check'));
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(button('Check'));
+    expect(calls('PUT /api/assessments/12/answers')).toHaveLength(1);
+    expect(result()).toBeEmptyDOMElement();
+
+    clock.advance(1);
+    await userEvent.click(button('Check'));
+    expect(await within(result()).findByText('Request comes first.')).toBeInTheDocument();
+    expect(calls('PUT /api/assessments/12/answers')).toHaveLength(2);
+
+    // On the last question "See results" takes the place of "Check": the feedback is not skipped either.
+    const finish = screen.getByRole('button', { name: 'See results' });
+    await userEvent.click(finish);
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(finish);
+    expect(calls('POST /api/assessments/12/submit')).toHaveLength(0);
+
+    clock.advance(1);
+    handlers['GET /api/assessments/12'] = () => json(200, done);
+    handlers['POST /api/assessments'] = () => json(201, { id: 13 });
+    handlers['GET /api/assessments/13'] = () => json(200, quiz(2, { id: 13 }));
+    await userEvent.click(finish);
+    await heading('Objective 1.1 quiz results', 1);
+    expect(calls('POST /api/assessments/12/submit')).toHaveLength(1);
+
+    // A press that arrives with the results does not start the quiz again.
+    await userEvent.click(button('Retake'));
+    expect(calls('POST /api/assessments')).toHaveLength(0);
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Retake'));
+    await heading('Question 1 of 2');
+    expect(calls('POST /api/assessments')).toHaveLength(1);
   });
 
   it('shows what the server already holds when a question was answered elsewhere (409), without an error', async () => {
@@ -1050,6 +1114,62 @@ describe('exam', () => {
     await userEvent.click(button('Submit anyway'));
     expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
     expect(writes()).toEqual([SAVE, SUBMIT]);
+  });
+
+  it('a press straight after a prompt appeared is ignored: "Submit now", "Submit anyway", "Keep working" and "Try again" need a moment first', async () => {
+    const clock = holdPressClock();
+    const open = exam();
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SAVE] = () => json(400, { error: 'Question is not part of this assessment' });
+    handlers[SUBMIT] = () => {
+      throw new TypeError('Failed to fetch');
+    };
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await screen.findByText("Couldn't save one of your answers.");
+
+    // The dialog opens over the page; a second press that lands on "Submit now" does not submit.
+    await userEvent.click(button('Submit exam'));
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Keep working' }));
+    expect(dialog()).toBeInTheDocument();
+    expect(submission()).toBeEmptyDOMElement();
+    clock.advance(SETTLE_MS);
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+
+    // The answer could not be saved: three buttons appear with the question about it.
+    await screen.findByRole('alert');
+    await userEvent.click(button('Submit anyway'));
+    await userEvent.click(button('Try saving again'));
+    await userEvent.click(button('Keep working'));
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(button('Submit anyway'));
+    expect(writes()).toEqual([SAVE]);
+    expect(screen.getByRole('alert')).toHaveTextContent('Your answer to question 1 could not be saved.');
+
+    clock.advance(1);
+    await userEvent.click(button('Submit anyway'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't submit your exam."));
+    expect(writes()).toEqual([SAVE, SUBMIT]);
+
+    // "Try again" has appeared for the failed submission.
+    await userEvent.click(button('Try again'));
+    expect(calls(SUBMIT)).toHaveLength(1);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't submit your exam.");
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Try again'));
+    // The answer is still not saved, so the question about it comes back, and its buttons with it.
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Your answer to question 1 could not be saved.'));
+    handlers[SAVE] = () => json(200, { saved: true });
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 0).result });
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 0));
+    await userEvent.click(button('Try saving again'));
+    expect(writes()).toEqual([SAVE, SUBMIT]);
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('Try saving again'));
+    expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
+    expect(writes()).toEqual([SAVE, SUBMIT, SAVE, SUBMIT]);
   });
 
   it('keeps the learner in the exam with a retry when the submission cannot be sent', async () => {

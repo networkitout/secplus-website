@@ -3,6 +3,7 @@ import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types'
 import { api } from '../../api/client';
 import type { AnswerResponse, Rewards } from '../../api/types';
 import { Button } from '../../ui/Button';
+import { usePressGuard } from '../../ui/pressGuard';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { isTransient } from './transient';
 
@@ -28,11 +29,14 @@ export function InlineCheck({
   const inFlight = useRef(false);
   const container = useRef<HTMLElement>(null);
   const headingId = useId();
+  // The check arrives with its section: a press that was meant for the section before it (a second tap on
+  // Next) must not mark it unseen. A failed attempt does not start the pause again, so "Try again" works at once.
+  const guard = usePressGuard();
 
   async function check() {
     const answer = value ?? initialAnswer(question);
     // A second press while the first answer is on its way, or after it has been marked, must not send it again.
-    if (inFlight.current || !answer) return;
+    if (inFlight.current || !answer || !guard.settled()) return;
     inFlight.current = true;
     setSending(true);
     try {
