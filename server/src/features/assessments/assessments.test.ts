@@ -203,7 +203,9 @@ test('unanswered questions count as wrong', async () => {
   const ids = idsOf((await agent.get(`/api/assessments/${a.body.id}`)).body);
   await answer(agent, content, a.body.id, ids, 7);
   const res = await agent.post(`/api/assessments/${a.body.id}/submit`);
-  expect(res.body.result).toMatchObject({ scorePct: 70, passed: false });
+  // No pass bonus; what the seven correct answers earned (10 XP times the difficulty, first time correct) is reported.
+  const answersXp = ids.slice(0, 7).reduce((sum, id) => sum + 10 * content.questions.get(id)!.difficulty, 0);
+  expect(res.body.result).toMatchObject({ scorePct: 70, passed: false, xp: answersXp, newBadges: [] });
   const full = await agent.get(`/api/assessments/${a.body.id}`);
   const missed = ids[9]!;
   expect(full.body.feedback[missed]).toMatchObject({ correct: false, fraction: 0 });

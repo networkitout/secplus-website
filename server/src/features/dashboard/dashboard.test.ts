@@ -1,8 +1,10 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import type { Answer, Question } from '../../../../shared/types.js';
 import { BADGES } from '../../services/xp.js';
 import { CSRF_HEADER, CSRF_VALUE } from '../../http.js';
+import { pickMock, seededRng } from '../../services/assembler.js';
 import { createUser, loginAs, testApp } from '../../test/helpers.js';
+import { mockSpec } from '../assessments/repo.js';
 
 const t0 = new Date('2026-11-10T12:00:00Z');
 
@@ -198,6 +200,67 @@ test('dashboard: mockSpec states what a mock exam started now would be', async (
   expect((await s.agent.get('/api/dashboard')).body.mockSpec).toEqual({ questions: 4, minutes: 4, partial: false });
   for (const d of s.content.manifest.domains) for (const o of d.objectives) o.published = false;
   expect((await s.agent.get('/api/dashboard')).body.mockSpec).toEqual({ questions: 0, minutes: 0, partial: true });
+});
+
+test('mockSpec gives the counts that assembling a mock gives, without assembling one', async () => {
+  const { content } = await setup();
+  const assembled = () => {
+    const m = pickMock(content, new Map(), seededRng('any'));
+    return { questions: m.questionIds.length, minutes: m.minutes, partial: m.partial };
+  };
+  expect(mockSpec(content)).toEqual(assembled());
+  expect(mockSpec(content)).toEqual({ questions: 4, minutes: 4, partial: true });
+  // A domain that asks for more questions than it has gives what it has.
+  content.manifest.domains[0]!.mockCount = 30;
+  expect(mockSpec(content)).toEqual(assembled());
+  expect(mockSpec(content)).toEqual({ questions: 24, minutes: 24, partial: true });
+  // One objective unpublished: its questions are out of the pool.
+  content.manifest.domains[0]!.objectives[1]!.published = false;
+  expect(mockSpec(content)).toEqual(assembled());
+  expect(mockSpec(content).questions).toBe(12);
+  content.manifest.domains.splice(1);
+  expect(mockSpec(content)).toEqual(assembled());
+  expect(mockSpec(content).partial).toBe(false);
+});
+
+test('a failure while closing an expired exam does not fail the dashboard or the path; the exam is closed by a later request', async () => {
+  const s = await setup();
+  const mock = await s.agent.post('/api/assessments').send({ kind: 'mock' });
+  const exam = await s.agent.post('/api/assessments').send({ kind: 'domain', scope: '1' });
+  s.setNow(minutes(30)); // both are past their deadlines
+  const submitted = async () =>
+    (await s.db.query<{ submitted_at: Date | null }>('SELECT submitted_at FROM assessments WHERE id IN (?, ?) ORDER BY id', [mock.body.id, exam.body.id])).map(
+      (r) => r.submitted_at !== null,
+    );
+
+  // Closing an exam runs in a transaction; this one fails the way a deadlock does.
+  const tx = s.db.tx;
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  s.db.tx = async () => {
+    throw Object.assign(new Error('Deadlock found when trying to get lock; try restarting transaction'), { code: 'ER_LOCK_DEADLOCK' });
+  };
+  try {
+    const dash = await s.agent.get('/api/dashboard');
+    expect(dash.status).toBe(200);
+    expect(dash.body.openMock).toBeNull();
+    expect(dash.body.mockHistory).toEqual([]);
+    const path = await s.agent.get('/api/path');
+    expect(path.status).toBe(200);
+    expect(path.body.domains[0]).toMatchObject({ openExam: null, examPassed: false });
+    // Each failure is logged like any other unexpected server error.
+    expect(logged).toHaveBeenCalledTimes(2);
+    expect(String(logged.mock.calls[0]![0])).toContain('Deadlock');
+  } finally {
+    s.db.tx = tx;
+    logged.mockRestore();
+  }
+  expect(await submitted()).toEqual([false, false]);
+
+  const later = await s.agent.get('/api/dashboard');
+  expect(later.body.openMock).toBeNull();
+  expect(later.body.mockHistory.map((m: any) => m.id)).toEqual([mock.body.id]);
+  expect((await s.agent.get('/api/path')).body.domains[0].openExam).toBeNull();
+  expect(await submitted()).toEqual([true, true]);
 });
 
 test('dashboard mastery, weakest, level, badges and study plan reflect activity', async () => {

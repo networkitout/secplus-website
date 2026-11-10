@@ -1,6 +1,10 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Button } from './Button';
 
+/** What Tab stops at: the body may hold links and fields besides the dialog's own two buttons. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 /**
  * Asks before something that cannot be taken back. A modal dialog: focus starts on the choice that changes
  * nothing, Tab stays inside, Escape cancels, and focus goes back to where it was when the dialog closes.
@@ -31,7 +35,7 @@ export function ConfirmDialog({
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    box.current?.querySelector('button')?.focus();
+    box.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
     return () => opener?.focus();
   }, []);
 
@@ -49,12 +53,12 @@ export function ConfirmDialog({
         return;
       }
       if (e.key !== 'Tab') return;
-      const buttons = [...(box.current?.querySelectorAll('button') ?? [])];
-      const first = buttons[0];
-      const last = buttons[buttons.length - 1];
+      const controls = [...(box.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
+      const first = controls[0];
+      const last = controls[controls.length - 1];
       if (!first || !last) return;
       const active = document.activeElement;
-      const onControl = active instanceof HTMLButtonElement && box.current?.contains(active);
+      const onControl = controls.some((control) => control === active);
       if (e.shiftKey && (active === first || !onControl)) {
         e.preventDefault();
         last.focus();
@@ -90,7 +94,7 @@ export function ConfirmDialog({
           {children}
         </div>
         <div className="flex flex-wrap justify-end gap-3">
-          <Button variant="secondary" onClick={onCancel}>
+          <Button variant="secondary" data-autofocus onClick={onCancel}>
             {cancelLabel}
           </Button>
           <Button aria-busy={busy} onClick={() => !busy && onConfirm()}>

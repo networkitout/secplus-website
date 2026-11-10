@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
 import type { AssessmentView } from '../../api/types';
 
@@ -55,17 +55,26 @@ export function useAssessment(id: string) {
     [queryClient],
   );
 
+  // True while `reload` is under way. Only an open assessment is re-read, so a result that turns up
+  // meanwhile is new, whether this hook hears of it from the read itself or from the render it causes.
+  const reloading = useRef(false);
+
   // An exam that the server finalized while the learner was away arrives finalized on the first read.
   useEffect(() => {
-    if (view) noteFinalized(view, false);
+    if (view) noteFinalized(view, reloading.current);
   }, [view, noteFinalized]);
 
-  /** Reads the assessment again. Only an open assessment is re-read, so a result it returns is new. Rejects on failure. */
+  /** Reads the assessment again. Rejects on failure. */
   const reload = useCallback(async (): Promise<AssessmentView> => {
-    const { data } = await refetch({ throwOnError: true });
-    if (!data) throw new Error('The assessment could not be read');
-    noteFinalized(data.view, true);
-    return data.view;
+    reloading.current = true;
+    try {
+      const { data } = await refetch({ throwOnError: true });
+      if (!data) throw new Error('The assessment could not be read');
+      noteFinalized(data.view, true);
+      return data.view;
+    } finally {
+      reloading.current = false;
+    }
   }, [refetch, noteFinalized]);
 
   return { query, view, clockOffsetMs: query.data?.clockOffsetMs ?? null, reload, finishedHere };

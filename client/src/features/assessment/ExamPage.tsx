@@ -8,7 +8,7 @@ import { Button } from '../../ui/Button';
 import { SaveIndicator } from '../../ui/SaveIndicator';
 import { QuestionView } from '../questions/QuestionView';
 import { answerState } from './answerState';
-import { discardExamSaves, examSaves } from './examSaves';
+import { closeExamSaves, examSaves } from './examSaves';
 import { ExamTimer } from './ExamTimer';
 import { LoadState, pathLink } from './LoadState';
 import { FlagIcon, QuestionNavigator } from './QuestionNavigator';
@@ -18,8 +18,8 @@ import { useAssessment } from './useAssessment';
 
 const examName = (view: AssessmentView) => (view.kind === 'mock' ? 'Practice exam' : `Domain ${view.scope} exam`);
 
-/** When the time is up, how long a last attempt to save a rejected answer may hold up the submission. */
-const LAST_SAVE_MS = 3000;
+/** When the time is up, how long the saves still under way, one retry of a rejected one included, may hold up the submission. */
+const LAST_SAVES_MS = 3000;
 /** A submission that has had no answer for this long is given up; submitting again is safe (the server repeats the result). */
 const SUBMIT_TIMEOUT_MS = 20_000;
 /** Without the server's time: how often the server is asked whether the exam is over, once the device clock says so. */
@@ -49,7 +49,7 @@ function Exam({ id }: { id: string }) {
   // A finalized exam has nothing left to save.
   const finalizedId = view?.result ? view.id : undefined;
   useEffect(() => {
-    if (finalizedId !== undefined) discardExamSaves(queryClient, finalizedId);
+    if (finalizedId !== undefined) closeExamSaves(queryClient, finalizedId);
   }, [queryClient, finalizedId]);
 
   if (!view) return <LoadState query={query} noun="exam" />;
@@ -148,17 +148,15 @@ function ExamRunner({
   useEffect(() => {
     saves.onClosed = () => void readResults('closed');
   });
-  useEffect(
-    () => () => {
+  // This page holds the saves while it is mounted. When no page holds them and nothing is left to save,
+  // they are forgotten; otherwise they wait for the learner to come back.
+  useEffect(() => {
+    saves.acquire();
+    return () => {
       saves.onClosed = null;
-      // Nobody is looking and nothing is left to save: the queue can go. Otherwise it waits for the
-      // learner to come back.
-      void queue.flush().then(() => {
-        if (saves.onClosed === null && saves.unconfirmed.size === 0) discardExamSaves(queryClient, view.id);
-      });
-    },
-    [saves, queue, queryClient, view.id],
-  );
+      saves.release();
+    };
+  }, [saves]);
 
   // On a new question, focus goes to its heading.
   const shown = useRef(index);
@@ -210,17 +208,25 @@ function ExamRunner({
     if (posting.current || reading.current) return;
     const mine = ++attempt.current;
     setPhase('saving');
-    await queue.flush();
-    if (attempt.current !== mine) return;
-    // `flush` also resolves when a save was rejected, and the indicator's Dismiss button hides that. What
-    // counts is whether the server has every answer the learner sees as given.
-    if (unsavedAnswers().length > 0) {
-      if (timeUp.current) {
-        // No time to ask: one more try, which may hold the submission up for a few seconds at most.
+    if (timeUp.current) {
+      // No time to wait or to ask: what is still on its way, and one more try for what was rejected, may
+      // hold the submission up for a few seconds at most. The server scores what it has by then.
+      let waitedEnough = false;
+      const lastSaves = async () => {
+        await queue.flush();
+        if (waitedEnough || unsavedAnswers().length === 0) return;
         saves.retry();
-        await Promise.race([queue.flush(), wait(LAST_SAVE_MS)]);
-        if (attempt.current !== mine) return;
-      } else if (!anyway) {
+        await queue.flush();
+      };
+      await Promise.race([lastSaves(), wait(LAST_SAVES_MS)]);
+      waitedEnough = true;
+      if (attempt.current !== mine) return;
+    } else {
+      await queue.flush();
+      if (attempt.current !== mine) return;
+      // `flush` also resolves when a save was rejected, and the indicator's Dismiss button hides that. What
+      // counts is whether the server has every answer the learner sees as given.
+      if (unsavedAnswers().length > 0 && !anyway) {
         setLost(unsavedAnswers());
         setPhase('unsaved');
         return;

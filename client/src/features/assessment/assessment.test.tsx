@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClientProvider, useQuery, type QueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
@@ -8,6 +9,7 @@ import { api } from '../../api/client';
 import type { AssessmentResult, AssessmentView, DashboardMocks, MockHistoryEntry, PathDomain, PathResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { ExamLobbyPage } from './ExamLobbyPage';
+import { examSaves } from './examSaves';
 import { ExamPage } from './ExamPage';
 import { QuizPage } from './QuizPage';
 import { ResultsView } from './ResultsView';
@@ -170,19 +172,30 @@ function Observers() {
   return null;
 }
 
-function renderAt(url: string) {
+/** The screens under a key: "remount" takes the page on screen away and mounts a new one in the same update. */
+function Screens() {
+  const [mounts, setMounts] = useState(0);
+  return (
+    <>
+      <button onClick={() => setMounts(mounts + 1)}>remount</button>
+      <Routes key={mounts}>
+        <Route path="/" element={<p>path screen</p>} />
+        <Route path="/quiz/:id" element={<QuizPage />} />
+        <Route path="/exam" element={<ExamLobbyPage />} />
+        <Route path="/exam/:id" element={<ExamPage />} />
+      </Routes>
+    </>
+  );
+}
+
+function renderAt(url: string, client: QueryClient = createQueryClient()) {
   return render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <Observers />
       <MemoryRouter initialEntries={[url]}>
         <Link to="/">leave</Link>
         <Link to={url}>come back</Link>
-        <Routes>
-          <Route path="/" element={<p>path screen</p>} />
-          <Route path="/quiz/:id" element={<QuizPage />} />
-          <Route path="/exam" element={<ExamLobbyPage />} />
-          <Route path="/exam/:id" element={<ExamPage />} />
-        </Routes>
+        <Screens />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -327,6 +340,32 @@ describe('quiz', () => {
     await userEvent.click(within(banner).getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
     expect(title).toHaveFocus();
+  });
+
+  it('celebrates a pass that reaches the page while it is reading the quiz again, before that read has been handled', async () => {
+    const client = createQueryClient();
+    const open = quiz(1, { answers: { 'q-1.1-001': pick('a') }, feedback: { 'q-1.1-001': marked(single(1), true) } });
+    const done = finished(open, 1, { passed: true, xp: 100 });
+    handlers['GET /api/assessments/12'] = () => json(200, open);
+    handlers['POST /api/assessments/12/submit'] = () => json(200, { result: done.result });
+    renderAt('/quiz/12', client);
+    await heading('Question 1 of 1');
+
+    const read = deferred<Response>();
+    handlers['GET /api/assessments/12'] = () => read.promise;
+    await userEvent.click(button('See results'));
+    await waitFor(() => expect(assessmentReads(12)).toBe(2));
+    // The result is on screen before the read that was asked for has come back: whichever of the two the
+    // page learns of first, the quiz was finished in this visit.
+    act(() => {
+      client.setQueryData(['assessment', '12'], { view: done, clockOffsetMs: 0 });
+    });
+    expect(await heading('Objective 1.1 quiz results', 1)).toHaveFocus();
+    expect(screen.getByText('Quiz passed')).toBeInTheDocument();
+
+    read.resolve(json(200, done));
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    expect(screen.getByText('Quiz passed')).toBeInTheDocument();
   });
 
   it('a double click on Check sends one answer and does not skip the feedback', async () => {
@@ -930,6 +969,70 @@ describe('exam', () => {
     await settle();
   });
 
+  it('when the time is up, a save that gets no answer holds the submission up for a few seconds at most', async () => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
+    const open = exam({ serverNow: new Date().toISOString(), deadlineAt: new Date(Date.now() + 10_000).toISOString() });
+    const hung = deferred<Response>();
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SAVE] = () => hung.promise;
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 0).result });
+    renderAt('/exam/30');
+    await settle();
+    fireEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await settle();
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
+
+    await advance(10_000);
+    await settle();
+    expect(submission()).toHaveTextContent('Time is up. Saving your answers…');
+    expect(calls(SUBMIT)).toHaveLength(0);
+    await advance(2_000);
+    expect(calls(SUBMIT)).toHaveLength(0);
+
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 0));
+    await advance(1_000);
+    await settle();
+    expect(writes()).toEqual([SAVE, SUBMIT]);
+    expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
+    hung.resolve(json(409, { error: 'This assessment is already submitted' }));
+    await settle();
+  });
+
+  it('an exam page that is taken away and mounted again at once keeps saving through the same queue', async () => {
+    const first = deferred<Response>();
+    handlers['GET /api/assessments/30'] = () => json(200, exam());
+    handlers[SAVE] = () => first.promise;
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    expect(await screen.findByText('Saving…')).toBeInTheDocument();
+
+    await userEvent.click(button('remount'));
+    // The new page has the answer that is still on its way, and shows the same queue at work.
+    await userEvent.click(within(nav()).getByRole('button', { name: 'Question 1, answered' }));
+    expect(screen.getByRole('radio', { name: 'Alpha' })).toBeChecked();
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
+
+    // A newer answer waits behind the one in flight, in the same queue, and both reach the server in order.
+    await userEvent.click(screen.getByRole('radio', { name: 'Bravo' }));
+    expect(calls(SAVE)).toHaveLength(1);
+    handlers[SAVE] = () => json(200, { saved: true });
+    first.resolve(json(200, { saved: true }));
+    await waitFor(() => expect(screen.queryByText('Saving…')).not.toBeInTheDocument());
+    expect(bodies(SAVE)).toEqual([
+      { questionId: 'q-1.1-001', answer: pick('a') },
+      { questionId: 'q-1.1-001', answer: pick('b') },
+    ]);
+
+    // And it goes on saving after that.
+    await userEvent.click(button('Next'));
+    await heading('Question 2 of 5');
+    await userEvent.click(screen.getByRole('radio', { name: 'Charlie' }));
+    await waitFor(() => expect(bodies(SAVE)).toHaveLength(3));
+    expect(bodies(SAVE)[2]).toEqual({ questionId: 'q-1.1-002', answer: pick('c') });
+  });
+
   it('"Submit anyway" submits without the answer that could not be saved', async () => {
     const open = exam();
     handlers['GET /api/assessments/30'] = () => json(200, open);
@@ -1239,6 +1342,63 @@ describe('exam', () => {
   });
 });
 
+describe('the saves of an exam', () => {
+  const body = (n: number) => ({ questionId: `q-1.1-00${n}`, answer: pick('a') });
+  const leaving = () => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+
+  it('are still sent for a page that found them before the last page\'s save finished and took hold of them after', async () => {
+    const client = createQueryClient();
+    const first = deferred<Response>();
+    handlers[SAVE] = () => first.promise;
+    const before = examSaves(client, 30);
+    before.acquire();
+    before.save('q-1.1-001', body(1));
+    before.release(); // that page goes while its save is on its way
+
+    const after = examSaves(client, 30); // the next page renders: it finds the same saves
+    expect(after).toBe(before);
+    first.resolve(json(200, { saved: true })); // the save lands: nobody holds the saves, nothing is left to send
+    await after.queue.flush();
+    await new Promise((r) => setTimeout(r, 0));
+
+    after.acquire(); // only now do the next page's effects run
+    const second = deferred<Response>();
+    handlers[SAVE] = () => second.promise;
+    after.save('q-1.1-002', body(2));
+    await waitFor(() => expect(bodies(SAVE)).toEqual([body(1), body(2)]));
+    // They are the exam's saves again: found by the next lookup, and guarding the page while one is on its way.
+    expect(examSaves(client, 30)).toBe(after);
+    expect(leaving()).toBe(true);
+    second.resolve(json(200, { saved: true }));
+    await after.queue.flush();
+    expect(leaving()).toBe(false);
+    after.release();
+  });
+
+  it('are let go once nobody holds them and nothing is left to send, and not before', async () => {
+    const client = createQueryClient();
+    const pending = deferred<Response>();
+    handlers[SAVE] = () => pending.promise;
+    const saves = examSaves(client, 30);
+    saves.acquire();
+    saves.acquire(); // a second holder, as when one page replaces another
+    saves.save('q-1.1-001', body(1));
+    saves.release();
+    pending.resolve(json(200, { saved: true }));
+    await saves.queue.flush();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(examSaves(client, 30)).toBe(saves);
+
+    saves.release();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(examSaves(client, 30)).not.toBe(saves);
+  });
+});
+
 describe('results', () => {
   const mock = (): AssessmentView => ({
     ...exam({ id: 40, kind: 'mock', scope: null, partial: true, questions: [q1, q2, q3, q4] }),
@@ -1425,8 +1585,8 @@ describe('exam lobby', () => {
 
   it('offers "Resume practice exam" with the time left for an exam in progress, and opens it without starting another', async () => {
     const deadlineAt = new Date(Date.now() + 41.5 * 60_000).toISOString();
-    handlers['GET /api/dashboard'] = () => json(200, dashboard([], { openMock: { id: 77, deadlineAt } }));
-    handlers['GET /api/assessments/77'] = () => json(200, exam({ id: 77, kind: 'mock', scope: null, partial: true, deadlineAt }));
+    handlers['GET /api/dashboard'] = () => json(200, dashboard([], { openMock: { id: 77, deadlineAt }, mockSpec: FULL_MOCK }));
+    handlers['GET /api/assessments/77'] = () => json(200, exam({ id: 77, kind: 'mock', scope: null, deadlineAt }));
     renderAt('/exam');
 
     const resume = await screen.findByRole('button', { name: 'Resume practice exam' });
@@ -1454,6 +1614,23 @@ describe('exam lobby', () => {
     expect(rows[1]).toHaveTextContent('Not yet');
     expect(rows[2]).toHaveTextContent('650');
     expect(rows[2]).toHaveTextContent('Partial');
+  });
+
+  it('never claims more time for an exam in progress than the exam has, however wrong the device clock is', async () => {
+    // By this device's clock the deadline is three hours away; a mock exam here lasts 11 minutes.
+    handlers['GET /api/dashboard'] = () =>
+      json(200, dashboard([], { openMock: { id: 77, deadlineAt: new Date(Date.now() + 3 * 3_600_000).toISOString() } }));
+    const first = renderAt('/exam');
+    await screen.findByRole('button', { name: 'Resume practice exam' });
+    expect(screen.getByText('You have a practice exam in progress, with about 11 minutes left. Its clock is running.')).toBeInTheDocument();
+    first.unmount();
+
+    // And by a clock that is ahead, the deadline has passed although the server still has the exam open.
+    handlers['GET /api/dashboard'] = () =>
+      json(200, dashboard([], { openMock: { id: 77, deadlineAt: new Date(Date.now() - 60_000).toISOString() } }));
+    renderAt('/exam');
+    await screen.findByRole('button', { name: 'Resume practice exam' });
+    expect(screen.getByText('You have a practice exam in progress. Its clock is running.')).toBeInTheDocument();
   });
 
   it('offers no exam while nothing is published, and says so when one cannot be started', async () => {
