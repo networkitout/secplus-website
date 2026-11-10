@@ -30,7 +30,7 @@ The three goals pull against each other. A server that is unplugged and locked i
 
 To repudiate something is to deny it. **Non-repudiation** means a person cannot credibly deny an action they took, such as sending a message or approving a payment, because there is proof that only they could have produced.
 
-The everyday version is signing for a parcel. The digital version is a **digital signature**. The sender's software creates the signature with the sender's **private key**, a secret that only the sender holds. Anyone can check the signature with the matching public key. A valid signature shows two things: the message has not changed since it was signed (integrity), and it was signed with that sender's private key (proof of origin). Because nobody else has the key, the sender cannot deny signing. Objective 1.4 explains how signatures work.
+The everyday version is signing for a parcel. The digital version is a **digital signature**. The sender's software creates the signature with the sender's **private key**, a secret that only the sender holds. Anyone can check the signature with the matching public key (a key that can be shared with anyone). A valid signature shows two things: the message has not changed since it was signed (integrity), and it was signed with that sender's private key (proof of origin). Because nobody else has the key, the sender cannot deny signing. Objective 1.4 explains how signatures work.
 
 Non-repudiation is easy to confuse with two neighbors:
 
@@ -59,7 +59,7 @@ A central AAA server often handles these steps for VPN and Wi-Fi sign-ins. RADIU
 
 ### Authenticating people
 
-People prove who they are with **authentication factors**: something you know (password, PIN), something you have (smart card, phone app, hardware token) and something you are (fingerprint, face). **Multifactor authentication (MFA)** uses two or more *different* factors. A password plus a PIN is one factor used twice, not MFA.
+People prove who they are with **authentication factors**. The three main factors are something you know (password, PIN), something you have (smart card, phone app, hardware token) and something you are (fingerprint, face). Objective 4.6 adds a fourth, somewhere you are (your location). **Multifactor authentication (MFA)** uses two or more *different* factors. A password plus a PIN is one factor used twice, not MFA.
 
 ### Authenticating systems
 
@@ -86,7 +86,7 @@ An **authorization model** puts a layer between users and resources, so that acc
 | Role-based | The user's job role; permissions belong to the role | Everyone in the Pharmacist role can open the dispensing system |
 | Attribute-based | A combination of attributes of the user, device, resource and context | A project member, on a managed laptop, during working hours |
 | Rule-based | System-wide rules set by an administrator that apply to everyone | Nobody can sign in to the payroll application between 22:00 and 06:00 |
-| Mandatory | Labels set centrally; the user's clearance must match the data's label | Only users cleared for "Secret" can open files labeled Secret |
+| Mandatory | Labels set centrally; the user's clearance must be at least as high as the data's label | Only users cleared for Secret or higher can open files labeled Secret |
 | Discretionary | The owner of each resource | A user shares a folder they own with a colleague |
 
 Objective 4.6 returns to these in detail. For now, know why a model is used and the one-line idea behind each. Whatever the model, the goal is **least privilege**: each user and device gets only the access its job needs.
@@ -181,7 +181,7 @@ An attacker who can touch a server can bypass most technical controls, so buildi
 | Fencing | Encloses the perimeter; deters intruders and slows them down | Can be see-through or solid; height matters |
 | Lighting | Removes dark areas where someone could approach unseen | Also lets guards and cameras see; avoid deep shadows and glare |
 | Video surveillance | Cameras that are watched live or recorded, often called CCTV (closed-circuit television) | Mainly detects and provides evidence; visible cameras also deter |
-| Security guard | A person who checks identification, handles visitors and responds to incidents | The only control with human judgment |
+| Security guard | A person who checks identification, handles visitors and responds to incidents | Adds human judgment that the other controls in this list lack |
 | Access badge | An ID card, usually with a photo and a chip that door readers can read | Every use is logged: who, which door, when. A lost badge can be disabled |
 | Access control vestibule | A small room with two interlocking doors; the second opens only after the first has closed | Lets one verified person through at a time |
 
@@ -215,6 +215,6 @@ Deception technology plants decoys for attackers to find. The decoys have no bus
 
 Size is the difference between a honeypot and a honeynet: one decoy system or a network of them. A honeynet is more convincing and shows how attackers move from machine to machine.
 
-> **Common trap:** A honeyfile is a whole bait file, and the alert comes when someone opens it. A honeytoken is an item of fake data, such as one record or one set of login details, and the alert comes when that data is used or appears outside the organization.
+> **Common trap:** A honeyfile is a whole bait file, and the alert comes when someone opens it. A honeytoken is an item of fake data, such as one record or one set of login details, and the alert comes when that data is used or appears outside the organization. Some sources call a honeyfile a kind of honeytoken; on the exam, if the bait is a file that alerts when opened, choose honeyfile.
 
 :::check q-1.2-028

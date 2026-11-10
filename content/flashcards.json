@@ -63,7 +63,7 @@
     "id": "f-1.2-011",
     "objective": "1.2",
     "term": "Authenticating people",
-    "definition": "Proving a person's identity with factors: something you know, something you have, something you are. Two different factors make multifactor authentication."
+    "definition": "Proving a person's identity with factors: something you know, something you have, something you are (objective 4.6 adds somewhere you are). Two different factors make multifactor authentication."
   },
   {
     "id": "f-1.2-012",
@@ -105,19 +105,19 @@
     "id": "f-1.2-018",
     "objective": "1.2",
     "term": "Adaptive identity",
-    "definition": "Adjusting how much proof of identity is required by using context such as location, device, time and behavior."
+    "definition": "Zero Trust control-plane concept: adjusting how much proof of identity is required by using context such as location, device, time and behavior."
   },
   {
     "id": "f-1.2-019",
     "objective": "1.2",
     "term": "Threat scope reduction",
-    "definition": "Limiting an attacker's entry points and how far a compromise can spread, through least privilege, segmentation and small implicit trust zones."
+    "definition": "Zero Trust control-plane concept: limiting an attacker's entry points and how far a compromise can spread, through least privilege, segmentation and small implicit trust zones."
   },
   {
     "id": "f-1.2-020",
     "objective": "1.2",
     "term": "Policy-driven access control",
-    "definition": "Deciding each access request from defined policies that combine identity, device and context, not from network location."
+    "definition": "Zero Trust control-plane concept: deciding each access request from defined policies that combine identity, device and context, not from network location."
   },
   {
     "id": "f-1.2-021",
@@ -177,7 +177,7 @@
     "id": "f-1.2-030",
     "objective": "1.2",
     "term": "Security guard",
-    "definition": "A person who checks identification, handles visitors and responds to incidents. The only physical control with human judgment."
+    "definition": "A person who checks identification, handles visitors and responds to incidents. Adds human judgment that the other physical controls in this objective lack."
   },
   {
     "id": "f-1.2-031",

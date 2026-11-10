@@ -169,7 +169,7 @@
       "c": "The card is something you have and the PIN is something you know: two different factors.",
       "d": "Both are something you have. A thief who takes a bag containing both has everything needed."
     },
-    "explanation": "Multifactor authentication needs factors of different kinds: something you know, something you have, something you are. Two items of the same kind count as one factor."
+    "explanation": "Multifactor authentication needs factors of different kinds, such as something you know, something you have or something you are. Two items of the same kind count as one factor."
   },
   {
     "id": "q-1.2-009",
@@ -377,7 +377,7 @@
       "t5": "cp",
       "t6": "dp"
     },
-    "explanation": "The control plane makes and communicates access decisions: the policy engine, the policy administrator and the adaptive identity checks that feed them. The data plane carries the actual traffic: the subject/system, the policy enforcement point and the implicit trust zone behind it."
+    "explanation": "The control plane makes and communicates access decisions: the policy engine, the policy administrator and the adaptive identity checks that feed them. The data plane carries the actual traffic: the subject/system, the policy enforcement point and the implicit trust zone behind it. CompTIA also lists threat scope reduction and policy-driven access control under the control plane."
   },
   {
     "id": "q-1.2-018",
@@ -593,7 +593,7 @@
     "objective": "1.2",
     "difficulty": 3,
     "type": "single",
-    "prompt": "A motion sensor in a stock room raises alarms at night although the room is empty. The alarms match the times when cleaners walk along the corridor on the other side of a thin partition wall. Which type of sensor is most likely installed in the stock room?",
+    "prompt": "A motion sensor in a stock room raises alarms at night although the room is empty. The alarms match the times when a guard walks along the corridor on patrol, on the other side of a thin partition wall. Which type of sensor is most likely installed in the stock room?",
     "options": [
       { "id": "a", "text": "Pressure" },
       { "id": "b", "text": "Infrared" },
@@ -602,7 +602,7 @@
     ],
     "correct": "d",
     "why": {
-      "a": "A pressure sensor reacts to weight on a surface inside the room. People in the corridor put no weight on it.",
+      "a": "A pressure sensor reacts to weight on a surface inside the room. A person in the corridor puts no weight on it.",
       "b": "A passive infrared sensor needs a direct view of a warm body. The wall blocks body heat.",
       "c": "Ultrasonic sensors use sound waves, which stay inside the room and do not pass through walls.",
       "d": "Microwave signals pass through thin walls, so movement on the other side can be detected and cause false alarms."
@@ -694,5 +694,47 @@
       "e": "A honeypot does not change how other servers store their data."
     },
     "explanation": "A honeypot detects and distracts: any interaction with it is suspicious, and it shows how attackers work. It does not block attacks or fix weaknesses on real systems."
+  },
+  {
+    "id": "q-1.2-032",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A student at Ashby College is allowed to view his own exam record in the student portal. He finds a flaw in the portal and uses it to change his grade from 52 to 82. He saw nothing that he was not already allowed to see, and the portal stayed online throughout. Which security goal was compromised?",
+    "options": [
+      { "id": "a", "text": "Confidentiality" },
+      { "id": "b", "text": "Non-repudiation" },
+      { "id": "c", "text": "Availability" },
+      { "id": "d", "text": "Integrity" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "Confidentiality is about data being read by someone who is not authorized. The student was allowed to view his own record and saw nothing else.",
+      "b": "Non-repudiation is about proving who took an action when they deny it. The harm here is the false grade, not a denial.",
+      "c": "Availability is about systems and data being reachable when needed. The portal stayed online.",
+      "d": "The grade was changed by someone who was not allowed to change it, so the record is no longer accurate. That is a loss of integrity."
+    },
+    "explanation": "Integrity is lost when data is changed without authorization, even if nobody saw anything they should not have seen and the system stayed available."
+  },
+  {
+    "id": "q-1.2-033",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A flood of junk traffic from thousands of infected devices overwhelms the online booking site of Hartwell Dental Group, and patients cannot make appointments for three hours. Checks afterwards show that no records were read or changed. Which security goal was compromised?",
+    "options": [
+      { "id": "a", "text": "Availability" },
+      { "id": "b", "text": "Confidentiality" },
+      { "id": "c", "text": "Integrity" },
+      { "id": "d", "text": "Authentication" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Patients could not reach the booking site when they needed it. That is a loss of availability.",
+      "b": "Confidentiality is about data being read by the wrong people. The checks show that no records were read.",
+      "c": "Integrity is about unauthorized change. The checks show that no records were changed.",
+      "d": "Authentication is proving an identity. The attack did not involve anyone signing in as somebody else."
+    },
+    "explanation": "Availability is lost when authorized users cannot reach a system or its data when they need it, even if nothing was read or changed."
   }
 ]
