@@ -433,7 +433,7 @@
     "objective": "1.1",
     "difficulty": 3,
     "type": "single",
-    "prompt": "Lumen Foods has a policy that all backup media must be encrypted. Its tape drive is too old to encrypt and will not be replaced for nine months. Which option is the best compensating control until then?",
+    "prompt": "Lumen Foods has a policy that all backup media must be encrypted. Its backup system is too old to support encryption and will not be replaced for nine months. Which option is the best compensating control until then?",
     "options": [
       {
         "id": "a",

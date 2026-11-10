@@ -151,7 +151,7 @@ Sometimes the control that a policy, standard or regulation requires cannot be p
 | MFA for every administrator login | A legacy server cannot support MFA | Allow administrator logins only through a gateway server that does require MFA, and log each session |
 | Separation of duties (splitting a sensitive task so that no one person can complete it alone) | A small firm has a single bookkeeper, who both enters and approves payments | The owner checks the bank statement against invoices every week |
 
-Study material also describes a compensating control as a temporary measure that covers for an existing control when it is unavailable or not sufficient. A generator that keeps systems running during a power outage is the usual example.
+Study material also describes a compensating control as a temporary measure that covers for an existing control when it is unavailable or not sufficient. A generator that keeps systems running during a power outage is a common example: it stands in for the normal power supply until that is back.
 
 A compensating control is not any of these:
 
