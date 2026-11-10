@@ -1,0 +1,285 @@
+{
+  "id": "lab-1-03",
+  "domain": 1,
+  "objectives": [
+    "1.4"
+  ],
+  "title": "Secure the new web portal",
+  "scenario": "Stonebridge Housing Trust manages 6,000 rented homes. It is building a web portal where tenants sign in, pay rent by card and report repairs from their own phones and computers. The portal will answer on three hostnames: portal.stonebridge.example, pay.stonebridge.example and repairs.stonebridge.example. More names at the same level may follow. Four web servers will run the portal. Repairs officers will also open tenant records on Trust laptops that travel in their vans. You are the administrator who must obtain the portal's certificate, check the algorithms its servers offer, and decide how keys, passwords and card details are protected before the portal opens.",
+  "steps": [
+    {
+      "id": "lab-1-03-s1",
+      "objective": "1.4",
+      "difficulty": 2,
+      "type": "single",
+      "prompt": "Stonebridge wants one certificate that covers all three hostnames, and any names added later at the same level. Tenants' browsers must trust it without warnings or extra setup. Which certificate should you request?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A wildcard certificate for *.stonebridge.example from Stonebridge's internal CA"
+        },
+        {
+          "id": "b",
+          "text": "A certificate for the single name stonebridge.example from a public CA"
+        },
+        {
+          "id": "c",
+          "text": "A self-signed wildcard certificate for *.stonebridge.example"
+        },
+        {
+          "id": "d",
+          "text": "A wildcard certificate for *.stonebridge.example from a public CA"
+        }
+      ],
+      "correct": "d",
+      "why": {
+        "a": "An internal CA is trusted only by devices that have its root certificate installed. Tenants use their own phones and computers, which Stonebridge does not manage.",
+        "b": "Browsers would trust it, but it names only stonebridge.example. It covers none of the three portal hostnames.",
+        "c": "The wildcard would cover the names, but no CA vouches for a self-signed certificate, so every tenant's browser would show a warning.",
+        "d": "Correct. A wildcard for *.stonebridge.example covers every hostname one level below the domain, including names added later, and tenants' browsers already trust a public CA."
+      },
+      "explanation": "Choose a certificate by who must trust it and which names it must cover. The public needs a certificate from a public third-party CA. Several hostnames one level below a domain can share a wildcard certificate. A wildcard does not cover names two levels down, or the bare domain unless that name is also listed."
+    },
+    {
+      "id": "lab-1-03-s2",
+      "objective": "1.4",
+      "difficulty": 2,
+      "type": "order",
+      "prompt": "No key or certificate exists yet for the portal. Put the steps for obtaining and using the wildcard certificate in the order they happen.",
+      "items": [
+        {
+          "id": "i1",
+          "text": "The CA checks that Stonebridge controls the domain named in the CSR it received"
+        },
+        {
+          "id": "i2",
+          "text": "You install the issued certificate on the portal's servers"
+        },
+        {
+          "id": "i3",
+          "text": "You create a CSR that contains the public key and the name *.stonebridge.example, and it is signed with the private key"
+        },
+        {
+          "id": "i4",
+          "text": "A tenant's browser connects to pay.stonebridge.example and validates the certificate against a root CA it trusts"
+        },
+        {
+          "id": "i5",
+          "text": "A key pair for the portal is generated on Stonebridge's own equipment"
+        },
+        {
+          "id": "i6",
+          "text": "The CA issues the certificate, signed with the CA's own private key"
+        },
+        {
+          "id": "i7",
+          "text": "You submit the CSR to the public CA, while the private key stays with Stonebridge"
+        }
+      ],
+      "correct": [
+        "i5",
+        "i3",
+        "i7",
+        "i1",
+        "i6",
+        "i2",
+        "i4"
+      ],
+      "explanation": "Each step needs the one before it. The key pair comes first, because the CSR carries its public key and is signed with its private key. The CSR is then submitted, and the private key never leaves the applicant: the CA never sees it. The CA validates the requester before it signs anything, and then issues the certificate. Only an issued certificate can be installed, and only an installed certificate can be presented to a tenant's browser, which validates it by following the chain up to a root it trusts."
+    },
+    {
+      "id": "lab-1-03-s3",
+      "objective": "1.4",
+      "difficulty": 2,
+      "type": "categorize",
+      "prompt": "A scan of the portal's servers and a review of its sign-in code show that the algorithms below are in use. Sort each one into the group it belongs to. Functions designed to make password guessing slow belong in the key-stretching group.",
+      "items": [
+        {
+          "id": "g01",
+          "text": "SHA-256"
+        },
+        {
+          "id": "g02",
+          "text": "RSA"
+        },
+        {
+          "id": "g03",
+          "text": "bcrypt"
+        },
+        {
+          "id": "g04",
+          "text": "AES"
+        },
+        {
+          "id": "g05",
+          "text": "Diffie-Hellman"
+        },
+        {
+          "id": "g06",
+          "text": "RC4"
+        },
+        {
+          "id": "g07",
+          "text": "SHA-1"
+        },
+        {
+          "id": "g08",
+          "text": "Argon2"
+        },
+        {
+          "id": "g09",
+          "text": "ECDSA"
+        },
+        {
+          "id": "g10",
+          "text": "ChaCha20"
+        }
+      ],
+      "buckets": [
+        {
+          "id": "symmetric",
+          "text": "Symmetric"
+        },
+        {
+          "id": "asymmetric",
+          "text": "Asymmetric"
+        },
+        {
+          "id": "hash",
+          "text": "Hash"
+        },
+        {
+          "id": "stretch",
+          "text": "Key stretching"
+        }
+      ],
+      "correct": {
+        "g01": "hash",
+        "g02": "asymmetric",
+        "g03": "stretch",
+        "g04": "symmetric",
+        "g05": "asymmetric",
+        "g06": "symmetric",
+        "g07": "hash",
+        "g08": "stretch",
+        "g09": "asymmetric",
+        "g10": "symmetric"
+      },
+      "explanation": "AES, ChaCha20 and RC4 are symmetric ciphers: one shared key encrypts and decrypts. RSA, ECDSA and Diffie-Hellman are asymmetric: they work with a key pair. RSA encrypts and signs, ECDSA signs, and Diffie-Hellman only exchanges keys. SHA-256 and SHA-1 are hash functions: fast, one-way and without a key. bcrypt and Argon2 are key-stretching functions: they also give a one-way result, but they are deliberately slow, which is what stored passwords need. The group an algorithm belongs to says nothing about whether it is still safe: RC4 and SHA-1 should be replaced."
+    },
+    {
+      "id": "lab-1-03-s4",
+      "objective": "1.4",
+      "difficulty": 2,
+      "type": "multi",
+      "prompt": "The scan also shows that the web servers still offer every entry below to browsers. Which three should be removed from their configuration? (Choose three.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "ChaCha20"
+        },
+        {
+          "id": "b",
+          "text": "3DES"
+        },
+        {
+          "id": "c",
+          "text": "TLS 1.3"
+        },
+        {
+          "id": "d",
+          "text": "TLS 1.0"
+        },
+        {
+          "id": "e",
+          "text": "AES-256"
+        },
+        {
+          "id": "f",
+          "text": "RC4"
+        }
+      ],
+      "correct": [
+        "b",
+        "d",
+        "f"
+      ],
+      "why": {
+        "a": "ChaCha20 is a modern stream cipher and a sound alternative to AES.",
+        "b": "Correct. 3DES is deprecated, and AES has replaced it.",
+        "c": "TLS 1.3 is the current version. It uses fresh Diffie-Hellman keys for each session, which gives forward secrecy.",
+        "d": "Correct. SSL, TLS 1.0 and TLS 1.1 are deprecated and should be disabled.",
+        "e": "AES is the current standard symmetric cipher, and AES-256 uses its longest key.",
+        "f": "Correct. RC4 is an insecure stream cipher. TLS 1.3 dropped it."
+      },
+      "explanation": "Know which algorithms and protocol versions are retired. Among symmetric ciphers, DES, 3DES and RC4 should be replaced by AES or ChaCha20. Among protocol versions, SSL, TLS 1.0 and TLS 1.1 should be disabled in favor of TLS 1.2 and TLS 1.3."
+    },
+    {
+      "id": "lab-1-03-s5",
+      "objective": "1.4",
+      "difficulty": 3,
+      "type": "match",
+      "prompt": "Five requirements remain on the design list. Match each requirement to the tool or technique that meets it.",
+      "left": [
+        {
+          "id": "l1",
+          "text": "Tenant records saved on a laptop must be unreadable to a thief who takes it from a van while it is switched off"
+        },
+        {
+          "id": "l2",
+          "text": "The portal must be able to check each tenant's password, but a stolen copy of the account table must not reveal any password or show which tenants chose the same one"
+        },
+        {
+          "id": "l3",
+          "text": "The certificate's private key must be usable by all four web servers, but it must never leave dedicated, tamper-resistant hardware"
+        },
+        {
+          "id": "l4",
+          "text": "Tenants must be able to pay with a saved card, but the portal's database may hold only stand-in values, whose link to the real card numbers is kept in the payment provider's vault"
+        },
+        {
+          "id": "l5",
+          "text": "The key that unlocks a laptop's disk must work only in that laptop, and it must be withheld if the laptop's startup components have been altered"
+        }
+      ],
+      "right": [
+        {
+          "id": "r1",
+          "text": "Tokenization"
+        },
+        {
+          "id": "r2",
+          "text": "Trusted Platform Module (TPM)"
+        },
+        {
+          "id": "r3",
+          "text": "Data masking"
+        },
+        {
+          "id": "r4",
+          "text": "Full-disk encryption"
+        },
+        {
+          "id": "r5",
+          "text": "Hardware security module (HSM)"
+        },
+        {
+          "id": "r6",
+          "text": "Key escrow"
+        },
+        {
+          "id": "r7",
+          "text": "Hashing with a per-password salt"
+        }
+      ],
+      "correct": {
+        "l1": "r4",
+        "l2": "r7",
+        "l3": "r5",
+        "l4": "r1",
+        "l5": "r2"
+      },
+      "explanation": "Match the tool to the job. Keys that many servers use, held in dedicated tamper-resistant hardware, call for an HSM. A key bound to one device, and released only after an untampered startup, is the job of that device's TPM. The TPM guards the key; full-disk encryption is what makes everything on the switched-off laptop unreadable. Passwords are stored as salted hashes: a hash cannot be reversed, and a different salt for each password means that identical passwords give different hashes. Key stretching then makes each guess slow. Tokenization replaces each card number with a token, and only the separate vault can map it back. Data masking only hides characters from the person viewing a value, and key escrow keeps a copy of a key for recovery. Neither meets any of these requirements."
+    }
+  ]
+}

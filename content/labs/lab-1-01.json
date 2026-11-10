@@ -1,0 +1,299 @@
+{
+  "id": "lab-1-01",
+  "domain": 1,
+  "objectives": [
+    "1.1"
+  ],
+  "title": "Classify the controls",
+  "scenario": "Fernhill Family Clinic has two partner doctors, eleven other staff and one small server that holds its patient records system. After a nearby practice was hit by ransomware, the partners asked a security consultant to review the clinic. The consultant's first job is to list the controls already in place and describe each one by category and by control type, so that the partners can see which kinds of protection the clinic relies on. The review must also deal with the ultrasound workstation in Room 4. It runs an operating system that its maker no longer updates, the maker does not allow the clinic to change its software, and its replacement is 14 months away. You are assisting the consultant.",
+  "steps": [
+    {
+      "id": "lab-1-01-s1",
+      "objective": "1.1",
+      "difficulty": 2,
+      "type": "categorize",
+      "prompt": "The consultant has listed ten controls that Fernhill already has. Sort each control into its control category.",
+      "items": [
+        {
+          "id": "c01",
+          "text": "Reception staff ask each caller for the patient's date of birth and give out no information if it does not match the record"
+        },
+        {
+          "id": "c02",
+          "text": "The server is kept in a locked steel cabinet that is bolted to the floor"
+        },
+        {
+          "id": "c03",
+          "text": "The patient records system emails an alert to the practice manager when one account opens more than 50 charts in an hour; the account keeps working"
+        },
+        {
+          "id": "c04",
+          "text": "A security policy, approved by the two partners, states that staff must never share their login details"
+        },
+        {
+          "id": "c05",
+          "text": "A sign on the back gate reads: \"Private property. Intruders will be reported to the police.\""
+        },
+        {
+          "id": "c06",
+          "text": "Software on each PC returns files to their earlier versions after ransomware has changed them"
+        },
+        {
+          "id": "c07",
+          "text": "Each Friday the office administrator reads through the week's chart-access log and reports any chart that was opened without a clinical reason"
+        },
+        {
+          "id": "c08",
+          "text": "The email gateway blocks any incoming message that carries a program file, before it reaches a mailbox"
+        },
+        {
+          "id": "c09",
+          "text": "A telephone policy, approved by the partners, requires reception staff to confirm a caller's date of birth before discussing appointments"
+        },
+        {
+          "id": "c10",
+          "text": "A sensor on the medicine storeroom door sounds an alarm if the door is opened after closing time"
+        }
+      ],
+      "buckets": [
+        {
+          "id": "technical",
+          "text": "Technical"
+        },
+        {
+          "id": "managerial",
+          "text": "Managerial"
+        },
+        {
+          "id": "operational",
+          "text": "Operational"
+        },
+        {
+          "id": "physical",
+          "text": "Physical"
+        }
+      ],
+      "correct": {
+        "c01": "operational",
+        "c02": "physical",
+        "c03": "technical",
+        "c04": "managerial",
+        "c05": "physical",
+        "c06": "technical",
+        "c07": "operational",
+        "c08": "technical",
+        "c09": "managerial",
+        "c10": "physical"
+      },
+      "explanation": "The category says who or what makes a control work. The email gateway, the chart alert and the file rollback are carried out by software, so they are technical. The two policies are management deciding and documenting the rules, so they are managerial. Reception staff checking a caller and the administrator reading the log are people carrying out day-to-day tasks, so they are operational. The locked cabinet, the gate sign and the door sensor are tangible barriers and devices that protect the building and its equipment, so they are physical. Notice the pair about callers: the policy that requires the date-of-birth check is managerial, while staff making the check is operational."
+    },
+    {
+      "id": "lab-1-01-s2",
+      "objective": "1.1",
+      "difficulty": 2,
+      "type": "categorize",
+      "prompt": "Now sort the same ten controls by control type: what does each one do about an incident? None of the ten was introduced in place of another control, so compensating is not offered in this step.",
+      "items": [
+        {
+          "id": "c01",
+          "text": "Reception staff ask each caller for the patient's date of birth and give out no information if it does not match the record"
+        },
+        {
+          "id": "c02",
+          "text": "The server is kept in a locked steel cabinet that is bolted to the floor"
+        },
+        {
+          "id": "c03",
+          "text": "The patient records system emails an alert to the practice manager when one account opens more than 50 charts in an hour; the account keeps working"
+        },
+        {
+          "id": "c04",
+          "text": "A security policy, approved by the two partners, states that staff must never share their login details"
+        },
+        {
+          "id": "c05",
+          "text": "A sign on the back gate reads: \"Private property. Intruders will be reported to the police.\""
+        },
+        {
+          "id": "c06",
+          "text": "Software on each PC returns files to their earlier versions after ransomware has changed them"
+        },
+        {
+          "id": "c07",
+          "text": "Each Friday the office administrator reads through the week's chart-access log and reports any chart that was opened without a clinical reason"
+        },
+        {
+          "id": "c08",
+          "text": "The email gateway blocks any incoming message that carries a program file, before it reaches a mailbox"
+        },
+        {
+          "id": "c09",
+          "text": "A telephone policy, approved by the partners, requires reception staff to confirm a caller's date of birth before discussing appointments"
+        },
+        {
+          "id": "c10",
+          "text": "A sensor on the medicine storeroom door sounds an alarm if the door is opened after closing time"
+        }
+      ],
+      "buckets": [
+        {
+          "id": "preventive",
+          "text": "Preventive"
+        },
+        {
+          "id": "deterrent",
+          "text": "Deterrent"
+        },
+        {
+          "id": "detective",
+          "text": "Detective"
+        },
+        {
+          "id": "corrective",
+          "text": "Corrective"
+        },
+        {
+          "id": "directive",
+          "text": "Directive"
+        }
+      ],
+      "correct": {
+        "c01": "preventive",
+        "c02": "preventive",
+        "c03": "detective",
+        "c04": "directive",
+        "c05": "deterrent",
+        "c06": "corrective",
+        "c07": "detective",
+        "c08": "preventive",
+        "c09": "directive",
+        "c10": "detective"
+      },
+      "explanation": "The control type says what a control does about an incident. The email gateway, the caller check by reception staff and the locked cabinet stop the unwanted action, so they are preventive. The chart alert, the Friday log review and the door sensor report what is happening or has happened without stopping it, so they are detective. The file rollback acts after the damage to return things to normal, so it is corrective. The two policies tell staff what they must do and rely on them to comply, so they are directive. The gate sign blocks nobody and instructs nobody; it warns of a consequence, so it is a deterrent. Category and type are independent: the three technical controls on this list are one preventive, one detective and one corrective."
+    },
+    {
+      "id": "lab-1-01-s3",
+      "objective": "1.1",
+      "difficulty": 2,
+      "type": "single",
+      "prompt": "The office administrator is reducing her hours, so the clinic ends her Friday read-through of the chart-access log. From now on, a new rule in the patient records system identifies any chart opened by someone outside that patient's care team and emails the practice manager at once. The rule does not block the access. How has the classification of this control changed?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The type changes from detective to preventive; the category stays operational."
+        },
+        {
+          "id": "b",
+          "text": "The category changes to technical and the type changes to preventive."
+        },
+        {
+          "id": "c",
+          "text": "The category changes from operational to technical; the type stays detective."
+        },
+        {
+          "id": "d",
+          "text": "Nothing changes: the control is still operational and still detective."
+        }
+      ],
+      "correct": "c",
+      "why": {
+        "a": "The rule only reports the access and does not block it, so the type has not become preventive. The category has changed, because software now does the work.",
+        "b": "The category is now technical, but the rule does not stop anyone from opening a chart, so the type is not preventive.",
+        "c": "Correct. A person carried out the old check, which made it operational. Software carries out the new one, which makes it technical. Both only identify and report, so the type is still detective.",
+        "d": "The job is the same, but who or what makes the control work has changed from a person to software. A person reading the alert does not make the control operational."
+      },
+      "explanation": "Decide the two labels separately. The category follows who or what makes the control work, and the type follows what it does about an incident. Automating a check moves it from operational to technical without changing its type. It would become preventive only if it blocked the action."
+    },
+    {
+      "id": "lab-1-01-s4",
+      "objective": "1.1",
+      "difficulty": 3,
+      "type": "match",
+      "prompt": "The ultrasound workstation cannot meet four requirements that Fernhill's security policy sets for every computer. The consultant must propose a compensating control for each one. Match each requirement to the measure that addresses the same risk.",
+      "left": [
+        {
+          "id": "l1",
+          "text": "Every user signs in with a personal account. (The workstation has one built-in login, shared by its three operators.)"
+        },
+        {
+          "id": "l2",
+          "text": "New data is copied each night by the clinic's backup agent. (The agent cannot be installed on the workstation.)"
+        },
+        {
+          "id": "l3",
+          "text": "Security patches are installed within 30 days. (The maker no longer issues patches for the workstation.)"
+        },
+        {
+          "id": "l4",
+          "text": "The disk is encrypted. (The workstation's software will not start from an encrypted disk.)"
+        }
+      ],
+      "right": [
+        {
+          "id": "r1",
+          "text": "Bolt its case to the floor and fit a lock over the disk bay, so that the disk cannot be carried away"
+        },
+        {
+          "id": "r2",
+          "text": "Fix a notice to it reminding staff that it does not meet the security policy"
+        },
+        {
+          "id": "r3",
+          "text": "Put it on its own network segment, behind a firewall that lets it reach only the image archive server"
+        },
+        {
+          "id": "r4",
+          "text": "Have each operator sign a logbook with their name, the date and the time at the start of every session"
+        },
+        {
+          "id": "r5",
+          "text": "Record in writing that the partners accept the risk as it stands"
+        },
+        {
+          "id": "r6",
+          "text": "Have the operator on duty copy the day's scans to the image archive server every evening"
+        }
+      ],
+      "correct": {
+        "l1": "r4",
+        "l2": "r6",
+        "l3": "r3",
+        "l4": "r1"
+      },
+      "explanation": "A compensating control stands in for a required control that cannot be used, and it must reduce the same risk. Missing patches leave flaws that can be attacked over the network, so the workstation is isolated on a segment that reaches only the one server it needs. A shared login hides who did what, so a signed logbook restores a record of each person's use. An unencrypted disk can be read by whoever takes it, so the workstation is fixed down and its disk bay is locked. Without the backup agent a failure would lose new scans, so they are copied off by hand every evening. The notice is only a reminder and the written acceptance is risk acceptance. Neither reduces any of these risks, so neither is a compensating control."
+    },
+    {
+      "id": "lab-1-01-s5",
+      "objective": "1.1",
+      "difficulty": 2,
+      "type": "single",
+      "prompt": "The partners approve the four compensating controls and they are put in place. Which statement about the ultrasound workstation is now accurate?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Its weaknesses are fixed, so it can be treated like any other clinic computer."
+        },
+        {
+          "id": "b",
+          "text": "Its weaknesses remain, so the exception is recorded and reviewed regularly."
+        },
+        {
+          "id": "c",
+          "text": "It now has defense in depth, because the new measures add to working controls."
+        },
+        {
+          "id": "d",
+          "text": "Its risk has been accepted, so nothing more is needed until it is replaced."
+        }
+      ],
+      "correct": "b",
+      "why": {
+        "a": "A compensating control is not a fix. The workstation still lacks patches, personal accounts, disk encryption and the backup agent.",
+        "b": "Correct. Compensating controls reduce the risk but repair nothing: the operating system is still unpatched and the login is still shared. The decision is documented, approved and reviewed, and it ends when the workstation is replaced.",
+        "c": "Defense in depth is an extra layer on top of a required control that is already working. Here the required controls cannot be used at all, and the new measures stand in for them.",
+        "d": "Accepting a risk means deciding to do nothing about it. Fernhill added four controls, and compensating controls must be reviewed, because many of them are temporary."
+      },
+      "explanation": "A compensating control is an approved alternative. It is not a repair, not risk acceptance and not an extra layer on a working control. The weakness is still there, so the exception is documented, approved and reviewed, and it is usually temporary."
+    }
+  ]
+}
