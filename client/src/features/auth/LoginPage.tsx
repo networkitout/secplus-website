@@ -9,7 +9,8 @@ import { useAuth } from './AuthProvider';
 
 /**
  * Only same-site targets are accepted after login. The value is resolved the way the browser would resolve it
- * (so tabs, backslashes and dot segments cannot hide another host) and reduced to path + query + hash.
+ * (so tabs, backslashes and dot segments cannot hide another host) and reduced to path + query + hash, which
+ * must then be a plain path: exactly one leading slash.
  */
 export function safeNext(raw: string | null): string {
   if (!raw) return '/';
@@ -21,7 +22,8 @@ export function safeNext(raw: string | null): string {
   }
   if (url.origin !== window.location.origin) return '/';
   const target = url.pathname + url.search + url.hash;
-  return target.startsWith('//') ? '/' : target; // "/.//host" normalises to "//host", which would leave the site
+  // "/.//host" normalises to "//host" (another site); "blob:<this origin>/x" has no leading slash at all.
+  return target.startsWith('/') && !target.startsWith('//') ? target : '/';
 }
 
 export function LoginPage() {

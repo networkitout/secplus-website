@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import { api, ApiError, isUnavailable, setUnauthorizedHandler } from '../../api/client';
 import type { User } from '../../api/types';
+import { AuthLayout } from './AuthLayout';
 
 export interface AuthValue {
   user: User | null;
@@ -85,9 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 function Loading() {
   return (
-    <p role="status" className="p-8 text-center text-muted">
-      Loading…
-    </p>
+    <AuthLayout>
+      <p role="status" className="text-center text-muted">
+        Loading…
+      </p>
+    </AuthLayout>
   );
 }
 

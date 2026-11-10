@@ -24,18 +24,22 @@ export interface SaveQueueOptions {
   onError?: (key: string, error: unknown) => void;
 }
 
+/** Transient failures: no response at all (0), or a gateway/unavailable answer while the host restarts the app. */
+const RETRYABLE_STATUSES: ReadonlySet<unknown> = new Set([0, 502, 503, 504]);
+
 const retryable = (err: unknown) =>
-  typeof err === 'object' && err !== null && 'status' in err && ((err as { status: unknown }).status === 0 || (err as { status: unknown }).status === 503);
+  typeof err === 'object' && err !== null && 'status' in err && RETRYABLE_STATUSES.has((err as { status: unknown }).status);
 
 /**
  * Saves one item at a time, in the order the keys were enqueued.
  *
  * - Per key there is at most one payload that has not been handed to `send` yet, and it is the newest one.
- * - Network failures (status 0 / 503) are retried until they succeed. The failed key keeps its place at the
- *   front, so no other key is sent before it, and a retry always sends the newest payload for that key:
+ * - Transient failures (status 0, 502, 503, 504) are retried until they succeed. The failed key keeps its place
+ *   at the front, so no other key is sent before it, and a retry always sends the newest payload for that key:
  *   a payload that failed and was superseded is never sent again.
- * - Any other error drops the item, reports it through `onError` and puts the queue in `failed` until a later
- *   save succeeds or `dismiss()` is called. `saving` / `unsaved` take priority while there is work left.
+ * - Any other error drops the item and reports it through `onError`. The key counts as dropped until a later
+ *   save for that same key succeeds or `dismiss()` is called. While any key is dropped the state is `failed`,
+ *   except that `saving` / `unsaved` take priority while there is work left.
  */
 export function createSaveQueue(
   send: (item: SaveItem) => Promise<unknown> = (item) => item.run(),
@@ -46,7 +50,8 @@ export function createSaveQueue(
   const waiting = new Map<string, Run>();
   // The save at the front: in flight, or (after a retryable failure) waiting for its retry timer.
   let head: { key: string; run: Run; failures: number; inFlight: boolean } | null = null;
-  let dropped = false;
+  // Keys whose last save was dropped and has not been made good by a later save for the same key.
+  const dropped = new Set<string>();
   let pumping = false;
   let last: SaveState = 'idle';
   const listeners = new Set<(s: SaveState) => void>();
@@ -55,7 +60,7 @@ export function createSaveQueue(
   const busy = () => head !== null || waiting.size > 0;
 
   const compute = (): SaveState => {
-    if (!busy()) return dropped ? 'failed' : 'idle';
+    if (!busy()) return dropped.size > 0 ? 'failed' : 'idle';
     return head && head.failures > 0 ? 'unsaved' : 'saving';
   };
 
@@ -91,7 +96,7 @@ export function createSaveQueue(
         try {
           await send({ key: item.key, run: item.run });
           head = null;
-          dropped = false;
+          dropped.delete(item.key);
         } catch (err) {
           item.inFlight = false;
           if (retryable(err)) {
@@ -107,7 +112,7 @@ export function createSaveQueue(
             continue;
           }
           head = null;
-          dropped = true;
+          dropped.add(item.key);
           opts.onError?.(item.key, err);
         }
         notify();
@@ -136,7 +141,7 @@ export function createSaveQueue(
       return new Promise<void>((resolve) => waiters.push(resolve));
     },
     dismiss() {
-      dropped = false;
+      dropped.clear();
       notify();
     },
   };

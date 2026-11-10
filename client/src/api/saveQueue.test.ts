@@ -3,6 +3,7 @@ import { createSaveQueue, guardUnload, type SaveState } from './saveQueue';
 
 const netError = () => Object.assign(new Error('offline'), { status: 0 });
 const badRequest = () => Object.assign(new Error('bad'), { status: 400 });
+const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { status });
 
 /** Saves whose outcome the test decides: `sent` lists the payloads in the order the server saw them. */
 function controlled() {
@@ -71,13 +72,37 @@ describe('saveQueue', () => {
     expect(q.state()).toBe('idle');
   });
 
-  it('503 is retried like a network failure', async () => {
+  it.each([502, 503, 504])('%i is retried like a network failure, with the same backoff', async (status) => {
     const q = createSaveQueue();
-    const run = vi.fn().mockRejectedValueOnce(Object.assign(new Error('down'), { status: 503 })).mockResolvedValue('ok');
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(httpError(status))
+      .mockRejectedValueOnce(httpError(status))
+      .mockResolvedValue('ok');
     q.enqueue('a', run);
-    await vi.advanceTimersByTimeAsync(1000);
+    await tick();
+    expect(q.state()).toBe('unsaved');
+    await tick(999);
+    expect(run).toHaveBeenCalledTimes(1);
+    await tick(1);
     expect(run).toHaveBeenCalledTimes(2);
+    await tick(2999);
+    expect(run).toHaveBeenCalledTimes(2);
+    await tick(1);
+    expect(run).toHaveBeenCalledTimes(3);
     expect(q.state()).toBe('idle');
+  });
+
+  it.each([401, 429, 500])('%i drops the item without a retry', async (status) => {
+    const onError = vi.fn();
+    const q = createSaveQueue(undefined, { onError });
+    const err = httpError(status);
+    const run = vi.fn().mockRejectedValue(err);
+    q.enqueue('a', run);
+    await tick(60_000);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith('a', err);
+    expect(q.state()).toBe('failed');
   });
 
   it('a second enqueue for the same key while the first is unsent sends only the latest payload', async () => {
@@ -295,7 +320,51 @@ describe('saveQueue', () => {
     await expect(q.flush()).resolves.toBeUndefined();
   });
 
-  it('failed is left when a later save succeeds', async () => {
+  it('a drop is still reported after a save queued behind it for another key succeeds', async () => {
+    const { sent, outcome, save } = controlled();
+    const q = createSaveQueue();
+    const seen: SaveState[] = [];
+    q.subscribe((s) => seen.push(s));
+    q.enqueue('a', save('a1'));
+    q.enqueue('b', save('b1'));
+    await tick();
+    outcome[0].fail(badRequest());
+    await tick();
+    expect(q.state()).toBe('saving');
+    outcome[1].ok();
+    await tick();
+    expect(sent).toEqual(['a1', 'b1']);
+    expect(q.state()).toBe('failed');
+    expect(seen).toEqual(['saving', 'failed']);
+  });
+
+  it('a drop is still reported after a later save for another key succeeds', async () => {
+    const q = createSaveQueue();
+    q.enqueue('a', vi.fn().mockRejectedValue(badRequest()));
+    await q.flush();
+    q.enqueue('b', vi.fn().mockResolvedValue('ok'));
+    expect(q.state()).toBe('saving');
+    await q.flush();
+    expect(q.state()).toBe('failed');
+  });
+
+  it('with two keys dropped, failed lasts until both have been saved again', async () => {
+    const q = createSaveQueue();
+    q.enqueue('a', vi.fn().mockRejectedValue(badRequest()));
+    q.enqueue('b', vi.fn().mockRejectedValue(badRequest()));
+    await q.flush();
+    expect(q.state()).toBe('failed');
+
+    q.enqueue('a', vi.fn().mockResolvedValue('ok'));
+    await q.flush();
+    expect(q.state()).toBe('failed');
+
+    q.enqueue('b', vi.fn().mockResolvedValue('ok'));
+    await q.flush();
+    expect(q.state()).toBe('idle');
+  });
+
+  it('failed is left when a later save for the dropped key succeeds', async () => {
     const q = createSaveQueue();
     const seen: SaveState[] = [];
     q.subscribe((s) => seen.push(s));
@@ -311,12 +380,18 @@ describe('saveQueue', () => {
   it('failed is left when dismissed, and subscribers are told', async () => {
     const q = createSaveQueue();
     q.enqueue('a', vi.fn().mockRejectedValue(badRequest()));
+    q.enqueue('b', vi.fn().mockRejectedValue(badRequest()));
     await q.flush();
     const seen: SaveState[] = [];
     q.subscribe((s) => seen.push(s));
     q.dismiss();
     expect(q.state()).toBe('idle');
     expect(seen).toEqual(['idle']);
+
+    // Dismissed drops stay dismissed: a later save for another key does not bring the message back.
+    q.enqueue('c', vi.fn().mockResolvedValue('ok'));
+    await q.flush();
+    expect(q.state()).toBe('idle');
   });
 
   it('saving and unsaved take priority over failed while work is in progress', async () => {

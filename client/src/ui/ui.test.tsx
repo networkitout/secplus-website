@@ -111,12 +111,36 @@ describe('ui', () => {
       const queue = createSaveQueue();
       render(<SaveIndicator queue={queue} />);
       act(() => queue.enqueue('a', () => Promise.reject(new ApiError(400, 'Bad input'))));
-      expect(await screen.findByRole('status')).toHaveTextContent("Couldn't save your last answer.");
+      expect(await screen.findByRole('status')).toHaveTextContent("Couldn't save one of your answers.");
 
       await userEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
       expect(screen.getByRole('status')).toBeEmptyDOMElement();
       expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
       expect(queue.state()).toBe('idle');
+    });
+
+    it('keeps keyboard focus in place when the message is dismissed', async () => {
+      const queue = createSaveQueue();
+      render(
+        <>
+          <button type="button">Before</button>
+          <SaveIndicator queue={queue} />
+          <button type="button">After</button>
+        </>,
+      );
+      act(() => queue.enqueue('a', () => Promise.reject(new ApiError(400, 'Bad input'))));
+      const dismiss = await screen.findByRole('button', { name: 'Dismiss' });
+      await userEvent.tab();
+      await userEvent.tab();
+      expect(dismiss).toHaveFocus();
+
+      await userEvent.keyboard('{Enter}');
+      expect(dismiss).not.toBeInTheDocument();
+      expect(document.body).not.toHaveFocus();
+      expect(screen.getByRole('status').parentElement).toHaveFocus();
+
+      await userEvent.tab();
+      expect(screen.getByRole('button', { name: 'After' })).toHaveFocus();
     });
   });
 

@@ -7,7 +7,10 @@ export class ApiError extends Error {
   }
 }
 
-/** True for failures worth retrying: no response at all (0) or the server is unavailable (503). */
+/**
+ * True when there was no response at all (0) or the server reports itself unavailable (503). The error screen
+ * and query retries act on this; the save queue decides for itself which failures it retries.
+ */
 export function isUnavailable(err: unknown): err is ApiError {
   return err instanceof ApiError && (err.status === 0 || err.status === 503);
 }

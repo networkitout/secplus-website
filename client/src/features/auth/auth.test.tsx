@@ -54,6 +54,13 @@ describe('login form', () => {
     expect(screen.getByText('No account? Ask the site owner for an invite link.')).toBeInTheDocument();
   });
 
+  it('shows the CompTIA footer while the session is still loading', () => {
+    handlers['GET /api/auth/me'] = () => new Promise<Response>(() => {});
+    renderAt('/dashboard');
+    expect(screen.getByRole('status')).toHaveTextContent('Loading');
+    expect(screen.getByText(FOOTER)).toBeInTheDocument();
+  });
+
   it('shows the CompTIA footer', async () => {
     renderAt('/login');
     await screen.findByRole('heading', { name: 'Sign in' });
@@ -126,6 +133,7 @@ describe('safeNext', () => {
     '/..//evil.example',
     'https://evil.example/path',
     'javascript:alert(1)',
+    `blob:${window.location.origin}/dashboard`,
   ])('falls back to / for %j', (raw) => {
     expect(safeNext(raw)).toBe('/');
   });
