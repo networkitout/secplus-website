@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router';
 import type { Answer } from '../../../../shared/types';
 import { api, ApiError, isUnavailable } from '../../api/client';
@@ -30,20 +30,30 @@ export function formatDay(date: string): string {
 
 const cardUrl = (card: ReviewCard) => `review/${encodeURIComponent(card.cardId)}`;
 
-/** What went wrong with a card, and what the learner can do about it. */
-type Problem = { message: string; canRetry: boolean; canSkip: boolean };
+/** What went wrong with a card, and what the learner can do about it. `stillDue`: skipping it leaves it due today. */
+type Problem = { message: string; canRetry: boolean; canSkip: boolean; stillDue: boolean };
 
 function problemOf(err: unknown, failed: string): Problem {
   const status = err instanceof ApiError ? err.status : 0;
-  if (status === 404) return { message: 'This card is no longer available.', canRetry: false, canSkip: true };
+  if (status === 404) return { message: 'This card is no longer available.', canRetry: false, canSkip: true, stillDue: false };
   // Not due: it was reviewed in another tab or on another device in the meantime.
-  if (status === 409) return { message: 'This card has already been reviewed and is not due today.', canRetry: false, canSkip: true };
-  if (isUnavailable(err)) return { message: failed, canRetry: true, canSkip: false };
+  if (status === 409) {
+    return { message: 'This card has already been reviewed and is not due today.', canRetry: false, canSkip: true, stillDue: false };
+  }
+  if (isUnavailable(err)) return { message: failed, canRetry: true, canSkip: false, stillDue: true };
   // Anything else may fail the same way every time, so there is always a way past it.
-  return { message: failed, canRetry: status >= 500, canSkip: true };
+  return { message: failed, canRetry: status >= 500, canSkip: true, stillDue: true };
 }
 
-function ProblemNote({ problem, onRetry, onSkip }: { problem: Problem; onRetry?: () => void; onSkip(): void }) {
+function ProblemNote({
+  problem,
+  onRetry,
+  onSkip,
+}: {
+  problem: Problem;
+  onRetry?: () => void;
+  onSkip(stillDue: boolean): void;
+}) {
   const note = useRef<HTMLDivElement>(null);
   // Without a retry the card's own buttons are gone, and "Skip this card" is the only button here. If
   // one of the buttons that went had focus, it goes to the way forward.
@@ -60,7 +70,7 @@ function ProblemNote({ problem, onRetry, onSkip }: { problem: Problem; onRetry?:
         </Button>
       )}
       {problem.canSkip && (
-        <Button variant="secondary" onClick={onSkip}>
+        <Button variant="secondary" onClick={() => onSkip(problem.stillDue)}>
           Skip this card
         </Button>
       )}
@@ -77,11 +87,19 @@ type CardProps<C extends ReviewCard> = {
   card: C;
   /** The server has moved the card: called once, with its response. */
   onReviewed(card: ReviewCard, res: ReviewResponse): void;
-  /** On to the next card. */
+  /** On to the next card. Does nothing when the round has already moved past this card. */
   onNext(): void;
+  /** Leaves the card unreviewed. `stillDue`: the server still holds it as due today. */
+  onSkip(stillDue: boolean): void;
 };
 
-function FlashcardCard({ card, onReviewed, onNext }: CardProps<Extract<ReviewCard, { kind: 'flashcard' }>>) {
+function FlashcardCard({
+  card,
+  scope,
+  onReviewed,
+  onNext,
+  onSkip,
+}: CardProps<Extract<ReviewCard, { kind: 'flashcard' }>> & { scope: RefObject<HTMLElement | null> }) {
   const [definition, setDefinition] = useState<string | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   // The answer that could not be saved; "Try again" sends it again.
@@ -130,20 +148,25 @@ function FlashcardCard({ card, onReviewed, onNext }: CardProps<Extract<ReviewCar
       term={card.term}
       definition={definition}
       locked={problem !== null && !problem.canRetry}
+      busy={busy || null}
+      scope={scope}
       onReveal={() => void reveal()}
       onGrade={(knewIt) => void grade(knewIt)}
     >
       {problem && (
-        <ProblemNote problem={problem} onRetry={unsaved === null ? undefined : () => void grade(unsaved)} onSkip={onNext} />
+        <ProblemNote problem={problem} onRetry={unsaved === null ? undefined : () => void grade(unsaved)} onSkip={onSkip} />
       )}
-      <p role="status" className="text-sm text-muted">
-        {busy === 'reveal' ? 'Loading the answer…' : busy === 'grade' ? 'Saving…' : ''}
-      </p>
     </FlashcardView>
   );
 }
 
-function QuestionCard({ card, last, onReviewed, onNext }: CardProps<Extract<ReviewCard, { kind: 'question' }>> & { last: boolean }) {
+function QuestionCard({
+  card,
+  last,
+  onReviewed,
+  onNext,
+  onSkip,
+}: CardProps<Extract<ReviewCard, { kind: 'question' }>> & { last: boolean }) {
   const { question } = card;
   const [value, setValue] = useState<Answer | null>(null);
   const [marked, setMarked] = useState<{ answer: Answer; res: ReviewResponse } | null>(null);
@@ -192,7 +215,7 @@ function QuestionCard({ card, last, onReviewed, onNext }: CardProps<Extract<Revi
         disabled={busy || marked !== null}
       />
       {marked && <p className="text-sm text-muted">{boxNote(marked.res)}</p>}
-      {problem && <ProblemNote problem={problem} onSkip={onNext} />}
+      {problem && <ProblemNote problem={problem} onSkip={onSkip} />}
       <div className="flex justify-end">
         {marked ? (
           <Button onClick={next}>{last ? 'Finish' : 'Next'}</Button>
@@ -233,13 +256,18 @@ function ReviewRound({
 }) {
   const queryClient = useQueryClient();
   // The round keeps the cards it began with, whatever the query holds later.
-  const [{ cards, total }] = useState(due);
+  const [{ cards, total, nextDueOn }] = useState(due);
   const [index, setIndex] = useState(0);
   const [responses, setResponses] = useState<Array<{ cardId: string } & ReviewResponse>>([]);
+  // Cards that were skipped although the server still holds them as due today.
+  const [skippedDue, setSkippedDue] = useState<string[]>([]);
   const [moreError, setMoreError] = useState('');
+  const [loadingMore, setLoadingMore] = useState(false);
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
-  const loadingMore = useRef(false);
+  const section = useRef<HTMLElement>(null);
+  // Set and read in the same tick, which state is not: two presses in a row must not load twice.
+  const loading = useRef(false);
   // Something was reviewed since the header and the path last read their numbers.
   const stale = useRef(false);
 
@@ -267,27 +295,32 @@ function ReviewRound({
   }, [finished, queryClient]);
 
   /**
-   * Every review response arrives here, once. Its `xp` is for Task 20's rewards provider (the review API
-   * reports no badges); until then the header re-reads its totals.
+   * Every review response arrives here, once. Its `xp` and `newBadges` are for Task 20's rewards provider;
+   * until then the header re-reads its totals.
    */
   function reviewed(done: ReviewCard, res: ReviewResponse) {
     setResponses((all) => (all.some((r) => r.cardId === done.cardId) ? all : [...all, { ...res, cardId: done.cardId }]));
     stale.current = true;
-    if (res.xp > 0) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    if (res.xp > 0 || res.newBadges.length > 0) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   }
 
   async function loadMore() {
-    if (loadingMore.current) return;
-    loadingMore.current = true;
-    setMoreError(await more());
-    loadingMore.current = false;
+    if (loading.current) return;
+    loading.current = true;
+    setLoadingMore(true);
+    setMoreError('');
+    const failure = await more();
+    // Without a failure a new round has taken this one's place.
+    loading.current = false;
+    setLoadingMore(false);
+    setMoreError(failure);
   }
 
   if (cards.length === 0) {
     return (
       <div className="space-y-3">
         <h2 ref={heading} tabIndex={-1} className="rounded-sm text-lg font-medium">
-          Nothing due today.
+          {nextDueOn ? `Nothing due today. Next review: ${formatDay(nextDueOn)}.` : 'Nothing due today.'}
         </h2>
         <p className="text-muted">
           Cards come back here on the day they are due: the flashcards of each lesson you finish, and every question you miss.
@@ -298,12 +331,17 @@ function ReviewRound({
   }
 
   if (!card) {
-    // All of this comes from the responses: a card that was answered right is in a box above 1.
-    const movedUp = responses.filter((r) => r.box > 1).length;
+    // All of this is the server's: each response gives the card's box before and after, and its next date.
+    const movedUp = responses.filter((r) => r.box > r.previousBox).length;
+    const backToOne = responses.filter((r) => r.box === 1).length;
+    // Answered right in the last box: there is nowhere higher to go.
+    const stayedOnTop = responses.length - movedUp - backToOne;
     const xp = responses.reduce((sum, r) => sum + r.xp, 0);
-    const nextDue = responses.map((r) => r.dueOn).sort()[0];
+    // The first day a card comes back: one of this round's, or one that was already waiting.
+    const nextDue = [...responses.map((r) => r.dueOn), ...(nextDueOn ? [nextDueOn] : [])].sort()[0];
     const skipped = cards.length - responses.length;
-    const remaining = total - cards.length;
+    // Still due today: what did not fit into this round, and what was skipped without the server letting go of it.
+    const remaining = total - cards.length + skippedDue.filter((id) => !responses.some((r) => r.cardId === id)).length;
     return (
       <section aria-labelledby={headingId} className="space-y-5">
         <h2 id={headingId} ref={heading} tabIndex={-1} className="rounded-sm text-xl font-semibold">
@@ -312,7 +350,8 @@ function ReviewRound({
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Stat label="Cards reviewed">{responses.length}</Stat>
           <Stat label="Moved up">{movedUp}</Stat>
-          <Stat label="Back to box 1">{responses.length - movedUp}</Stat>
+          {stayedOnTop > 0 && <Stat label={`Stayed in box ${BOXES}`}>{stayedOnTop}</Stat>}
+          <Stat label="Back to box 1">{backToOne}</Stat>
           {skipped > 0 && <Stat label="Skipped">{skipped}</Stat>}
           <Stat label="XP earned">{xp}</Stat>
           {nextDue && (
@@ -323,12 +362,17 @@ function ReviewRound({
         </dl>
         <p className="text-sm text-muted">
           {`A card you get right moves up a box (box ${BOXES} is the last) and comes back after a longer wait; the others start again in box 1.`}
-          {nextDue && ' “Next due” is the first day on which one of these cards comes back.'}
+          {nextDue && ' “Next due” is the first day on which a card comes back.'}
         </p>
         {remaining > 0 && (
           <div className="space-y-2">
             <p>{`${count(remaining, 'more card is', 'more cards are')} due today.`}</p>
-            <Button onClick={() => void loadMore()}>Review more</Button>
+            <Button aria-disabled={loadingMore} className="aria-disabled:cursor-progress aria-disabled:opacity-60" onClick={() => void loadMore()}>
+              {loadingMore ? 'Loading more cards…' : 'Review more'}
+            </Button>
+            <p role="status" aria-label="Loading" className="sr-only">
+              {loadingMore ? 'Loading more cards…' : ''}
+            </p>
             {moreError && (
               <p role="alert" className="text-sm text-bad">
                 {moreError}
@@ -341,9 +385,14 @@ function ReviewRound({
     );
   }
 
-  const next = () => setIndex(index + 1);
+  // Only from the card that is shown: a late call from a card the round has left changes nothing.
+  const next = () => setIndex((now) => (now === index ? index + 1 : now));
+  const skip = (stillDue: boolean) => {
+    if (stillDue) setSkippedDue((ids) => (ids.includes(card.cardId) ? ids : [...ids, card.cardId]));
+    next();
+  };
   return (
-    <section aria-labelledby={headingId} className="space-y-4">
+    <section ref={section} aria-labelledby={headingId} className="space-y-4">
       <div className="space-y-2">
         <div
           role="progressbar"
@@ -364,9 +413,9 @@ function ReviewRound({
         {`Card ${index + 1} of ${cards.length}: ${card.kind}`}
       </h2>
       {card.kind === 'flashcard' ? (
-        <FlashcardCard key={card.cardId} card={card} onReviewed={reviewed} onNext={next} />
+        <FlashcardCard key={card.cardId} card={card} scope={section} onReviewed={reviewed} onNext={next} onSkip={skip} />
       ) : (
-        <QuestionCard key={card.cardId} card={card} last={index === cards.length - 1} onReviewed={reviewed} onNext={next} />
+        <QuestionCard key={card.cardId} card={card} last={index === cards.length - 1} onReviewed={reviewed} onNext={next} onSkip={skip} />
       )}
     </section>
   );

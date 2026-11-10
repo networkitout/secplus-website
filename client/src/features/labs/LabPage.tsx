@@ -8,6 +8,7 @@ import { Button } from '../../ui/Button';
 import { Celebration } from '../../ui/Celebration';
 import { Mark } from '../questions/FeedbackPanel';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
+import { wholePercent } from './percent';
 
 const PASS_PCT = 80;
 const EYEBROW = 'font-mono text-sm uppercase tracking-wide text-accent';
@@ -50,12 +51,17 @@ export function LabPage() {
   );
 }
 
+// The scenario lies across the top (below the `lg` breakpoint) of a screen that is at most 700 px high.
+const SMALL_AND_SHORT = '(max-width: 1023px) and (max-height: 700px)';
+
 /**
  * The scenario stays in view while the steps are worked through: beside them on a wide screen, across the
  * top on a narrow one, where it scrolls within a limited height and can be folded away.
  */
 function Scenario({ text }: { text: string }) {
-  const [open, setOpen] = useState(true);
+  // Across the top of a short screen it would take about half of it, so there it starts folded: the bar
+  // with "Show scenario" stays in view, one press away. Everywhere else it starts open, to be read first.
+  const [open, setOpen] = useState(() => !(typeof window.matchMedia === 'function' && window.matchMedia(SMALL_AND_SHORT).matches));
   const [scrolls, setScrolls] = useState(false);
   const box = useRef<HTMLElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -143,7 +149,7 @@ function Step({
             {feedback.correct
               ? 'Correct'
               : feedback.fraction > 0
-                ? `Partly correct (${Math.round(feedback.fraction * 100)}%)`
+                ? `Partly correct (${wholePercent(feedback.fraction * 100)}%)`
                 : 'Incorrect'}
           </Mark>
         )}
@@ -264,8 +270,8 @@ function LabRunner({ lab }: { lab: LabView }) {
               {celebrating && (
                 <div ref={celebrationBox}>
                   <Celebration
-                    kind="quiz-pass"
-                    title={`Lab passed: ${lab.title}`}
+                    kind="lab-pass"
+                    title={lab.title}
                     detail={result.xp > 0 ? `+${result.xp} XP` : undefined}
                     onDone={dismissCelebration}
                   />
@@ -273,8 +279,7 @@ function LabRunner({ lab }: { lab: LabView }) {
               )}
               <section aria-label="Score" className="space-y-2">
                 <div className="flex flex-wrap items-baseline gap-x-4">
-                  {/* Never rounded up to a pass mark that was missed. */}
-                  <p className="font-mono text-4xl font-semibold">{`${Math.floor(result.scorePct)}%`}</p>
+                  <p className="font-mono text-4xl font-semibold">{`${wholePercent(result.scorePct)}%`}</p>
                   <p className={`text-2xl font-semibold ${result.passed ? 'text-ok' : 'text-warn'}`}>
                     <span aria-hidden="true">{result.passed ? '✓ ' : '○ '}</span>
                     <span>{result.passed ? 'Passed' : 'Not passed'}</span>

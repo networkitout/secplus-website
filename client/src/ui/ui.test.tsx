@@ -312,6 +312,15 @@ describe('ui', () => {
       expect(banner).not.toHaveTextContent('Streak');
     });
 
+    it('labels a passed lab as "Lab passed"', () => {
+      render(<Celebration kind="lab-pass" title="Classify the controls" detail="+121 XP" onDone={vi.fn()} />);
+      const banner = screen.getByRole('status');
+      expect(banner).toHaveTextContent('Lab passed');
+      expect(banner).toHaveTextContent('Classify the controls');
+      expect(banner).toHaveTextContent('+121 XP');
+      expect(banner).not.toHaveTextContent('Quiz passed');
+    });
+
     it('labels a passed exam as "Exam passed"', () => {
       render(<Celebration kind="exam-pass" title="Domain 1 exam" detail="+300 XP" onDone={vi.fn()} />);
       const banner = screen.getByRole('status');

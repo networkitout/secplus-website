@@ -313,6 +313,47 @@ describe('questions', () => {
     expect(onChange).toHaveBeenLastCalledWith({ type: 'match', pairs: { l1: 'r2' } });
   });
 
+  it('match: the chosen answer is printed in full under its menu, before and after marking, and is not read twice', async () => {
+    const user = userEvent.setup();
+    const sentence = 'Bolt its case to the floor and fit a lock over the disk bay, so that the disk cannot be carried away';
+    const long: PublicQuestion = { ...match, right: [{ id: 'r1', text: sentence }, { id: 'r2', text: 'Hashing' }] };
+    const open = render(<Harness question={long} />);
+    const select = screen.getByRole('combobox', { name: 'Match for Confidentiality' });
+    const row = select.closest('li')!;
+    // Nothing chosen: nothing printed.
+    expect(row.querySelector('output')).toBeNull();
+
+    await user.selectOptions(select, sentence);
+    const shown = row.querySelector('output')!;
+    // A closed menu clips a long answer on a narrow screen; this line wraps instead.
+    expect(shown).toHaveTextContent(`Your match: ${sentence}`);
+    expect(shown).toHaveAttribute('for', select.id);
+    // The menu already tells a screen reader its value, so the printed copy is kept out of its way.
+    expect(shown).toHaveAttribute('aria-hidden', 'true');
+    expect(select).not.toHaveAttribute('aria-describedby');
+    expect(screen.getByRole('combobox', { name: 'Match for Integrity' }).closest('li')!.querySelector('output')).toBeNull();
+
+    await user.selectOptions(select, '');
+    expect(row.querySelector('output')).toBeNull();
+    open.unmount();
+
+    // After marking the menu is locked and the list of answers is gone: the line is where the choice can be read.
+    render(
+      <QuestionView
+        question={long}
+        value={{ type: 'match', pairs: { l1: 'r1', l2: 'r2' } }}
+        onChange={vi.fn()}
+        feedback={{ correct: true, fraction: 1, correctAnswer: { type: 'match', pairs: { l1: 'r1', l2: 'r2' } }, explanation: 'Both right.' }}
+      />,
+    );
+    const marked = screen.getByRole('combobox', { name: 'Match for Confidentiality' });
+    expect(marked).toBeDisabled();
+    expect(marked.closest('li')!.querySelector('output')).toHaveTextContent(`Your match: ${sentence}`);
+    expect(screen.getByRole('combobox', { name: 'Match for Integrity' }).closest('li')!.querySelector('output')).toHaveTextContent('Your match: Hashing');
+    // Its description is still the marking alone.
+    expectMarking(marked, '✓', /^Correct$/);
+  });
+
   it('match: dragging an answer onto a left item pairs them, taking it from the row that had it; a drop on its own row emits nothing', () => {
     const boxes = new Map<Element, Box>();
     stubLayout((el) => boxes.get(el));

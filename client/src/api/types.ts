@@ -167,11 +167,13 @@ export type ReviewCard =
 
 /**
  * `GET /api/review/due`. `total` counts every card due today; `cards` holds at most the first 30 of them,
- * oldest first. It does not say when the next card falls due.
+ * oldest first. `nextDueOn` is the first calendar date after today (`YYYY-MM-DD`, in the learner's time
+ * zone) on which a card falls due, whether or not any is due today; null when no card is waiting.
  */
 export interface ReviewDueResponse {
   total: number;
   cards: ReviewCard[];
+  nextDueOn: string | null;
 }
 
 /** `GET /api/review/flashcard/:cardId` */
@@ -181,16 +183,18 @@ export interface FlashcardDefinition {
 
 /**
  * `POST /api/review/:cardId` with `{ answer }` for a question card or `{ knewIt }` for a flashcard. `box`
- * (1 to 5) is the card's new Leitner box and `dueOn` the calendar date (`YYYY-MM-DD`, in the learner's
- * time zone) of its next review. A question card adds `feedback`, a flashcard its `definition`. 404 means
- * the card is gone, 409 that it is not due (any more).
+ * (1 to 5) is the card's new Leitner box, `previousBox` the one it was in, and `dueOn` the calendar date
+ * (`YYYY-MM-DD`, in the learner's time zone) of its next review. A question card adds `feedback`, a
+ * flashcard its `definition`. 404 means the card is gone, 409 that it is not due (any more).
  */
 export interface ReviewResponse {
   box: number;
+  previousBox: number;
   dueOn: string;
   feedback?: Feedback;
   definition?: string;
   xp: number;
+  newBadges: string[];
 }
 
 /** One lab of `GET /api/labs`. `bestScore` is 0 to 100 with up to two decimals, or null before any attempt. */

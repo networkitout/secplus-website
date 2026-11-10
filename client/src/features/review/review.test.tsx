@@ -62,15 +62,17 @@ const flash = (n: number): ReviewCard => {
   return { cardId: `f:${id}`, kind: 'flashcard', term: TERMS[id]! };
 };
 const questionCard = (question: PublicQuestion): ReviewCard => ({ cardId: `q:${question.id}`, kind: 'question', question });
-const due = (cards: ReviewCard[], total = cards.length): ReviewDueResponse => ({ total, cards });
+const due = (cards: ReviewCard[], total = cards.length, nextDueOn: string | null = null): ReviewDueResponse => ({ total, cards, nextDueOn });
 
 const enc = encodeURIComponent;
 const DUE = 'GET /api/review/due';
 const reveal = (card: ReviewCard) => `GET /api/review/flashcard/${enc(card.cardId)}`;
 const post = (card: ReviewCard) => `POST /api/review/${enc(card.cardId)}`;
 
-/** What the server answers when a card is reviewed. */
-const moved = (box: number, dueOn: string, xp: number, more: Partial<ReviewResponse> = {}): ReviewResponse => ({ box, dueOn, xp, ...more });
+/** What the server answers when a card is reviewed. Unless said otherwise, a right answer came from the box below. */
+const moved = (box: number, dueOn: string, xp: number, more: Partial<ReviewResponse> = {}): ReviewResponse => ({
+  box, previousBox: box > 1 ? box - 1 : 1, dueOn, xp, newBadges: [], ...more,
+});
 
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 let handlers: Record<string, Handler>;
@@ -83,8 +85,8 @@ const bodies = (key: string) => calls(key).map(([, i]) => JSON.parse(String(i.bo
 const writes = () => fetchMock.mock.calls.map(([u, i]) => keyOf(u, i)).filter((k) => !k.startsWith('GET'));
 
 /** Serves the cards as due, with a definition for every flashcard among them. */
-function serve(cards: ReviewCard[], total = cards.length) {
-  handlers[DUE] = () => json(200, due(cards, total));
+function serve(cards: ReviewCard[], total = cards.length, nextDueOn: string | null = null) {
+  handlers[DUE] = () => json(200, due(cards, total, nextDueOn));
   for (const card of cards) {
     if (card.kind === 'flashcard') handlers[reveal(card)] = () => json(200, { definition: DEFINITIONS[card.cardId.slice(2)] });
   }
@@ -131,13 +133,21 @@ async function showAnswer() {
 
 describe('review', () => {
   it('review: empty state when total is 0', async () => {
-    serve([]);
+    serve([], 0, '2026-11-12');
     renderReview();
-    expect(await screen.findByText(/Nothing due today\./)).toBeInTheDocument();
-    // The API does not say when the next card is due, so no date is made up.
-    expect(screen.queryByText(/Next review/)).not.toBeInTheDocument();
+    const line = await screen.findByText(/^Nothing due today\./);
+    // The date is the server's, as a calendar day in the learner's locale.
+    expect(line).toHaveTextContent(`Nothing due today. Next review: ${formatDay('2026-11-12')}.`);
+    expect(line).toHaveTextContent(/\b12\b/);
     expect(screen.getByRole('link', { name: 'Back to path' })).toHaveAttribute('href', '/');
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('the empty state names no date when the learner has no card waiting', async () => {
+    serve([], 0, null);
+    renderReview();
+    expect(await screen.findByText(/^Nothing due today\./)).toHaveTextContent(/^Nothing due today\.$/);
+    expect(screen.queryByText(/Next review/)).not.toBeInTheDocument();
   });
 
   it('review: flashcard hides the definition until Show answer; "I knew it" posts knewIt true and advances', async () => {
@@ -280,6 +290,79 @@ describe('review', () => {
     await userEvent.keyboard('{Control>}1{/Control}');
     await userEvent.keyboard('{Meta>}2{/Meta}');
     expect(writes()).toEqual([]);
+
+    // Nor do they act while focus is on something outside the card, such as a link or a button of the header.
+    screen.getByRole('link', { name: 'A link' }).focus();
+    await userEvent.keyboard('1');
+    button('Elsewhere').focus();
+    await userEvent.keyboard('2');
+    expect(writes()).toEqual([]);
+  });
+
+  it('Space and Enter on one of the card\'s own buttons are that button\'s, not a second "Show answer"', async () => {
+    const [first, second] = [flash(1), flash(2)];
+    serve([first, second]);
+    handlers[reveal(first)] = () => json(500, { error: 'Internal error' });
+    renderReview();
+    await cardHeading('Card 1 of 2: flashcard');
+    await userEvent.click(button('Show answer'));
+    await screen.findByRole('alert');
+    expect(calls(reveal(first))).toHaveLength(1);
+    // The answer is still hidden, so the shortcut is live; but focus is on a button inside the card.
+    button('Skip this card').focus();
+    await userEvent.keyboard('{Enter}');
+    await cardHeading('Card 2 of 2: flashcard');
+    expect(calls(reveal(first))).toHaveLength(1);
+    expect(calls(reveal(second))).toHaveLength(0);
+  });
+
+  it('shortcuts act when focus is on a container around the card, as after a click on the page background', async () => {
+    const first = flash(1);
+    serve([first]);
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/review']}>
+          <main tabIndex={-1}>
+            <ReviewPage />
+          </main>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await cardHeading('Card 1 of 1: flashcard');
+    screen.getByRole('main').focus();
+    await userEvent.keyboard(' ');
+    expect(await screen.findByText('A measure put in place to reduce risk.')).toBeInTheDocument();
+    expect(calls(reveal(first))).toHaveLength(1);
+  });
+
+  it('shortcuts act from the page body and from inside the card, and leave a key that something else has handled', async () => {
+    const [first, second] = [flash(1), flash(2)];
+    serve([first, second]);
+    handlers[post(first)] = () => json(200, moved(2, '2026-11-12', 2));
+    renderReview();
+    const heading = await cardHeading('Card 1 of 2: flashcard');
+
+    // Something else (a dialog, say) took the key first.
+    const taken = (e: KeyboardEvent) => e.preventDefault();
+    document.addEventListener('keydown', taken, true);
+    await userEvent.keyboard(' ');
+    await userEvent.keyboard('{Enter}');
+    document.removeEventListener('keydown', taken, true);
+    expect(calls(reveal(first))).toHaveLength(0);
+
+    // Focus on the card's heading (where it lands when a card arrives): inside the card.
+    heading.focus();
+    await userEvent.keyboard(' ');
+    await screen.findByText('A measure put in place to reduce risk.');
+    // Focus on one of the card's own buttons: the other answer's key still works.
+    button('I knew it').focus();
+    document.addEventListener('keydown', taken, true);
+    await userEvent.keyboard('2');
+    document.removeEventListener('keydown', taken, true);
+    expect(writes()).toEqual([]);
+    await userEvent.keyboard('1');
+    await cardHeading('Card 2 of 2: flashcard');
+    expect(bodies(post(first))).toEqual([{ knewIt: true }]);
   });
 
   it('a double click on an answer button posts once, and a double click on Show answer does not grade', async () => {
@@ -409,6 +492,161 @@ describe('review', () => {
     // The header and the path read their numbers again.
     expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(true);
     expect(client.getQueryState(['path'])?.isInvalidated).toBe(true);
+  });
+
+  it('end screen: "Next due" is the earlier of the round\'s dates and the next date the server reported', async () => {
+    const first = flash(1);
+    // Another card, not in this round, is due tomorrow; the reviewed one comes back later.
+    serve([first], 1, '2026-11-11');
+    handlers[post(first)] = () => json(200, moved(3, '2026-11-14', 2));
+    const view = renderReview();
+    await cardHeading('Card 1 of 1: flashcard');
+    await showAnswer();
+    await userEvent.click(button('I knew it'));
+    await screen.findByRole('heading', { level: 2, name: 'Review complete' });
+    expect(stat('Next due')).toHaveTextContent(formatDay('2026-11-11'));
+    view.unmount();
+
+    // The other way round: the round's own card comes back first.
+    client = createQueryClient();
+    serve([first], 1, '2026-11-20');
+    renderReview();
+    await cardHeading('Card 1 of 1: flashcard');
+    await showAnswer();
+    await userEvent.click(button('I knew it'));
+    await screen.findByRole('heading', { level: 2, name: 'Review complete' });
+    expect(stat('Next due')).toHaveTextContent(formatDay('2026-11-14'));
+  });
+
+  it('end screen: a card counts as moved up only when its box is higher than before', async () => {
+    const [first, second, third] = [flash(1), flash(2), flash(3)];
+    serve([first, second, third]);
+    // Right, but already in the last box; right, from box 1; wrong, from box 3.
+    handlers[post(first)] = () => json(200, moved(5, '2026-11-26', 2, { previousBox: 5 }));
+    handlers[post(second)] = () => json(200, moved(2, '2026-11-12', 2, { previousBox: 1 }));
+    handlers[post(third)] = () => json(200, moved(1, '2026-11-11', 0, { previousBox: 3 }));
+    renderReview();
+    for (const [n, answer] of [[1, 'I knew it'], [2, 'I knew it'], [3, "I didn't"]] as const) {
+      await cardHeading(`Card ${n} of 3: flashcard`);
+      await showAnswer();
+      await userEvent.click(button(answer));
+    }
+    await screen.findByRole('heading', { level: 2, name: 'Review complete' });
+    expect(stat('Cards reviewed')).toHaveTextContent(/^3$/);
+    expect(stat('Moved up')).toHaveTextContent(/^1$/);
+    expect(stat('Stayed in box 5')).toHaveTextContent(/^1$/);
+    expect(stat('Back to box 1')).toHaveTextContent(/^1$/);
+  });
+
+  it('a badge earned by a review reaches the same place as its XP: the header reads its numbers again', async () => {
+    const [first, second] = [flash(1), flash(2)];
+    serve([first, second]);
+    // No XP (a second right answer on the same day), but the hundredth correct attempt.
+    handlers[post(first)] = () => json(200, moved(2, '2026-11-12', 0, { newBadges: ['hundred-correct'] }));
+    client.setQueryData(['dashboard'], { xp: 10, level: 1, nextLevelXp: 100, streak: 1 });
+    renderReview();
+    await cardHeading('Card 1 of 2: flashcard');
+    await showAnswer();
+    await userEvent.click(button('I knew it'));
+    await cardHeading('Card 2 of 2: flashcard');
+    expect(client.getQueryState(['dashboard'])?.isInvalidated).toBe(true);
+  });
+
+  it('"Show answer" says that the answer is loading, keeps focus and asks once', async () => {
+    const first = flash(1);
+    serve([first]);
+    const answer = deferred<Response>();
+    handlers[reveal(first)] = () => answer.promise;
+    renderReview();
+    await cardHeading('Card 1 of 1: flashcard');
+    await userEvent.click(button('Show answer'));
+
+    const busy = await screen.findByRole('button', { name: 'Loading the answer…' });
+    expect(busy).toHaveFocus();
+    expect(busy).toHaveAttribute('aria-disabled', 'true');
+    expect(busy).not.toBeDisabled(); // a disabled button would drop keyboard focus
+    expect(screen.getByRole('status', { name: 'Card activity' })).toHaveTextContent('Loading the answer…');
+    await userEvent.click(busy);
+    await userEvent.keyboard('{Enter}');
+    expect(calls(reveal(first))).toHaveLength(1);
+
+    answer.resolve(json(200, { definition: DEFINITIONS['f-1.1-001'] }));
+    expect(await screen.findByText('A measure put in place to reduce risk.')).toHaveFocus();
+    expect(screen.getByRole('status', { name: 'Card activity' })).toBeEmptyDOMElement();
+  });
+
+  it('a late answer to a card that was skipped meanwhile does not move the round backwards', async () => {
+    const [first, second, third] = [flash(1), flash(2), flash(3)];
+    serve([first, second, third]);
+    const retry = deferred<Response>();
+    let attempts = 0;
+    handlers[post(first)] = () => (attempts++ === 0 ? json(500, { error: 'Internal error' }) : retry.promise);
+    handlers[post(second)] = () => json(200, moved(2, '2026-11-12', 2));
+    renderReview();
+    await cardHeading('Card 1 of 3: flashcard');
+    await showAnswer();
+    await userEvent.click(button('I knew it'));
+    await screen.findByRole('alert');
+    // Retry, then lose patience and skip while the retry is still on its way.
+    await userEvent.click(button('Try again'));
+    await userEvent.click(button('Skip this card'));
+    await cardHeading('Card 2 of 3: flashcard');
+    await showAnswer();
+    await userEvent.click(button('I knew it'));
+    await cardHeading('Card 3 of 3: flashcard');
+
+    retry.resolve(json(200, moved(2, '2026-11-12', 2)));
+    await waitFor(() => expect(calls(post(first))).toHaveLength(2));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByRole('heading', { level: 2, name: 'Card 3 of 3: flashcard' })).toBeInTheDocument();
+    expect(screen.getByText('Control type')).toBeInTheDocument();
+
+    // The late answer still counts: the server did move that card.
+    await userEvent.click(button('Show answer'));
+    handlers[post(third)] = () => json(200, moved(1, '2026-11-11', 0));
+    await userEvent.click(await screen.findByRole('button', { name: "I didn't" }));
+    await screen.findByRole('heading', { level: 2, name: 'Review complete' });
+    expect(stat('Cards reviewed')).toHaveTextContent(/^3$/);
+    expect(screen.queryByText('Skipped')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Review more' })).not.toBeInTheDocument();
+  });
+
+  it('a card skipped after a server failure is still due: the summary offers it again', async () => {
+    const [first, second, third] = [flash(1), flash(2), flash(3)];
+    serve([first, second, third]);
+    handlers[post(first)] = () => json(500, { error: 'Internal error' });
+    handlers[reveal(second)] = () => json(404, { error: 'Card not found' });
+    handlers[post(third)] = () => json(200, moved(2, '2026-11-12', 2));
+    renderReview();
+    await cardHeading('Card 1 of 3: flashcard');
+    await showAnswer();
+    await userEvent.click(button('I knew it'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Skip this card' }));
+    // A card that is gone is skipped too, but it is not due any more.
+    await cardHeading('Card 2 of 3: flashcard');
+    await userEvent.click(button('Show answer'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Skip this card' }));
+    await cardHeading('Card 3 of 3: flashcard');
+    await showAnswer();
+    await userEvent.click(button('I knew it'));
+
+    await screen.findByRole('heading', { level: 2, name: 'Review complete' });
+    expect(stat('Skipped')).toHaveTextContent(/^2$/);
+    expect(screen.getByText('1 more card is due today.')).toBeInTheDocument();
+
+    // "Review more" says that it is loading, keeps focus and asks once.
+    const more = deferred<Response>();
+    handlers[DUE] = () => more.promise;
+    await userEvent.click(button('Review more'));
+    const busy = await screen.findByRole('button', { name: 'Loading more cards…' });
+    expect(busy).toHaveFocus();
+    expect(busy).toHaveAttribute('aria-disabled', 'true');
+    expect(busy).not.toBeDisabled();
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveTextContent('Loading more cards…');
+    await userEvent.click(busy);
+    expect(calls(DUE)).toHaveLength(2);
+    more.resolve(json(200, due([first], 1)));
+    expect(await cardHeading('Card 1 of 1: flashcard')).toHaveFocus();
   });
 
   it('keeps the card and the answer when the server cannot be reached, and retries on request', async () => {

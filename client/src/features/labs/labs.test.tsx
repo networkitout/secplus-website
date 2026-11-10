@@ -8,6 +8,7 @@ import type { LabSubmitResponse, LabSummary, LabView, PathDomain, PathResponse }
 import { createQueryClient } from '../../queryClient';
 import { LabPage } from './LabPage';
 import { LabsPage } from './LabsPage';
+import { wholePercent } from './percent';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
 
@@ -62,7 +63,8 @@ const submitted = (over: Partial<LabSubmitResponse> = {}): LabSubmitResponse => 
   steps: {
     'lab-1-01-s1': feedback(true, 'A lock is something you can touch.'),
     'lab-1-01-s2': { ...feedback(true, 'Both notice an event.'), correctAnswer: { type: 'multi', choices: ['a', 'c'] } },
-    'lab-1-01-s3': { correct: false, fraction: 0.5, explanation: 'List first, then classify.', correctAnswer: { type: 'order', order: ['i1', 'i2', 'i3'] } },
+    // Two thirds: shown as 66%, floored like the score, not rounded up to 67%.
+    'lab-1-01-s3': { correct: false, fraction: 2 / 3, explanation: 'List first, then classify.', correctAnswer: { type: 'order', order: ['i1', 'i2', 'i3'] } },
   },
   xp: 105,
   newBadges: [],
@@ -74,7 +76,7 @@ const summary = (over: Partial<LabSummary>): LabSummary => ({
 });
 
 const domain = (id: number, unlocked: boolean, done: string[]): PathDomain => ({
-  id, title: id === 1 ? 'General Security Concepts' : 'Threats and Mitigations', weight: 12, unlocked, examPassed: false, hasContent: true,
+  id, title: id === 1 ? 'General Security Concepts' : 'Threats and Mitigations', weight: 12, unlocked, examPassed: false, hasContent: true, openExam: null,
   objectives: [1, 2, 3].map((n) => ({
     id: `${id}.${n}`, title: `Title of ${id}.${n}`, published: true, lessonDone: done.includes(`${id}.${n}`), quizPassed: false, mastery: 0,
   })),
@@ -146,6 +148,15 @@ const ANSWERS = {
 };
 
 describe('labs', () => {
+  it('percentages are whole and never rounded up, and a whole value is not lost to floating point', () => {
+    expect(wholePercent(79.99)).toBe(79);
+    expect(wholePercent((2 / 3) * 100)).toBe(66);
+    expect(wholePercent(100)).toBe(100);
+    expect(0.29 * 100).toBeLessThan(29); // the case the allowance is for
+    expect(wholePercent(0.29 * 100)).toBe(29);
+    expect(wholePercent(0)).toBe(0);
+  });
+
   it('labs list: unavailable lab is not a link and names the lessons required', async () => {
     handlers[LIST] = () =>
       json(200, {
@@ -226,13 +237,17 @@ describe('labs', () => {
     expect(score.getByText('Passed')).toBeInTheDocument();
     expect(score.getByText('You need 80% or more to pass a lab.')).toBeInTheDocument();
     expect(score.getByText('XP earned: 105')).toBeInTheDocument();
-    expect(screen.getByText('Lab passed: Classify the controls')).toBeInTheDocument();
+    // The banner names the event as a lab, with the lab's title under it.
+    const banner = screen.getByText('Lab passed').closest('[role="status"]') as HTMLElement;
+    expect(within(banner).getByText('Classify the controls')).toBeInTheDocument();
+    expect(within(banner).getByText('+105 XP')).toBeInTheDocument();
+    expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
 
     expect(within(result(1)).getByText('A lock is something you can touch.')).toBeInTheDocument();
     expect(within(result(2)).getByText('Both notice an event.')).toBeInTheDocument();
     expect(within(result(3)).getByText('List first, then classify.')).toBeInTheDocument();
     expect(step(1)).toHaveAccessibleName(/^Step 1 of 3:\s*Correct$/);
-    expect(step(3)).toHaveAccessibleName(/^Step 3 of 3:\s*Partly correct \(50%\)$/);
+    expect(step(3)).toHaveAccessibleName(/^Step 3 of 3:\s*Partly correct \(66%\)$/);
     // The answers that were sent are shown, locked.
     expect(within(step(1)).getByRole('radio', { name: /Physical/ })).toBeChecked();
     expect(within(step(1)).getByRole('radio', { name: /Physical/ })).toBeDisabled();
@@ -253,7 +268,7 @@ describe('labs', () => {
     expect(score.getByText('79%')).toBeInTheDocument();
     expect(score.getByText('Not passed')).toBeInTheDocument();
     expect(score.getByText('XP earned: 0')).toBeInTheDocument();
-    expect(screen.queryByText(/Lab passed/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Lab passed')).not.toBeInTheDocument();
     expect(step(1)).toHaveAccessibleName(/^Step 1 of 3:\s*Incorrect$/);
 
     await userEvent.click(button('Try again'));
@@ -322,6 +337,23 @@ describe('labs', () => {
     renderAt('/labs/nope');
     expect(await screen.findByRole('alert')).toHaveTextContent("This lab isn't available.");
     expect(screen.getByRole('link', { name: 'Back to labs' })).toBeInTheDocument();
+  });
+
+  it('lab: on a small, short screen the scenario starts folded and one press opens it', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: /max-width: 1023px/.test(query) && /max-height: 700px/.test(query),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    renderAt('/labs/lab-1-01');
+    await screen.findByRole('heading', { level: 1, name: 'Classify the controls' });
+    const toggle = button('Show scenario');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText(lab.scenario).parentElement).toHaveClass('hidden', 'lg:block');
+    await userEvent.click(toggle);
+    expect(button('Hide scenario')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(lab.scenario).parentElement).not.toHaveClass('hidden');
   });
 
   it('lab: the scenario can be folded away and brought back', async () => {

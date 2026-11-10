@@ -141,6 +141,7 @@ function LeftRow({
   const marked = expected !== null;
   const ok = chosen === expected;
   const expectedText = right.find((r) => r.id === expected)?.text;
+  const chosenText = right.find((r) => r.id === chosen)?.text;
   const border = marked
     ? ok ? 'border-ok' : 'border-bad'
     : isOver ? 'border-dashed border-accent' : 'border-border';
@@ -168,6 +169,14 @@ function LeftRow({
           ))}
         </select>
       </div>
+      {/* A closed menu clips a long answer on a narrow screen, and once the question is marked it is the
+          only place that shows the learner's own choice. So the choice is printed in full here. The menu
+          already gives its value to a screen reader; this copy is kept out of its way. */}
+      {chosenText !== undefined && (
+        <output htmlFor={`${id}-select`} aria-hidden="true" className="mt-2 block text-sm text-muted [overflow-wrap:anywhere]">
+          {`Your match: ${chosenText}`}
+        </output>
+      )}
       {marked && (
         <div id={`${id}-mark`} className="mt-2">
           <Mark ok={ok}>
