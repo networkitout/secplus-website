@@ -1,0 +1,379 @@
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Feedback, LessonProgressView, LessonView, PublicQuestion } from '../../../../shared/types';
+import type { LessonResponse } from '../../api/types';
+import { createQueryClient } from '../../queryClient';
+import { LessonPage } from './LessonPage';
+
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
+
+const single: PublicQuestion = {
+  id: 'q-1.1-001', objective: '1.1', difficulty: 1, type: 'single',
+  prompt: 'Which control category does a firewall rule belong to?',
+  options: [
+    { id: 'a', text: 'Technical' },
+    { id: 'b', text: 'Managerial' },
+    { id: 'c', text: 'Operational' },
+    { id: 'd', text: 'Physical' },
+  ],
+};
+
+const order: PublicQuestion = {
+  id: 'q-1.1-003', objective: '1.1', difficulty: 2, type: 'order',
+  prompt: 'Put the change steps in order.',
+  items: [
+    { id: 'c', text: 'Implement' },
+    { id: 'a', text: 'Request' },
+    { id: 'b', text: 'Approve' },
+  ],
+};
+
+const right: Feedback = {
+  correct: true, fraction: 1, correctAnswer: { type: 'single', choice: 'a' },
+  explanation: 'A firewall rule is enforced by technology.',
+  why: { a: 'Enforced by a system.', b: 'Policies are managerial.', c: 'People carry out operational controls.', d: 'Nothing tangible.' },
+};
+const wrong: Feedback = { ...right, correct: false, fraction: 0 };
+
+const lesson = (): LessonView => ({
+  objective: '1.1',
+  title: 'Security controls',
+  minutes: 12,
+  sections: [
+    {
+      id: 's1', title: 'Control categories',
+      blocks: [
+        { kind: 'html', html: '<p>Controls come in <strong>four</strong> categories.</p>' },
+        { kind: 'check', question: single },
+      ],
+    },
+    {
+      id: 's2', title: 'The CIA triad',
+      blocks: [
+        { kind: 'html', html: '<p>Three goals.</p>' },
+        { kind: 'diagram', name: 'cia-triad' },
+      ],
+    },
+    { id: 's3', title: 'Summary', blocks: [{ kind: 'html', html: '<p>That is the lesson.</p>' }] },
+  ],
+});
+
+const response = (sectionsDone: string[] = [], over: Partial<LessonView> = {}): LessonResponse => ({
+  lesson: { ...lesson(), ...over },
+  progress: { sectionsDone, completedAt: sectionsDone.length === 3 ? '2026-11-10T10:00:00.000Z' : null },
+});
+
+const saved = (sectionsDone: string[], xp = 0): LessonProgressView & { xp: number; newBadges: string[] } => ({
+  sectionsDone, completedAt: sectionsDone.length === 3 ? '2026-11-10T10:00:00.000Z' : null, xp, newBadges: [],
+});
+
+type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
+let handlers: Record<string, Handler>;
+let fetchMock: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  handlers = { 'GET /api/lessons/1.1': () => json(200, response()) };
+  fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const key = `${init?.method ?? 'GET'} ${url}`;
+    const h = handlers[key];
+    if (!h) throw new Error(`unexpected request ${key}`);
+    return h(url, init);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+});
+afterEach(() => vi.unstubAllGlobals());
+
+function Stub({ name }: { name: string }) {
+  const { id } = useParams();
+  return <p>{`${name} ${id ?? ''}`}</p>;
+}
+
+function renderLesson() {
+  return render(
+    <QueryClientProvider client={createQueryClient()}>
+      <MemoryRouter initialEntries={['/lesson/1.1']}>
+        <Routes>
+          <Route path="/" element={<Stub name="path screen" />} />
+          <Route path="/lesson/:objective" element={<LessonPage />} />
+          <Route path="/quiz/:id" element={<Stub name="quiz screen" />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const bodies = (key: string) =>
+  fetchMock.mock.calls.filter(([u, i]) => `${i?.method ?? 'GET'} ${u}` === key).map(([, i]) => JSON.parse(String(i.body)));
+const sectionHeading = (name: string) => screen.findByRole('heading', { level: 2, name });
+// A diagram inside the section has a Next button of its own; the lesson's is in the "Lesson sections" group.
+const next = () => within(screen.getByRole('group', { name: 'Lesson sections' })).getByRole('button', { name: 'Next' });
+const progress = () => screen.getByRole('progressbar', { name: 'Lesson progress' });
+
+async function answerCheck(choice: string) {
+  await userEvent.click(screen.getByRole('radio', { name: choice }));
+  await userEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+}
+
+describe('lesson', () => {
+  it('lesson: Next disabled until the inline check is answered, then enabled; posts progress on Next', async () => {
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: [] });
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1']));
+    renderLesson();
+
+    await sectionHeading('Control categories');
+    expect(screen.getByRole('heading', { level: 1, name: 'Security controls' })).toBeInTheDocument();
+    expect(screen.getByText('Section 1 of 3')).toBeInTheDocument();
+    expect(progress()).toHaveAttribute('aria-valuenow', '0');
+    expect(progress()).toHaveAttribute('aria-valuemax', '3');
+    expect(next()).toBeDisabled();
+    expect(next()).toHaveAccessibleDescription('Answer the question above to continue.');
+    expect(screen.getByRole('button', { name: 'Check answer' })).toBeDisabled();
+    expect(screen.getByRole('status', { name: 'Result' })).toBeEmptyDOMElement();
+
+    await answerCheck('Technical');
+
+    expect(await within(screen.getByRole('status', { name: 'Result' })).findByText('A firewall rule is enforced by technology.')).toBeInTheDocument();
+    expect(bodies('POST /api/answers')).toEqual([{ questionId: 'q-1.1-001', answer: { type: 'single', choice: 'a' } }]);
+    expect(screen.queryByRole('button', { name: 'Check answer' })).not.toBeInTheDocument();
+    // The pressed button is gone; focus stays in the check instead of falling back to the page.
+    expect(screen.getByRole('region', { name: 'Check your understanding' })).toHaveFocus();
+    expect(next()).toBeEnabled();
+    expect(next()).not.toHaveAccessibleDescription();
+    expect(bodies('POST /api/lessons/1.1/progress')).toEqual([]);
+
+    await userEvent.click(next());
+
+    const second = await sectionHeading('The CIA triad');
+    expect(bodies('POST /api/lessons/1.1/progress')).toEqual([{ sectionId: 's1' }]);
+    expect(second).toHaveFocus();
+    expect(screen.getByText('Section 2 of 3')).toBeInTheDocument();
+    expect(progress()).toHaveAttribute('aria-valuenow', '1');
+    expect(progress()).toHaveAttribute('aria-valuetext', '1 of 3 sections complete');
+    expect(screen.queryByRole('heading', { name: 'Control categories' })).not.toBeInTheDocument();
+  });
+
+  it('a wrong answer also unlocks Next', async () => {
+    handlers['POST /api/answers'] = () => json(200, { feedback: wrong, xp: 0, newBadges: [] });
+    renderLesson();
+    await sectionHeading('Control categories');
+    await answerCheck('Physical');
+    expect(await within(screen.getByRole('status', { name: 'Result' })).findByText('Incorrect')).toBeInTheDocument();
+    expect(next()).toBeEnabled();
+  });
+
+  it('lesson: resumes at the first section not in sectionsDone', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1']));
+    renderLesson();
+    await sectionHeading('The CIA triad');
+    expect(screen.getByText('Section 2 of 3')).toBeInTheDocument();
+    expect(progress()).toHaveAttribute('aria-valuenow', '1');
+    expect(screen.queryByRole('heading', { name: 'Control categories' })).not.toBeInTheDocument();
+    // A section without checks never blocks.
+    expect(next()).toBeEnabled();
+  });
+
+  it('lesson: last section shows Celebration and "Take the quiz"', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2']));
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1', 's2', 's3'], 50));
+    handlers['POST /api/assessments'] = () => json(201, { id: 12 });
+    renderLesson();
+
+    await sectionHeading('Summary');
+    expect(within(screen.getByRole('group', { name: 'Lesson sections' })).queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Take the quiz' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Finish lesson' }));
+
+    const done = await sectionHeading("You've finished this lesson");
+    expect(done).toHaveFocus();
+    expect(bodies('POST /api/lessons/1.1/progress')).toEqual([{ sectionId: 's3' }]);
+    const celebration = screen.getByText('Lesson complete').closest('[role="status"]') as HTMLElement;
+    expect(celebration).toHaveTextContent('+50 XP');
+    expect(within(celebration).getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+    expect(progress()).toHaveAttribute('aria-valuenow', '3');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Take the quiz' }));
+    expect(await screen.findByText('quiz screen 12')).toBeInTheDocument();
+    expect(bodies('POST /api/assessments')).toEqual([{ kind: 'objective', scope: '1.1' }]);
+  });
+
+  it('dismissing the celebration leaves focus on the page, not on a removed button', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2']));
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1', 's2', 's3'], 50));
+    renderLesson();
+    await sectionHeading('Summary');
+    await userEvent.click(screen.getByRole('button', { name: 'Finish lesson' }));
+    const done = await sectionHeading("You've finished this lesson");
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Lesson complete')).not.toBeInTheDocument();
+    expect(done).toHaveFocus();
+  });
+
+  it('lesson: unknown diagram name renders a visible "Diagram unavailable" note, not a crash', async () => {
+    const sections = lesson().sections;
+    sections[1]!.blocks.push(
+      { kind: 'diagram', name: 'not-a-diagram' } as never,
+      // A name that exists on every object must not be mistaken for a diagram either.
+      { kind: 'diagram', name: 'constructor' } as never,
+      { kind: 'html', html: '<p>Text after the diagrams.</p>' },
+    );
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1'], { sections }));
+    renderLesson();
+
+    await sectionHeading('The CIA triad');
+    expect(screen.getAllByText('Diagram unavailable')).toHaveLength(2);
+    expect(screen.getByText('Text after the diagrams.')).toBeInTheDocument();
+    // The known diagram in the same section still renders.
+    expect(screen.getByRole('img')).toBeInTheDocument();
+  });
+
+  it('renders the lesson and section titles as text and only the section html as HTML', async () => {
+    const sections = lesson().sections;
+    sections[0] = { id: 's1', title: '<img src=x onerror=alert(1)>', blocks: [{ kind: 'html', html: '<p>Uses <strong>bold</strong> text.</p>' }] };
+    handlers['GET /api/lessons/1.1'] = () => json(200, response([], { title: '<script>alert(1)</script>', sections }));
+    renderLesson();
+
+    expect(await sectionHeading('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('<script>alert(1)</script>');
+    expect(document.querySelector('img, script')).toBeNull();
+    expect(screen.getByText('bold').tagName).toBe('STRONG');
+  });
+
+  it('keeps the learner on the section with a retry when progress cannot be saved', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1']));
+    handlers['POST /api/lessons/1.1/progress'] = () => json(503, { error: 'Service unavailable' });
+    renderLesson();
+    const heading = await sectionHeading('The CIA triad');
+    await userEvent.click(next());
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't save your progress. You are still on this section.");
+    expect(heading).toBeInTheDocument();
+    expect(screen.getByText('Section 2 of 3')).toBeInTheDocument();
+    expect(progress()).toHaveAttribute('aria-valuenow', '1');
+
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1', 's2']));
+    await userEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+    await sectionHeading('Summary');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(bodies('POST /api/lessons/1.1/progress')).toEqual([{ sectionId: 's2' }, { sectionId: 's2' }]);
+  });
+
+  it('keeps the chosen answer and offers a retry when an answer cannot be sent', async () => {
+    handlers['POST /api/answers'] = () => {
+      throw new TypeError('Failed to fetch');
+    };
+    renderLesson();
+    await sectionHeading('Control categories');
+    await answerCheck('Technical');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't send your answer. It has not been marked yet.");
+    expect(screen.getByRole('radio', { name: 'Technical' })).toBeChecked();
+    expect(next()).toBeDisabled();
+
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: [] });
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await within(screen.getByRole('status', { name: 'Result' })).findByText('Correct')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(next()).toBeEnabled();
+  });
+
+  it('submits the served order when an order check is left untouched', async () => {
+    const sections = lesson().sections;
+    sections[0]!.blocks = [{ kind: 'check', question: order }];
+    handlers['GET /api/lessons/1.1'] = () => json(200, response([], { sections }));
+    handlers['POST /api/answers'] = () =>
+      json(200, { feedback: { correct: false, fraction: 0, correctAnswer: { type: 'order', order: ['a', 'b', 'c'] }, explanation: 'Request comes first.' }, xp: 0, newBadges: [] });
+    renderLesson();
+    await sectionHeading('Control categories');
+    await userEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+
+    expect(await within(screen.getByRole('status', { name: 'Result' })).findByText('Request comes first.')).toBeInTheDocument();
+    expect(bodies('POST /api/answers')).toEqual([{ questionId: 'q-1.1-003', answer: { type: 'order', order: ['c', 'a', 'b'] } }]);
+  });
+
+  it('needs every check of a section answered, and remembers answers when the learner goes back', async () => {
+    const second: PublicQuestion = { ...single, id: 'q-1.1-002', prompt: 'Which category is a door lock?' };
+    const sections = lesson().sections;
+    sections[1]!.blocks = [{ kind: 'check', question: single }, { kind: 'check', question: second }];
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1'], { sections }));
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 0, newBadges: [] });
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1', 's2']));
+    renderLesson();
+    await sectionHeading('The CIA triad');
+
+    const [first, other] = screen.getAllByRole('button', { name: 'Check answer' });
+    await userEvent.click(screen.getAllByRole('radio', { name: 'Technical' })[0]!);
+    await userEvent.click(first!);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Check answer' })).toHaveLength(1));
+    expect(next()).toBeDisabled();
+
+    await userEvent.click(screen.getAllByRole('radio', { name: 'Physical' })[1]!);
+    await userEvent.click(other!);
+    await waitFor(() => expect(next()).toBeEnabled());
+
+    await userEvent.click(next());
+    await sectionHeading('Summary');
+    await userEvent.click(screen.getByRole('button', { name: 'Previous' }));
+    expect(await sectionHeading('The CIA triad')).toHaveFocus();
+    // Both checks still show their result, and nothing is sent again.
+    expect(screen.queryByRole('button', { name: 'Check answer' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('A firewall rule is enforced by technology.')).toHaveLength(2);
+    await userEvent.click(next());
+    await sectionHeading('Summary');
+    expect(bodies('POST /api/lessons/1.1/progress')).toEqual([{ sectionId: 's2' }]);
+  });
+
+  it('does not ask again for the checks of a section that is already done', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1']));
+    renderLesson();
+    await sectionHeading('The CIA triad');
+    await userEvent.click(screen.getByRole('button', { name: 'Previous' }));
+
+    await sectionHeading('Control categories');
+    // After a reload the server does not say which checks were answered: the check can be taken again,
+    // but the finished section does not hold the learner back.
+    expect(screen.getByRole('button', { name: 'Check answer' })).toBeInTheDocument();
+    expect(next()).toBeEnabled();
+    await userEvent.click(next());
+    await sectionHeading('The CIA triad');
+    expect(fetchMock.mock.calls.some(([, i]) => i?.method === 'POST')).toBe(false);
+  });
+
+  it('opens a completed lesson on its end screen, without a celebration, and can be read again', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2', 's3']));
+    renderLesson();
+
+    await sectionHeading("You've finished this lesson");
+    expect(screen.getByRole('button', { name: 'Take the quiz' })).toBeInTheDocument();
+    expect(screen.queryByText('Lesson complete')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to the study path' })).toHaveAttribute('href', '/');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Read the lesson again' }));
+    expect(await sectionHeading('Control categories')).toHaveFocus();
+    expect(next()).toBeEnabled();
+  });
+
+  it('says so when the quiz cannot be started', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2', 's3']));
+    handlers['POST /api/assessments'] = () => json(503, { error: 'Service unavailable' });
+    renderLesson();
+    await sectionHeading("You've finished this lesson");
+    await userEvent.click(screen.getByRole('button', { name: 'Take the quiz' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Can't reach the server. Try again in a moment.");
+    expect(screen.getByRole('button', { name: 'Take the quiz' })).toBeEnabled();
+  });
+
+  it.each([
+    [404, 'Objective not found', "This lesson isn't available."],
+    [403, 'Pass the previous domain exam to unlock this domain', 'Pass the previous domain exam to unlock this domain'],
+  ])('shows a message and a way back for a %i', async (status, error, text) => {
+    handlers['GET /api/lessons/1.1'] = () => json(status, { error });
+    renderLesson();
+    expect(await screen.findByRole('alert')).toHaveTextContent(text);
+    await userEvent.click(screen.getByRole('link', { name: 'Back to the study path' }));
+    expect(screen.getByText(/path screen/)).toBeInTheDocument();
+  });
+});
