@@ -90,7 +90,7 @@
     "prompt": "Tessera Health plans to replace the wireless controllers that serve its hospital wards. Which THREE groups are stakeholders who should be consulted or informed before the change? (Choose three.)",
     "options": [
       { "id": "a", "text": "Nurses who record patient notes on wireless tablets" },
-      { "id": "b", "text": "The landscaping contractor, whose staff work only in the hospital grounds" },
+      { "id": "b", "text": "The landscaping contractor, whose staff work only on the hospital grounds" },
       { "id": "c", "text": "The biomedical engineering team, whose infusion pumps report over the ward Wi-Fi" },
       { "id": "d", "text": "The administrators of the finance database, which is reached only over the wired office network" },
       { "id": "e", "text": "The help desk, which will take the calls if devices fail to reconnect" },
@@ -167,14 +167,14 @@
     "options": [
       { "id": "a", "text": "Record it, add a step that turns Telnet off again, retest, and then seek approval" },
       { "id": "b", "text": "Report the test as passed, because the firmware installed and traffic flowed normally" },
-      { "id": "c", "text": "Report the test as passed and raise a request next month to turn Telnet off again" },
+      { "id": "c", "text": "Report the test as passed and submit a request next month to turn Telnet off again" },
       { "id": "d", "text": "Abandon the upgrade for good, because firmware that alters security settings is unusable" }
     ],
     "correct": "a",
     "why": {
       "a": "Right. The test exposed a security side effect. The plan is corrected and tested again, so the approvers decide on a change that is known to be safe.",
       "b": "Wrong. A test passes only if the change works and leaves security settings intact. This report would hide a reopened insecure protocol from the approvers.",
-      "c": "Wrong. This asks the approvers to accept a month of unencrypted remote administration in production when the fix can be part of the change.",
+      "c": "Wrong. The test did not pass, and this would put a month of unencrypted remote administration into production when the fix can be part of the change.",
       "d": "Wrong. The side effect can be corrected with one extra step. Refusing the upgrade leaves the routers on old firmware for no good reason."
     },
     "explanation": "Test results are evidence for the approval decision, and they must cover security settings as well as function. A change that works but weakens a control has not passed."
@@ -300,7 +300,7 @@
     "type": "single",
     "prompt": "A technician at Marlow County Credit Union has approval to replace an expiring certificate on one web server during tonight's maintenance window. While logged in, he notices that the server still accepts an outdated version of TLS, the protocol that encrypts its web traffic. Fixing it would take two minutes, and the window has an hour left. What should he do?",
     "options": [
-      { "id": "a", "text": "Do only the approved certificate work and raise a change request for the TLS setting" },
+      { "id": "a", "text": "Do only the approved certificate work and submit a change request for the TLS setting" },
       { "id": "b", "text": "Fix the TLS setting now, because the window is open and the fix improves security" },
       { "id": "c", "text": "Fix the TLS setting now and add a note about it to the change record afterward" },
       { "id": "d", "text": "Ask a second technician to make the TLS fix so that two people have checked it" }
@@ -421,7 +421,7 @@
     "prompt": "A change request at Calder & Voss covers one action: upgrade the database engine on a server from version 12 to version 15. During the impact analysis, the team learns that the reporting tool works only with versions up to 13, and that the backup agent must be upgraded before it can back up version 15. What has the team found, and what should happen next?",
     "options": [
       { "id": "a", "text": "Dependencies: revise the request to cover the other two components before it goes for approval" },
-      { "id": "b", "text": "Restricted activities: upgrade all three components that night under the existing request" },
+      { "id": "b", "text": "Restricted activities: upgrade all three components together under the existing request" },
       { "id": "c", "text": "Legacy applications: cancel the database upgrade and never attempt it again" },
       { "id": "d", "text": "Downtime: move the upgrade into business hours so that problems are noticed sooner" }
     ],
@@ -555,7 +555,7 @@
     ],
     "correct": "d",
     "why": {
-      "a": "Wrong. Midday puts a 45-minute outage where it costs the most orders. Staff can be scheduled to cover a night window.",
+      "a": "Wrong. Midday puts a 45-minute outage at a far busier time than the quiet period the sales records show. Staff can be scheduled to cover a night window.",
       "b": "Wrong. An unannounced outage looks like a failure or an attack to customers and staff, and stakeholders must be told about planned downtime.",
       "c": "Wrong. Avoiding all planned downtime means the aging hardware is never replaced, which invites a longer, unplanned outage.",
       "d": "Right. The downtime is placed where it affects the fewest users, inside an agreed window, and the people affected know about it beforehand."

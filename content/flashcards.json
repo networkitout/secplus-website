@@ -39,7 +39,7 @@
     "id": "f-1.3-007",
     "objective": "1.3",
     "term": "Test results",
-    "definition": "Recorded evidence from trying a change in a test environment, showing that it works and leaves security settings intact. Approvers expect it before deciding."
+    "definition": "Recorded evidence from trying a change in a test environment, showing whether it works and leaves security settings intact. Approvers expect it before deciding."
   },
   {
     "id": "f-1.3-008",
