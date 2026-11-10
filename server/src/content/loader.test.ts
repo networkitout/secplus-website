@@ -72,6 +72,39 @@ function brokenCopyOfFixture(name: string): string {
     case 'lesson check references unknown question id':
       fs.appendFileSync(lesson11, '\n:::check q-9.9-999\n');
       break;
+    case 'question id longer than 40 characters':
+      editQs((qs) => (qs[2].id = 'q-1.1-' + 'x'.repeat(35)));
+      break;
+    case 'order question with only two items':
+      editQs((qs) => {
+        const order = firstOf(qs, 'order');
+        order.items = order.items.slice(0, 2);
+        order.correct = order.items.map((i: any) => i.id);
+      });
+      break;
+    case 'flashcard id longer than 46 characters': {
+      const f = path.join(dir, 'flashcards.json');
+      const cards = readJson(f);
+      cards[0].id = 'f-' + 'x'.repeat(45);
+      writeJson(f, cards);
+      break;
+    }
+    case 'lab id longer than 40 characters':
+    case 'lab step id longer than 40 characters': {
+      const f = path.join(dir, 'labs/lab-1-01.json');
+      const lab = readJson(f);
+      if (name.startsWith('lab id')) lab.id = 'lab-' + 'x'.repeat(37);
+      else lab.steps[0].id = 'lab-1-01-' + 'x'.repeat(32);
+      writeJson(f, lab);
+      break;
+    }
+    case 'objective id longer than 8 characters': {
+      const m = path.join(dir, 'manifest.json');
+      const manifest = readJson(m);
+      manifest.domains[1].objectives[0].id = '2.1234567';
+      writeJson(m, manifest);
+      break;
+    }
     case 'flashcard objective not in manifest': {
       const f = path.join(dir, 'flashcards.json');
       const cards = readJson(f);
@@ -115,6 +148,14 @@ test.each([
   ['lesson references unknown diagram', 'diagram'],
   ['lesson check references unknown question id', 'check'],
   ['flashcard objective not in manifest', 'objective'],
+  // Ids are stored in fixed-width columns: one that would not fit is a content error, not a failed INSERT later.
+  ['question id longer than 40 characters', 'id'],
+  ['flashcard id longer than 46 characters', 'id'],
+  ['lab id longer than 40 characters', 'id'],
+  ['lab step id longer than 40 characters', 'id'],
+  ['objective id longer than 8 characters', 'id'],
+  // Two items are always served swapped, which gives the order away.
+  ['order question with only two items', 'items'],
 ])('rejects: %s', (_name, field) => {
   expect(() => loadContent(brokenCopyOfFixture(_name))).toThrow(
     expect.objectContaining({ name: 'ContentError', field }),
@@ -129,6 +170,26 @@ test('rejects a lab step whose objective is not one of the lab objectives', () =
   lab.steps[0].objective = '1.2';
   writeJson(labFile, lab);
   expect(() => loadContent(dir)).toThrow(expect.objectContaining({ name: 'ContentError', field: 'objective' }));
+});
+
+test('ids exactly as long as their columns allow are accepted', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'secplus-content-'));
+  fs.cpSync(FIXTURE, dir, { recursive: true });
+  const edit = (file: string, fn: (json: any) => void) => {
+    const json = readJson(path.join(dir, file));
+    fn(json);
+    writeJson(path.join(dir, file), json);
+  };
+  const questionId = 'q-1.1-' + 'x'.repeat(34); // 40
+  const flashcardId = 'f-' + 'x'.repeat(44); // 46
+  const labId = 'lab-' + 'x'.repeat(36); // 40
+  edit('domains/1/1.1/questions.json', (qs) => (qs[2].id = questionId));
+  edit('flashcards.json', (cards) => (cards[0].id = flashcardId));
+  edit('labs/lab-1-01.json', (lab) => (lab.id = labId));
+  const c = loadContent(dir);
+  expect(c.questions.has(questionId)).toBe(true);
+  expect(c.flashcards.some((f) => f.id === flashcardId)).toBe(true);
+  expect(c.labs.has(labId)).toBe(true);
 });
 
 test('real content directory is valid', () => {

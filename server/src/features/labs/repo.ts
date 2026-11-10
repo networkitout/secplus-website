@@ -1,11 +1,11 @@
 import type { Answer, Feedback, Lab } from '../../../../shared/types.js';
 import type { Content } from '../../content/loader.js';
 import type { Db } from '../../db/db.js';
-import { correctAnswerOf, grade } from '../../services/scoring.js';
+import { AnswerShapeError, grade } from '../../services/scoring.js';
 import { safeTimeZone } from '../../services/time.js';
 import { XP } from '../../services/xp.js';
 import { unlockedDomains } from '../access.js';
-import { recordAnswer } from '../answers/repo.js';
+import { recordAttempt } from '../answers/repo.js';
 import { awardXp, evaluateBadges } from '../xp/repo.js';
 
 export const LAB_PASS_PCT = 80;
@@ -41,25 +41,14 @@ export async function labResultSummary(
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Feedback for a step the learner left unanswered: scored 0, but the solution is shown after submission. */
-function unansweredFeedback(step: Lab['steps'][number]): Feedback {
-  const feedback: Feedback = {
-    correct: false,
-    fraction: 0,
-    correctAnswer: correctAnswerOf(step),
-    explanation: step.explanation,
-  };
-  if (step.type === 'single' || step.type === 'multi') feedback.why = step.why;
-  return feedback;
-}
-
 /**
- * Scores a lab submission. Every given answer is graded first (a malformed one throws AnswerShapeError
- * before anything is written); then the attempts, XP, result row and badges are written in one transaction.
+ * Scores a lab submission, which must answer every step: the result reveals every step's solution. Every
+ * answer is graded first (a missing or malformed one throws AnswerShapeError before anything is written);
+ * then the attempts, XP, result row and badges are written in one transaction.
  */
 export async function submitLab(
   db: Db,
-  content: Content,
+  _content: Content,
   a: {
     user: { id: number; timeZone: string };
     lab: Lab;
@@ -68,27 +57,22 @@ export async function submitLab(
   },
 ): Promise<{ scorePct: number; passed: boolean; steps: Record<string, Feedback>; xp: number; newBadges: string[] }> {
   const { user, lab, answers, now } = a;
-  for (const step of lab.steps) {
-    const given = answers[step.id];
-    if (given) grade(step, given);
-  }
+  const given = (step: Lab['steps'][number]): Answer => {
+    const answer = Object.hasOwn(answers, step.id) ? answers[step.id] : undefined;
+    if (!answer) throw new AnswerShapeError(`missing answer for step ${step.id}`);
+    return answer;
+  };
+  for (const step of lab.steps) grade(step, given(step));
 
   return db.tx(async (tx) => {
     const steps: Record<string, Feedback> = {};
-    const badges = new Set<string>();
     let xp = 0;
     let fractions = 0;
     for (const step of lab.steps) {
-      const given = Object.hasOwn(answers, step.id) ? answers[step.id] : undefined;
-      if (!given) {
-        steps[step.id] = unansweredFeedback(step);
-        continue;
-      }
-      const r = await recordAnswer(tx, content, { user, question: step, answer: given, context: 'lab', now });
+      const r = await recordAttempt(tx, { user, question: step, answer: given(step), context: 'lab', now });
       steps[step.id] = r.feedback;
       fractions += r.feedback.fraction;
       xp += r.xp;
-      r.newBadges.forEach((b) => badges.add(b));
     }
     const scorePct = round2((fractions / lab.steps.length) * 100);
     const passed = labPassed(scorePct);
@@ -102,7 +86,8 @@ export async function submitLab(
     if (passed && (await awardXp(tx, { userId: user.id, amount: XP.labPass, reason: 'lab-pass', ref: lab.id, now }))) {
       xp += XP.labPass;
     }
-    (await evaluateBadges(tx, user.id, safeTimeZone(user.timeZone), now)).forEach((b) => badges.add(b));
-    return { scorePct, passed, steps, xp, newBadges: [...badges] };
+    // Once, after every step and the result are recorded.
+    const newBadges = await evaluateBadges(tx, user.id, safeTimeZone(user.timeZone), now);
+    return { scorePct, passed, steps, xp, newBadges };
   });
 }

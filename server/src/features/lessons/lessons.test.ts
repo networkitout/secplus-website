@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { createUser, loginAs, testApp } from '../../test/helpers.js';
 
 const now = new Date('2026-11-10T12:00:00Z');
@@ -101,4 +101,26 @@ test('lessons require sign-in', async () => {
   const { app } = await setup();
   const request = (await import('supertest')).default;
   expect((await request(app).get('/api/lessons/1.1')).status).toBe(401);
+});
+
+test('a failure while evaluating badges does not fail saved progress: it is logged and reports no new badges', async () => {
+  const { agent, db, user } = await setup();
+  await agent.post('/api/lessons/1.1/progress').send({ sectionId: 's1' });
+  const query = db.query.bind(db);
+  const failing = vi.spyOn(db, 'query').mockImplementation(((sql: string, params?: unknown[]) =>
+    /\bbadges\b/.test(sql) ? Promise.reject(new Error('badges unavailable')) : query(sql, params)) as typeof db.query);
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const last = await agent.post('/api/lessons/1.1/progress').send({ sectionId: 's2' });
+    expect(last.status).toBe(200);
+    expect(last.body).toEqual({ sectionsDone: ['s1', 's2'], completedAt: now.toISOString(), xp: 50, newBadges: [] });
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(String(logged.mock.calls[0]![0])).toContain(`Badge evaluation failed for user ${user.id}`);
+  } finally {
+    failing.mockRestore();
+    logged.mockRestore();
+  }
+  // The lesson is complete, and the next evaluation awards the badge this one missed.
+  const again = await agent.post('/api/lessons/1.1/progress').send({ sectionId: 's2' });
+  expect(again.body).toMatchObject({ xp: 0, newBadges: ['first-lesson'] });
 });

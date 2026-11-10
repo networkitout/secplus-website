@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import type { Answer, Question } from '../../../../shared/types.js';
 import type { Content } from '../../content/loader.js';
 import { createUser, loginAs, testApp } from '../../test/helpers.js';
@@ -197,6 +197,35 @@ test('badges earned by an answer during a quiz are reported in its result, once'
   expect((await agent.post(`/api/assessments/${a.body.id}/submit`)).body).toEqual(res.body);
 });
 
+test('a failure while evaluating badges inside a quiz answer rolls the answer back: nothing is half-recorded', async () => {
+  const { agent, content, db, user } = await setup();
+  const a = await start(agent, { kind: 'objective', scope: '1.1' });
+  const qid = idsOf((await agent.get(`/api/assessments/${a.body.id}`)).body)[0]!;
+  // A quiz answer is marked inside one transaction, badges included: fail the badge read on its handle.
+  const tx = db.tx;
+  db.tx = (fn) =>
+    tx((handle) => {
+      const query = handle.query;
+      handle.query = (sql, params) => (/FROM badges/.test(sql) ? Promise.reject(new Error('badges unavailable')) : query(sql, params));
+      return fn(handle);
+    });
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const res = await put(agent, content, a.body.id, qid, true);
+    expect(res.status).toBe(500);
+    expect(logged).toHaveBeenCalledTimes(1);
+  } finally {
+    db.tx = tx;
+    logged.mockRestore();
+  }
+  expect(await db.query('SELECT 1 FROM attempts WHERE user_id = ?', [user.id])).toHaveLength(0);
+  expect(await db.query('SELECT 1 FROM xp_events WHERE user_id = ?', [user.id])).toHaveLength(0);
+  // Nothing was stored, so the same answer can be sent again.
+  const retry = await put(agent, content, a.body.id, qid, true);
+  expect(retry.status).toBe(200);
+  expect(retry.body.feedback.correct).toBe(true);
+});
+
 test('unanswered questions count as wrong', async () => {
   const { agent, content } = await setup();
   const a = await start(agent, { kind: 'objective', scope: '1.2' });
@@ -299,6 +328,52 @@ test('domain exam at 75% passes, unlocks the next domain in unlockedDomains, awa
   const res2 = await agent.post(`/api/assessments/${b.body.id}/submit`);
   expect(res2.body.result.passed).toBe(true);
   expect(await bonus()).toHaveLength(1);
+});
+
+test('submitting an exam evaluates badges once, after every answer is recorded, and reports each badge it earned once', async () => {
+  const { agent, content, db, user } = await setup();
+  // Two days of study before today, and 99 correct answers: the exam's first correct answer completes a
+  // three-day streak and the hundredth correct answer; passing it completes the domain.
+  for (const daysAgo of [1, 2]) {
+    await db.exec("INSERT INTO xp_events (user_id, amount, reason, ref, created_at) VALUES (?, 5, 'test', ?, ?)", [
+      user.id,
+      `earlier-${daysAgo}`,
+      new Date(t0.getTime() - daysAgo * 86_400_000),
+    ]);
+  }
+  for (let i = 0; i < 99; i++) {
+    await db.exec("INSERT INTO attempts (user_id, question_id, correct, context, created_at) VALUES (?, 'q-gone-001', 1, 'lesson', ?)", [user.id, t0]);
+  }
+  const a = await start(agent, { kind: 'domain', scope: '1' });
+  const ids = idsOf((await agent.get(`/api/assessments/${a.body.id}`)).body);
+  await answer(agent, content, a.body.id, ids, 20, 4);
+
+  // Everything finalize does goes through its transaction handle: count what it reads from `badges`.
+  const tx = db.tx;
+  let badgeReads = 0;
+  db.tx = (fn) =>
+    tx((handle) => {
+      const query = handle.query;
+      handle.query = (sql, params) => {
+        if (/FROM badges/.test(sql)) badgeReads++;
+        return query(sql, params);
+      };
+      return fn(handle);
+    });
+  let res;
+  try {
+    res = await agent.post(`/api/assessments/${a.body.id}/submit`);
+  } finally {
+    db.tx = tx;
+  }
+  expect(res.status).toBe(200);
+  expect(res.body.result.passed).toBe(true);
+  expect(badgeReads).toBe(1);
+  expect([...res.body.result.newBadges].sort()).toEqual(['domain-1-complete', 'hundred-correct', 'streak-3']);
+  const held = await db.query<{ badge_id: string }>('SELECT badge_id FROM badges WHERE user_id = ? ORDER BY badge_id', [user.id]);
+  expect(held.map((b) => b.badge_id)).toEqual(['domain-1-complete', 'hundred-correct', 'streak-3']);
+  // The stored result is the same one.
+  expect((await agent.get(`/api/assessments/${a.body.id}`)).body.result).toEqual(res.body.result);
 });
 
 test('mock result has scaledScore and byDomain; a passing partial mock awards no bonus XP', async () => {

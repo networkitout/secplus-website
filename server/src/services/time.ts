@@ -1,22 +1,40 @@
 const DAY_MS = 86_400_000;
 
-export function safeTimeZone(tz: string | null | undefined): string {
-  if (!tz) return 'UTC';
-  try {
-    new Intl.DateTimeFormat('en-CA', { timeZone: tz });
-    return tz;
-  } catch {
-    return 'UTC';
+/**
+ * One date formatter per time zone: building one costs about as much as forty `format` calls. Keyed by the
+ * lower-cased name, because `Intl` takes a zone name in any case; only zones `Intl` accepts are kept, and
+ * that is a fixed list, so the cache cannot grow without bound.
+ */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(tz: string): Intl.DateTimeFormat | undefined {
+  // Names only: `Intl` also takes UTC offsets such as "+05:00", which are not time zones a learner lives in.
+  if (!/^[A-Za-z]/.test(tz)) return undefined;
+  const key = tz.toLowerCase();
+  let formatter = formatters.get(key);
+  if (!formatter) {
+    try {
+      formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    } catch {
+      return undefined;
+    }
+    formatters.set(key, formatter);
   }
+  return formatter;
+}
+
+/** The one time-zone rule: an IANA zone name that `Intl` supports (not a raw UTC offset). */
+export function isTimeZoneName(tz: unknown): tz is string {
+  return typeof tz === 'string' && formatterFor(tz) !== undefined;
+}
+
+/** The zone itself when it is a valid name, else `UTC`. */
+export function safeTimeZone(tz: string | null | undefined): string {
+  return isTimeZoneName(tz) ? tz : 'UTC';
 }
 
 export function localDate(at: Date, tz: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: safeTimeZone(tz),
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(at);
+  return (formatterFor(tz) ?? formatterFor('UTC')!).format(at);
 }
 
 export function addDays(date: string, n: number): string {

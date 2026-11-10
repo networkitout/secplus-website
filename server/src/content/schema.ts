@@ -5,8 +5,18 @@ const item = z.object({ id: nonEmpty, text: nonEmpty });
 const items = z.array(item).min(2);
 const idMap = z.record(z.string(), nonEmpty);
 
+// Ids are stored in the database, so each is capped at what its column holds (001_init.sql).
+/** A question or lab step: `attempts.question_id` VARCHAR(40); its review card `q:<id>` fits `card_id` VARCHAR(48). */
+const questionId = nonEmpty.max(40);
+/** `review_cards.card_id` VARCHAR(48) holds `f:<id>`. */
+const flashcardId = nonEmpty.max(46);
+/** `lab_results.lab_id` VARCHAR(40). */
+const labId = nonEmpty.max(40);
+/** `assessments.scope` VARCHAR(8) holds it for an objective quiz (`lesson_progress.objective` has 16). */
+const objectiveId = nonEmpty.max(8);
+
 const base = {
-  id: nonEmpty,
+  id: questionId,
   objective: nonEmpty,
   difficulty: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   prompt: nonEmpty,
@@ -28,7 +38,8 @@ export const questionSchema = z.discriminatedUnion('type', [
     correct: z.array(nonEmpty).min(1),
     why: idMap,
   }),
-  z.object({ ...base, type: z.literal('order'), items, correct: z.array(nonEmpty).min(2) }),
+  // At least three: a two-item list is always served swapped (see toPublicQuestion), which gives the order away.
+  z.object({ ...base, type: z.literal('order'), items: z.array(item).min(3), correct: z.array(nonEmpty).min(3) }),
   z.object({ ...base, type: z.literal('match'), left: items, right: items, correct: idMap }),
   z.object({ ...base, type: z.literal('categorize'), items, buckets: items, correct: idMap }),
 ]);
@@ -36,7 +47,7 @@ export const questionSchema = z.discriminatedUnion('type', [
 export const questionsFileSchema = z.array(questionSchema);
 
 export const labSchema = z.object({
-  id: nonEmpty,
+  id: labId,
   domain: z.number().int().min(1),
   objectives: z.array(nonEmpty).min(1),
   title: nonEmpty,
@@ -45,7 +56,7 @@ export const labSchema = z.object({
 });
 
 export const flashcardSchema = z.object({
-  id: nonEmpty,
+  id: flashcardId,
   objective: nonEmpty,
   term: nonEmpty,
   definition: nonEmpty,
@@ -63,7 +74,7 @@ export const manifestSchema = z.object({
         mockCount: z.number().int().min(0),
         objectives: z.array(
           z.object({
-            id: nonEmpty,
+            id: objectiveId,
             title: nonEmpty,
             published: z.boolean(),
             minQuestions: z.number().int().min(0),

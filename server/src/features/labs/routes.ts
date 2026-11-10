@@ -60,6 +60,8 @@ export function labsRouter(deps: AppDeps): Router {
     const known = new Set(lab.steps.map((s) => s.id));
     const stray = Object.keys(answers).find((k) => !known.has(k));
     if (stray) throw new HttpError(400, `Unknown step id: ${stray}`);
+    // The response reveals every step's solution, so every step must have been answered.
+    if (!lab.steps.every((s) => Object.hasOwn(answers, s.id))) throw new HttpError(400, 'Every step of the lab needs an answer');
     try {
       res.json(await submitLab(db, content, { user, lab, answers, now: now() }));
     } catch (err) {

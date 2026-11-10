@@ -72,6 +72,30 @@ test('correct question review moves box 1 -> 2, due in 2 days, records an attemp
   expect(Number(n)).toBe(1);
 });
 
+test('a question answered correctly again in practice and in review on the same local day earns the repeat XP once', async () => {
+  const repeats = (db: Db, userId: number) =>
+    db.query<{ ref: string }>("SELECT ref FROM xp_events WHERE user_id = ? AND reason = 'repeat-correct'", [userId]);
+  const practice = (agent: Awaited<ReturnType<typeof setup>>['agent']) =>
+    agent.post('/api/answers').send({ questionId: 'q-1.1-001', ...RIGHT });
+
+  // Practice, practice again (the day's repeat XP), then the review of the same question: nothing more.
+  const a = await setup();
+  expect((await practice(a.agent)).body.xp).toBe(10); // first time correct
+  expect((await practice(a.agent)).body.xp).toBe(2);
+  await card(a.db, a.user.id, 'q:q-1.1-001', 1, TODAY);
+  const review = await a.agent.post(`/api/review/${enc('q:q-1.1-001')}`).send(RIGHT);
+  expect(review.body).toMatchObject({ box: 2, xp: 0 });
+  expect(await repeats(a.db, a.user.id)).toEqual([{ ref: 'q-1.1-001@2026-11-10' }]);
+
+  // The other way round: the review pays the day's repeat XP, and practising afterwards pays nothing more.
+  const b = await setup();
+  await b.db.exec("INSERT INTO xp_events (user_id, amount, reason, ref, created_at) VALUES (?, 10, 'first-correct', 'q-1.1-001', ?)", [b.user.id, now]);
+  await card(b.db, b.user.id, 'q:q-1.1-001', 1, TODAY);
+  expect((await b.agent.post(`/api/review/${enc('q:q-1.1-001')}`).send(RIGHT)).body.xp).toBe(2);
+  expect((await practice(b.agent)).body.xp).toBe(0);
+  expect(await repeats(b.db, b.user.id)).toEqual([{ ref: 'q-1.1-001@2026-11-10' }]);
+});
+
 test('wrong review resets a box-4 card to box 1 due tomorrow and returns feedback', async () => {
   const { db, user, agent } = await setup();
   await card(db, user.id, 'q:q-1.1-001', 4, TODAY);

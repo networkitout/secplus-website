@@ -1,5 +1,8 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { connect, type Db } from './db.js';
-import { migrate } from './migrate.js';
+import { migrate, MigrationFilesError } from './migrate.js';
 import { createUser, testApp } from '../test/helpers.js';
 
 async function dropAllTables(db: Db) {
@@ -25,6 +28,26 @@ test('migrate applies once and is idempotent', async () => {
   } finally {
     await db.close();
   }
+});
+
+test('a migrations directory that cannot be read is reported by name, before the database is used', async () => {
+  const untouched = new Proxy({} as Db, {
+    get() {
+      throw new Error('the database must not be used');
+    },
+  });
+  const dir = path.join(tmpdir(), 'secplus-no-such-migrations');
+  const failure = await migrate(untouched, dir).catch((err) => err);
+  expect(failure).toBeInstanceOf(MigrationFilesError);
+  expect(failure.message).toContain(`Cannot read the migrations directory ${dir}`);
+});
+
+test('a migration whose statement fails is reported with its file name and is not recorded', async () => {
+  const { db } = await testApp();
+  const dir = mkdtempSync(path.join(tmpdir(), 'secplus-migrations-'));
+  writeFileSync(path.join(dir, '900_broken.sql'), 'INSERT INTO no_such_table_anywhere (id) VALUES (1);\n');
+  await expect(migrate(db, dir)).rejects.toThrow(/^Migration 900_broken\.sql failed: \[ER_NO_SUCH_TABLE\] /);
+  expect(await db.query("SELECT 1 FROM schema_migrations WHERE name = '900_broken.sql'")).toHaveLength(0);
 });
 
 test('tx rolls back on throw', async () => {

@@ -2,17 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AppDeps } from '../../app.js';
 import { requireAuth, validate } from '../../http.js';
+import { isTimeZoneName } from '../../services/time.js';
 import { loadAccountUser } from '../auth/repo.js';
-
-function isIanaZone(tz: string): boolean {
-  if (/^[+-]/.test(tz)) return false; // Intl also accepts UTC offsets; only named zones are allowed
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function isCalendarDate(v: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
@@ -24,7 +15,7 @@ function isCalendarDate(v: string): boolean {
 const settingsBody = z
   .object({
     name: z.string().trim().min(1, 'Name is required').max(64, 'Name must be at most 64 characters').optional(),
-    timeZone: z.string().max(64).refine(isIanaZone, 'Unknown time zone').optional(),
+    timeZone: z.string().max(64).refine(isTimeZoneName, 'Unknown time zone').optional(),
     examDate: z.string().refine(isCalendarDate, 'Exam date must be a valid date in YYYY-MM-DD format').nullable().optional(),
     hideFromLeaderboard: z.boolean().optional(),
   })

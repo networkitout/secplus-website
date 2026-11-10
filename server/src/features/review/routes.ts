@@ -6,8 +6,8 @@ import { requireAuth } from '../../http.js';
 import { AnswerShapeError, answerSchema, feedbackFor, grade, toPublicQuestion } from '../../services/scoring.js';
 import { dueOn, nextBox } from '../../services/leitner.js';
 import { localDate, safeTimeZone } from '../../services/time.js';
-import { XP } from '../../services/xp.js';
-import { awardXp, evaluateBadges } from '../xp/repo.js';
+import { repeatRef, XP } from '../../services/xp.js';
+import { awardXp, evaluateBadgesAfterCommit } from '../xp/repo.js';
 import { cardExists, dueCards, findCard, moveCard, nextDueOn } from './repo.js';
 
 const DUE_LIMIT = 30;
@@ -67,6 +67,7 @@ export function reviewRouter(deps: AppDeps): Router {
     let questionId: string | undefined;
     let xpAmount: number;
     let xpReason: string;
+    let xpRef: string;
 
     if (cardId.startsWith('q:')) {
       const body = questionBody.safeParse(req.body);
@@ -89,6 +90,7 @@ export function reviewRouter(deps: AppDeps): Router {
       }
       xpAmount = XP.repeatCorrect;
       xpReason = 'repeat-correct';
+      xpRef = repeatRef(questionId, today); // shared with every other way of answering the question again
     } else {
       const body = flashcardBody.safeParse(req.body);
       if (!body.success) {
@@ -99,6 +101,7 @@ export function reviewRouter(deps: AppDeps): Router {
       definition = content.flashcards.find((x) => x.id === cardId.slice(2))!.definition;
       xpAmount = XP.flashcardKnown;
       xpReason = 'flashcard';
+      xpRef = `${cardId}@${today}`;
     }
 
     const box = nextBox(card.box, correct);
@@ -117,18 +120,13 @@ export function reviewRouter(deps: AppDeps): Router {
       ]);
     }
     let xp = 0;
-    if (correct && (await awardXp(db, { userId: user.id, amount: xpAmount, reason: xpReason, ref: `${cardId}@${today}`, now: t }))) {
+    if (correct && (await awardXp(db, { userId: user.id, amount: xpAmount, reason: xpReason, ref: xpRef, now: t }))) {
       xp = xpAmount;
     }
     // After the writes, as for any other answer: a review can complete a streak or the hundredth correct attempt.
     // The review is already recorded, so a failure here must not fail the request: a retry would get a 409.
     // The next evaluation awards whatever this one missed.
-    let newBadges: string[] = [];
-    try {
-      newBadges = await evaluateBadges(db, user.id, safeTimeZone(user.timeZone), t);
-    } catch (err) {
-      console.error(err);
-    }
+    const newBadges = await evaluateBadgesAfterCommit(db, user.id, safeTimeZone(user.timeZone), t);
     res.json({
       box,
       previousBox: card.box,

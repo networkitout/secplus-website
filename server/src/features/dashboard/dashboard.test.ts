@@ -249,7 +249,12 @@ test('a failure while closing an expired exam does not fail the dashboard or the
     expect(path.body.domains[0]).toMatchObject({ openExam: null, examPassed: false });
     // Each failure is logged like any other unexpected server error.
     expect(logged).toHaveBeenCalledTimes(2);
-    expect(String(logged.mock.calls[0]![0])).toContain('Deadlock');
+    // ... and says which exam of which learner could not be closed.
+    const lines = logged.mock.calls.map((args) => String(args[0]));
+    expect(lines[0]).toContain(`Closing expired assessment ${mock.body.id} of user ${s.user.id} failed`);
+    expect(lines[0]).toContain('[ER_LOCK_DEADLOCK]');
+    expect(lines[0]).toContain('Deadlock');
+    expect(lines[1]).toContain(`Closing expired assessment ${exam.body.id} of user ${s.user.id} failed`);
   } finally {
     s.db.tx = tx;
     logged.mockRestore();

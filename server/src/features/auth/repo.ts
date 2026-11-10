@@ -6,6 +6,9 @@ import { newToken } from './tokens.js';
 
 export const INVITE_DAYS = 7;
 export const MIN_PASSWORD_LENGTH = 12;
+/** bcrypt ignores everything after 72 bytes, so a longer password is refused wherever one is set or tried. */
+export const MAX_PASSWORD_BYTES = 72;
+export const passwordFits = (password: string): boolean => Buffer.byteLength(password, 'utf8') <= MAX_PASSWORD_BYTES;
 export const BCRYPT_COST = 12;
 export const LOGIN_PATTERN = /^[a-z0-9._-]{3,64}$/;
 
@@ -54,6 +57,9 @@ export async function ensureAdmin(
   const { adminLogin, adminPassword, adminName } = env;
   if (adminPassword && adminPassword.length < MIN_PASSWORD_LENGTH) {
     throw new Error(`ADMIN_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+  if (adminPassword && !passwordFits(adminPassword)) {
+    throw new Error(`ADMIN_PASSWORD must be at most ${MAX_PASSWORD_BYTES} bytes (UTF-8): sign-in refuses a longer one`);
   }
   if (!adminLogin || !adminPassword) {
     console.warn('No admin user exists and ADMIN_LOGIN/ADMIN_PASSWORD are not set; nobody can sign in.');

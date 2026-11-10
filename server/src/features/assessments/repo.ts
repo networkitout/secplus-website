@@ -2,12 +2,13 @@ import type { Answer, Feedback, PublicQuestion, Question } from '../../../../sha
 import type { Content } from '../../content/loader.js';
 import type { Db } from '../../db/db.js';
 import { HttpError } from '../../http.js';
+import { logError } from '../../log.js';
 import { PASS, pickMock, pickQuiz, pickSpread, scaledScore, seededRng } from '../../services/assembler.js';
 import { AnswerShapeError, correctAnswerOf, feedbackFor, grade, toPublicQuestion } from '../../services/scoring.js';
 import { localDate, safeTimeZone } from '../../services/time.js';
 import { XP } from '../../services/xp.js';
 import { assertObjectiveOpen, unlockedDomains } from '../access.js';
-import { DuplicateAttemptError, recordAnswer } from '../answers/repo.js';
+import { DuplicateAttemptError, recordAttempt } from '../answers/repo.js';
 import { awardXp, evaluateBadges } from '../xp/repo.js';
 
 export type Kind = 'objective' | 'domain' | 'mock';
@@ -109,7 +110,7 @@ export async function openAssessments(
     try {
       await finalize(db, content, user, row.id, now);
     } catch (err) {
-      console.error(err);
+      logError(err, `Closing expired assessment ${row.id} of user ${user.id} failed`);
     }
   }
   return open;
@@ -312,13 +313,15 @@ export async function saveAnswer(
     if (answer && locked.kind === 'objective') {
       if (answers[questionId]) throw new HttpError(409, 'This question was already answered');
       try {
-        const rec = await recordAnswer(tx, content, { user, question, answer, context: 'quiz', assessmentId: id, now });
+        const rec = await recordAttempt(tx, { user, question, answer, context: 'quiz', assessmentId: id, now });
+        // In this transaction, so a failure here rolls the answer back with it.
+        const earned = await evaluateBadges(tx, user.id, safeTimeZone(user.timeZone), now);
         feedback = rec.feedback;
         // A quiz is marked answer by answer, so what its answers earn is kept with it for the result.
         breakdown = {
           ...breakdown,
           xp: (breakdown?.xp ?? 0) + rec.xp,
-          newBadges: [...new Set([...(breakdown?.newBadges ?? []), ...rec.newBadges])],
+          newBadges: [...new Set([...(breakdown?.newBadges ?? []), ...earned])],
         };
       } catch (err) {
         if (err instanceof DuplicateAttemptError) throw new HttpError(409, 'This question was already answered');
@@ -382,9 +385,8 @@ export async function finalize(db: Db, content: Content, user: User, id: number,
         const answer = answers[q.id];
         if (!answer) continue;
         try {
-          const rec = await recordAnswer(tx, content, { user, question: q, answer, context: 'exam', assessmentId: id, now });
+          const rec = await recordAttempt(tx, { user, question: q, answer, context: 'exam', assessmentId: id, now });
           xp += rec.xp;
-          rec.newBadges.forEach((b) => newBadges.add(b));
           if (rec.feedback.correct) correctIds.add(q.id);
         } catch (err) {
           if (!(err instanceof AnswerShapeError)) throw err; // a stale answer shape counts as wrong
@@ -438,6 +440,8 @@ export async function finalize(db: Db, content: Content, user: User, id: number,
               : { amount: XP.mockExamPass, reason: 'mock-pass', ref: localDate(now, tz) };
       if (bonus && (await awardXp(tx, { userId: user.id, ...bonus, now }))) xp += bonus.amount;
     }
+    // Once, now that every answer is recorded and the result stored: nothing a badge counts can go down
+    // within this transaction, so this finds every badge an evaluation after each answer would have found.
     (await evaluateBadges(tx, user.id, tz, now)).forEach((b) => newBadges.add(b));
 
     const breakdown: Breakdown = { ...breakdownOf(row), byDomain, byObjective, xp, newBadges: [...newBadges] };

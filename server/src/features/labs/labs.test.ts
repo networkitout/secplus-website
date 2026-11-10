@@ -116,34 +116,52 @@ test('score 79.9 fails, 80 passes', () => {
   expect(labPassed(80)).toBe(true);
 });
 
+// Every step answered, each with a valid shape, and each scoring nothing.
+const WRONG: Record<string, Answer> = {
+  'lab-1-01-s1': { type: 'single', choice: 'a' },
+  'lab-1-01-s2': { type: 'multi', choices: [] },
+  'lab-1-01-s3': { type: 'order', order: ['i1', 'i2', 'i3', 'i4'] },
+  'lab-1-01-s4': { type: 'match', pairs: {} },
+  'lab-1-01-s5': { type: 'categorize', placements: {} },
+};
+
 test('a failing submit awards no pass bonus and records bestScore as the max over results', async () => {
   const { agent, db, user } = await setup();
-  const res = await agent.post('/api/labs/lab-1-01/submit').send({ answers: { 'lab-1-01-s1': RIGHT['lab-1-01-s1'] } });
+  const res = await agent.post('/api/labs/lab-1-01/submit').send({ answers: { ...WRONG, 'lab-1-01-s1': RIGHT['lab-1-01-s1'] } });
   expect(res.body.scorePct).toBe(20);
   expect(res.body.passed).toBe(false);
   expect(res.body.xp).toBe(10);
   expect(await db.query("SELECT 1 FROM xp_events WHERE user_id = ? AND reason = 'lab-pass'", [user.id])).toHaveLength(0);
   await agent.post('/api/labs/lab-1-01/submit').send({ answers: RIGHT });
-  await agent.post('/api/labs/lab-1-01/submit').send({ answers: {} });
+  const zero = await agent.post('/api/labs/lab-1-01/submit').send({ answers: WRONG });
+  expect(zero.body).toMatchObject({ scorePct: 0, passed: false });
   const list = await agent.get('/api/labs');
   expect(list.body.labs[0]).toMatchObject({ bestScore: 100, passed: true });
 });
 
-test('missing step answers score 0 for that step; an answer keyed to an unknown step id is 400', async () => {
+test('a submission that leaves a step unanswered is 400: nothing is graded, stored or revealed', async () => {
   const { agent, db, user } = await setup();
   const { 'lab-1-01-s5': _omit, ...four } = RIGHT;
   void _omit;
-  const res = await agent.post('/api/labs/lab-1-01/submit').send({ answers: four });
-  expect(res.status).toBe(200);
-  expect(res.body.scorePct).toBe(80);
-  expect(res.body.steps['lab-1-01-s5']).toMatchObject({ correct: false, fraction: 0 });
-  expect(res.body.steps['lab-1-01-s5'].correctAnswer).toBeDefined();
-  expect(await db.query("SELECT 1 FROM attempts WHERE user_id = ? AND question_id = 'lab-1-01-s5'", [user.id])).toHaveLength(0);
+  for (const answers of [{}, four, { 'lab-1-01-s1': RIGHT['lab-1-01-s1'] }]) {
+    const res = await agent.post('/api/labs/lab-1-01/submit').send({ answers });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Every step of the lab needs an answer' });
+    expect(JSON.stringify(res.body)).not.toMatch(/"(correct|correctAnswer|explanation|why)"/);
+  }
+  for (const table of ['attempts', 'xp_events', 'lab_results', 'badges']) {
+    expect(await db.query(`SELECT 1 FROM ${table} WHERE user_id = ?`, [user.id]), table).toHaveLength(0);
+  }
+  // Still open: the same learner can submit the whole lab afterwards.
+  const whole = await agent.post('/api/labs/lab-1-01/submit').send({ answers: RIGHT });
+  expect(whole.body).toMatchObject({ scorePct: 100, passed: true });
+});
 
-  const before = await db.query('SELECT 1 FROM lab_results WHERE user_id = ?', [user.id]);
+test('an answer keyed to an unknown step id is 400', async () => {
+  const { agent, db, user } = await setup();
   const bad = await agent.post('/api/labs/lab-1-01/submit').send({ answers: { ...RIGHT, 'lab-1-01-zzz': RIGHT['lab-1-01-s1'] } });
   expect(bad.status).toBe(400);
-  expect(await db.query('SELECT 1 FROM lab_results WHERE user_id = ?', [user.id])).toHaveLength(before.length);
+  expect(await db.query('SELECT 1 FROM lab_results WHERE user_id = ?', [user.id])).toHaveLength(0);
 });
 
 test('a wrong-shaped step answer is 400 and nothing is recorded', async () => {

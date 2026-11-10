@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { createUser, loginAs, testApp } from '../../test/helpers.js';
 import { DuplicateAttemptError, recordAnswer } from './repo.js';
 
@@ -99,4 +99,27 @@ test('recordAnswer: duplicate (assessment, question) throws and awards/schedules
   await recordAnswer(db, content, { user: u, question: q, answer: wrong, context: 'lab', now });
   await recordAnswer(db, content, { user: u, question: q, answer: wrong, context: 'review', now });
   expect(await db.query('SELECT 1 FROM review_cards WHERE user_id = ?', [user.id])).toHaveLength(0);
+});
+
+test('a failure while evaluating badges does not fail the answer: it is recorded, logged, and reports no new badges', async () => {
+  const { agent, db, user } = await setup();
+  // Badge evaluation reads the badges table first; recording the answer does not touch it.
+  const query = db.query.bind(db);
+  const failing = vi.spyOn(db, 'query').mockImplementation(((sql: string, params?: unknown[]) =>
+    /\bbadges\b/.test(sql) ? Promise.reject(new Error('badges unavailable')) : query(sql, params)) as typeof db.query);
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const res = await agent.post('/api/answers').send(RIGHT);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ xp: 10, newBadges: [] });
+    expect(res.body.feedback.correct).toBe(true);
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(String(logged.mock.calls[0]![0])).toContain(`Badge evaluation failed for user ${user.id}`);
+    expect(String(logged.mock.calls[0]![0])).toContain('badges unavailable');
+  } finally {
+    failing.mockRestore();
+    logged.mockRestore();
+  }
+  expect(await db.query('SELECT correct FROM attempts WHERE user_id = ?', [user.id])).toEqual([{ correct: 1 }]);
+  expect(await db.query('SELECT amount FROM xp_events WHERE user_id = ?', [user.id])).toEqual([{ amount: 10 }]);
 });
