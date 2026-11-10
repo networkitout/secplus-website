@@ -1,0 +1,740 @@
+[
+  {
+    "id": "q-1.2-001",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "An HR assistant at Larchmont Foods attaches the salary spreadsheet to an email and sends it to the all-staff list by mistake. Nothing in the file was changed, and the file is still on the HR share. Which security goal was compromised?",
+    "options": [
+      { "id": "a", "text": "Integrity" },
+      { "id": "b", "text": "Availability" },
+      { "id": "c", "text": "Confidentiality" },
+      { "id": "d", "text": "Non-repudiation" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Integrity is about unauthorized change. The scenario says the file was not altered.",
+      "b": "Availability is about being able to reach data when it is needed. HR can still open the file.",
+      "c": "People who are not authorized to see salaries can now read them. That is a loss of confidentiality.",
+      "d": "Non-repudiation is about proving who did something. Nobody is denying that the email was sent."
+    },
+    "explanation": "Confidentiality is lost when information is exposed to someone who is not authorized to see it, even if the data is unchanged and still available."
+  },
+  {
+    "id": "q-1.2-002",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "categorize",
+    "prompt": "Place each control under the goal of the CIA triad that it mainly protects.",
+    "items": [
+      { "id": "t1", "text": "A second power supply in each server" },
+      { "id": "t2", "text": "Full-disk encryption on staff laptops" },
+      { "id": "t3", "text": "Comparing a download's hash with the value the vendor published" },
+      { "id": "t4", "text": "Folder permissions that let only the HR group open personnel files" },
+      { "id": "t5", "text": "A backup internet link from a different provider" },
+      { "id": "t6", "text": "A digital signature on a firmware update" }
+    ],
+    "buckets": [
+      { "id": "c", "text": "Confidentiality" },
+      { "id": "i", "text": "Integrity" },
+      { "id": "a", "text": "Availability" }
+    ],
+    "correct": {
+      "t1": "a",
+      "t2": "c",
+      "t3": "i",
+      "t4": "c",
+      "t5": "a",
+      "t6": "i"
+    },
+    "explanation": "Encryption and permissions stop the wrong people from reading data (confidentiality). Hashes and digital signatures reveal unauthorized changes (integrity). Redundant power and network links keep services reachable (availability)."
+  },
+  {
+    "id": "q-1.2-003",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A purchasing manager approves a $40,000 order by applying her digital signature to the purchase order. A month later she claims she never approved it. The company uses the signature to show that she did. Which concept does this illustrate?",
+    "options": [
+      { "id": "a", "text": "Availability" },
+      { "id": "b", "text": "Non-repudiation" },
+      { "id": "c", "text": "Authorization" },
+      { "id": "d", "text": "Confidentiality" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Availability is about systems and data being reachable when needed, not about proving who took an action.",
+      "b": "A digital signature made with her private key is proof tied to her alone, so she cannot credibly deny the approval.",
+      "c": "Authorization decides what she is allowed to do. The dispute is about whether she did it, not whether she was allowed to.",
+      "d": "Confidentiality keeps data from being read by the wrong people. A signature does not hide the order."
+    },
+    "explanation": "Non-repudiation means a person cannot credibly deny an action, because there is proof that only they could have produced, such as a digital signature."
+  },
+  {
+    "id": "q-1.2-004",
+    "objective": "1.2",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A software vendor posts an installer on its download page together with the installer's SHA-256 hash. A technician downloads the file, calculates its hash and gets the same value. With no other checks, what has the technician established?",
+    "options": [
+      { "id": "a", "text": "The file matches the one the hash was calculated from, but not who produced it" },
+      { "id": "b", "text": "The file was produced by the vendor, and the vendor cannot deny publishing it" },
+      { "id": "c", "text": "The file is unchanged, and the identity of the vendor has been authenticated" },
+      { "id": "d", "text": "The file could not have been read by anyone else while it was being downloaded" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "A matching hash shows integrity: the file is identical to the one the hash was made from. A hash carries no identity, so it says nothing about who made the file.",
+      "b": "Non-repudiation needs proof that only the vendor could produce, such as a digital signature. Anyone can calculate and post a hash.",
+      "c": "The first half is right, but a hash does not authenticate anyone. An attacker who replaced the installer could replace the posted hash too.",
+      "d": "Hashing does not encrypt anything, so it gives no confidentiality during the download."
+    },
+    "explanation": "A hash alone proves integrity only. Proof of origin and non-repudiation need a digital signature, which is made with a private key that only the signer holds."
+  },
+  {
+    "id": "q-1.2-005",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "A supplier sends a contract as a PDF that carries a valid digital signature. Which two assurances does the valid signature give the recipient? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "The contract has not been changed since it was signed" },
+      { "id": "b", "text": "The contract cannot be read by anyone except the recipient" },
+      { "id": "c", "text": "The signer cannot credibly deny having signed the contract" },
+      { "id": "d", "text": "The recipient is authorized to approve the terms of the contract" },
+      { "id": "e", "text": "The contract will be accessible whenever the recipient needs it" }
+    ],
+    "correct": ["a", "c"],
+    "why": {
+      "a": "Any change to the document after signing makes the signature check fail, so a valid signature shows integrity.",
+      "b": "Signing does not encrypt the content. Confidentiality needs encryption.",
+      "c": "The signature was made with the signer's private key, which only the signer holds. That is non-repudiation.",
+      "d": "Authorization is decided inside the recipient's own organization, not by a signature on the document.",
+      "e": "Availability depends on storage, backups and working systems, not on a signature."
+    },
+    "explanation": "A digital signature provides integrity and non-repudiation. It does not provide confidentiality, availability or authorization."
+  },
+  {
+    "id": "q-1.2-006",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A user types the username 'jpatel' on a sign-in page and has not yet entered a password. Which step of access control has taken place so far?",
+    "options": [
+      { "id": "a", "text": "Identification" },
+      { "id": "b", "text": "Authentication" },
+      { "id": "c", "text": "Authorization" },
+      { "id": "d", "text": "Accounting" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Typing a username is a claim of identity. Nothing has been proven yet.",
+      "b": "Authentication is the proof of the claim, such as a password or a fingerprint. That has not been given yet.",
+      "c": "Authorization decides what a proven identity may do. It comes after authentication.",
+      "d": "Accounting records what a user does during the session. It is not the claim of identity."
+    },
+    "explanation": "Identification is claiming an identity; authentication is proving it. A username alone identifies but does not authenticate."
+  },
+  {
+    "id": "q-1.2-007",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "order",
+    "prompt": "A remote employee connects to the company VPN. Put the events in the order in which they happen.",
+    "items": [
+      { "id": "i1", "text": "The gateway limits the session to the networks that the employee's group may use" },
+      { "id": "i2", "text": "The employee enters a username" },
+      { "id": "i3", "text": "The server records when the session ended and how much data was transferred" },
+      { "id": "i4", "text": "The server verifies the employee's password and one-time code" }
+    ],
+    "correct": ["i2", "i4", "i1", "i3"],
+    "explanation": "The sequence is identification (claim an identity), authentication (prove it), authorization (apply what that identity is allowed to do) and accounting (record what was done)."
+  },
+  {
+    "id": "q-1.2-008",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A clinic wants its staff to sign in with multifactor authentication. Which combination uses two different authentication factors?",
+    "options": [
+      { "id": "a", "text": "A password and a PIN" },
+      { "id": "b", "text": "A fingerprint scan and a face scan" },
+      { "id": "c", "text": "A smart card and a PIN" },
+      { "id": "d", "text": "A hardware token and a smart card" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Both are something you know, so this is one factor used twice.",
+      "b": "Both are something you are, so this is still a single factor.",
+      "c": "The card is something you have and the PIN is something you know: two different factors.",
+      "d": "Both are something you have. A thief who takes a bag containing both has everything needed."
+    },
+    "explanation": "Multifactor authentication needs factors of different kinds, such as something you know, something you have or something you are. Two items of the same kind count as one factor."
+  },
+  {
+    "id": "q-1.2-009",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Bexley Insurance wants only company-managed laptops to join its internal Wi-Fi. An employee who knows a valid username and password must not be able to connect a personal phone. Which approach lets the network authenticate the device itself?",
+    "options": [
+      { "id": "a", "text": "Install a certificate from the company's certificate authority on each managed laptop" },
+      { "id": "b", "text": "Give all staff a longer Wi-Fi passphrase and change the passphrase every month" },
+      { "id": "c", "text": "Require employees to answer a personal security question when they connect" },
+      { "id": "d", "text": "Add the MAC address of each managed laptop to an allow list on the access points" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "The laptop proves that it holds the private key matching a certificate signed by the company's CA. A personal phone has no such certificate.",
+      "b": "A passphrase is something a person knows and can type into any device, so it cannot tell devices apart.",
+      "c": "A security question authenticates the person, not the device the person is using.",
+      "d": "A MAC address is only a claim. It is visible on the air and can be copied to another device, so it proves nothing."
+    },
+    "explanation": "Systems are usually authenticated with digital certificates issued by a certificate authority the organization trusts. Passwords and other human factors authenticate people, not devices."
+  },
+  {
+    "id": "q-1.2-010",
+    "objective": "1.2",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A water utility has 600 remote sensors that report to a central server. Each sensor authenticates with its own certificate instead of one password shared by all sensors. One sensor is stolen from a pumping station. What is the main advantage of the certificate design in this situation?",
+    "options": [
+      { "id": "a", "text": "The certificate encrypts the readings that are stored on the stolen sensor" },
+      { "id": "b", "text": "The certificate proves which employee installed the stolen sensor" },
+      { "id": "c", "text": "The certificate never expires, so no other credentials need to be replaced" },
+      { "id": "d", "text": "The stolen sensor's certificate can be revoked without touching the others" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A device certificate proves identity when the sensor connects. It does not encrypt data stored on the device.",
+      "b": "The certificate identifies the device, not a person. Nothing in it records who installed the sensor.",
+      "c": "Certificates do expire and must be renewed, and a long life would not help with a stolen device anyway.",
+      "d": "Each device has its own identity, so the server can stop trusting that one certificate. With a shared password, all 600 sensors would need a new one."
+    },
+    "explanation": "Giving each system its own certificate gives it an individual identity, so one lost or compromised device can be revoked without affecting the rest."
+  },
+  {
+    "id": "q-1.2-011",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A hospital with 900 staff assigns permissions to each user account by hand, application by application. When people change jobs, their old permissions are often left in place. Which change addresses this problem most directly?",
+    "options": [
+      { "id": "a", "text": "Let the owner of each file decide which colleagues may open it" },
+      { "id": "b", "text": "Require multifactor authentication for every application" },
+      { "id": "c", "text": "Send the access log of every application to a central server" },
+      { "id": "d", "text": "Attach permissions to job roles and assign each user to a role" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "This is discretionary access. It spreads decisions across many owners and makes permissions less consistent, not more.",
+      "b": "Multifactor authentication strengthens proof of identity. It does not change what an authenticated user is allowed to do.",
+      "c": "Central logging is accounting. It records access but does not correct who holds which permissions.",
+      "d": "With role-based authorization, moving a user to a new role removes the old role's permissions and grants the new ones in one step."
+    },
+    "explanation": "An authorization model places a layer, such as roles, between users and resources, so that permissions are assigned consistently instead of user by user."
+  },
+  {
+    "id": "q-1.2-012",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "Which two of these events are examples of authorization? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "A door reader compares a fingerprint with the stored template" },
+      { "id": "b", "text": "A file server lets Finance staff read but not edit the budget folder" },
+      { "id": "c", "text": "A user types an email address into the first field of a sign-in page" },
+      { "id": "d", "text": "A VPN gateway limits a contractor's session to the test lab network" },
+      { "id": "e", "text": "A server writes the time at which each session ended to a log file" }
+    ],
+    "correct": ["b", "d"],
+    "why": {
+      "a": "Checking a fingerprint proves who the person is. That is authentication.",
+      "b": "Deciding what an authenticated identity may do with a resource, here read but not edit, is authorization.",
+      "c": "Entering an email address is identification: a claim of identity.",
+      "d": "Limiting what the contractor's session can reach after sign-in is an authorization decision.",
+      "e": "Recording session details is accounting."
+    },
+    "explanation": "Authorization determines what an already authenticated user or device is allowed to access or do. Proving identity is authentication; recording activity is accounting."
+  },
+  {
+    "id": "q-1.2-013",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A new security manager at Tallis Freight compares the company's existing security controls with the requirements of ISO/IEC 27001 and produces a list of the requirements that are not yet met. What is this activity called?",
+    "options": [
+      { "id": "a", "text": "Penetration test" },
+      { "id": "b", "text": "Vulnerability scan" },
+      { "id": "c", "text": "Threat hunting" },
+      { "id": "d", "text": "Gap analysis" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A penetration test tries to break into systems by exploiting weaknesses. It does not compare the security program with a standard.",
+      "b": "A vulnerability scan uses a tool to look for known technical flaws on hosts, such as missing patches.",
+      "c": "Threat hunting searches systems and logs for signs of an attacker who is already inside.",
+      "d": "Comparing the current state with a target standard and listing the differences is a gap analysis."
+    },
+    "explanation": "A gap analysis compares where security is now with where it should be, usually as defined by a standard or framework, and lists the gaps."
+  },
+  {
+    "id": "q-1.2-014",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "A retailer is planning its first gap analysis. Which two things must the team have before it can identify any gaps? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "A penetration test report from an outside firm" },
+      { "id": "b", "text": "A defined target, such as a security standard to meet" },
+      { "id": "c", "text": "A cyber insurance policy that covers data breaches" },
+      { "id": "d", "text": "A network of decoy servers for observing attackers" },
+      { "id": "e", "text": "An accurate record of the controls in place today" }
+    ],
+    "correct": ["b", "e"],
+    "why": {
+      "a": "A penetration test can add evidence about the current state, but a gap analysis does not require one.",
+      "b": "A gap is a difference from a target. Without a baseline to compare against, there is nothing to measure.",
+      "c": "Insurance transfers some financial risk. It plays no part in comparing controls with a standard.",
+      "d": "Decoy systems are deception technology for detecting attackers. They are not an input to a gap analysis.",
+      "e": "The other half of the comparison is the current state: the people, processes and technology in place now."
+    },
+    "explanation": "A gap analysis needs a target (baseline) and an honest picture of the current state. The gaps are the differences between the two."
+  },
+  {
+    "id": "q-1.2-015",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "Which statement best describes Zero Trust?",
+    "options": [
+      { "id": "a", "text": "Devices on the internal network are trusted, and outside devices must use a VPN" },
+      { "id": "b", "text": "Every access request is verified, wherever on the network it comes from" },
+      { "id": "c", "text": "Users are verified once at sign-in and are then trusted until they sign out" },
+      { "id": "d", "text": "Access to every resource is blocked until a manager approves the request" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is the traditional perimeter model. Zero Trust rejects trust that is based on network location.",
+      "b": "Zero Trust assumes no user or device is trustworthy because of its location, so each request is authenticated and authorized.",
+      "c": "Zero Trust keeps re-checking trust during a session. A single check at sign-in is the kind of lasting trust it removes.",
+      "d": "Zero Trust decisions are made automatically by policy for each request, not by manual approval."
+    },
+    "explanation": "Zero Trust means never trusting by default and always verifying: no trust comes from network location, and every request is checked."
+  },
+  {
+    "id": "q-1.2-016",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "match",
+    "prompt": "Match each Zero Trust component to its role.",
+    "left": [
+      { "id": "l1", "text": "Policy engine" },
+      { "id": "l2", "text": "Policy administrator" },
+      { "id": "l3", "text": "Policy enforcement point" },
+      { "id": "l4", "text": "Subject/system" },
+      { "id": "l5", "text": "Implicit trust zone" }
+    ],
+    "right": [
+      { "id": "r1", "text": "Sits in the path of the traffic and allows or blocks each connection" },
+      { "id": "r2", "text": "Decides whether access is granted, denied or revoked" },
+      { "id": "r3", "text": "The user and device that request access to a resource" },
+      { "id": "r4", "text": "Tells the enforcement point to open or close a session" },
+      { "id": "r5", "text": "The area past the last checkpoint, where traffic is not checked again" }
+    ],
+    "correct": {
+      "l1": "r2",
+      "l2": "r4",
+      "l3": "r1",
+      "l4": "r3",
+      "l5": "r5"
+    },
+    "explanation": "The policy engine decides. The policy administrator carries out the decision by instructing the policy enforcement point, which enforces it in the traffic path. The subject/system asks for access, and the area beyond the enforcement point is the implicit trust zone."
+  },
+  {
+    "id": "q-1.2-017",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "categorize",
+    "prompt": "Place each Zero Trust element in the plane it belongs to.",
+    "items": [
+      { "id": "t1", "text": "Policy enforcement point" },
+      { "id": "t2", "text": "Policy engine" },
+      { "id": "t3", "text": "Subject/system" },
+      { "id": "t4", "text": "Adaptive identity" },
+      { "id": "t5", "text": "Policy administrator" },
+      { "id": "t6", "text": "Implicit trust zone" }
+    ],
+    "buckets": [
+      { "id": "cp", "text": "Control plane" },
+      { "id": "dp", "text": "Data plane" }
+    ],
+    "correct": {
+      "t1": "dp",
+      "t2": "cp",
+      "t3": "dp",
+      "t4": "cp",
+      "t5": "cp",
+      "t6": "dp"
+    },
+    "explanation": "The control plane makes and communicates access decisions: the policy engine, the policy administrator and the adaptive identity checks that feed them. The data plane carries the actual traffic: the subject/system, the policy enforcement point and the implicit trust zone behind it. CompTIA also lists threat scope reduction and policy-driven access control under the control plane."
+  },
+  {
+    "id": "q-1.2-018",
+    "objective": "1.2",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "In a Zero Trust deployment, a security agent reports malware on a laptop that has an open session to the payroll application. The policy engine decides that the session must end. Which component instructs the gateway in front of the payroll application to close the session?",
+    "options": [
+      { "id": "a", "text": "Policy enforcement point" },
+      { "id": "b", "text": "Policy administrator" },
+      { "id": "c", "text": "Policy engine" },
+      { "id": "d", "text": "Subject/system" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "The gateway is the policy enforcement point. It receives the instruction and cuts the session; it does not issue the instruction.",
+      "b": "The policy administrator carries out the policy engine's decision by telling the policy enforcement point to open or close a session.",
+      "c": "The policy engine makes the decision, as the scenario says. Passing the command to the enforcement point is the policy administrator's job.",
+      "d": "The subject/system is the user or service asking for access and the device it uses, here the infected laptop. It does not control the gateway."
+    },
+    "explanation": "The policy engine decides, the policy administrator tells the policy enforcement point what to do, and the policy enforcement point enforces it in the data plane."
+  },
+  {
+    "id": "q-1.2-019",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "An accountant normally signs in from the Leeds office on a managed laptop during the day. At 02:00, a sign-in with her correct password arrives from an unmanaged tablet in another country. The access system weighs the location, device and time, and demands extra proof of identity before going any further. Which Zero Trust concept is this?",
+    "options": [
+      { "id": "a", "text": "Implicit trust zone" },
+      { "id": "b", "text": "Threat scope reduction" },
+      { "id": "c", "text": "Adaptive identity" },
+      { "id": "d", "text": "Non-repudiation" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "An implicit trust zone is an area where traffic is no longer checked. Here the system is checking harder, not trusting.",
+      "b": "Threat scope reduction limits how much a compromised account or device can reach. The scenario is about how strongly identity is verified.",
+      "c": "Adaptive identity adjusts the proof required to the context of the request, such as location, device and time.",
+      "d": "Non-repudiation is about proving afterwards who took an action, not about verifying a sign-in."
+    },
+    "explanation": "Adaptive identity uses context (location, device, time, behavior) to decide how much verification a request needs, instead of treating a correct password as enough every time."
+  },
+  {
+    "id": "q-1.2-020",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "After an attacker used one stolen help-desk account to reach every server, Corwin Manufacturing redesigns its access. Each account and device can now reach only the specific applications it needs, and each application sits in its own network segment. Which Zero Trust concept is the company applying?",
+    "options": [
+      { "id": "a", "text": "Threat scope reduction" },
+      { "id": "b", "text": "Adaptive identity" },
+      { "id": "c", "text": "Accounting" },
+      { "id": "d", "text": "Deception technology" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Limiting what any one account or device can reach limits the damage a single compromise can cause. That is threat scope reduction.",
+      "b": "Adaptive identity changes how strongly a request is verified, based on context. The redesign is about how far access extends.",
+      "c": "Accounting records activity. The redesign changes what can be reached, not what is logged.",
+      "d": "Deception technology uses decoys such as honeypots to detect attackers. No decoys are involved here."
+    },
+    "explanation": "Threat scope reduction limits what an attacker can reach after a compromise, using least privilege, segmentation and small implicit trust zones."
+  },
+  {
+    "id": "q-1.2-021",
+    "objective": "1.2",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A company places a Zero Trust gateway in front of its data center network. After a session passes the gateway, the user can connect to any of the 40 servers on that network with no further checks. What is the main weakness of this design?",
+    "options": [
+      { "id": "a", "text": "The policy enforcement point is in the traffic path instead of the control plane" },
+      { "id": "b", "text": "The policy engine is able to deny requests that come from managed devices" },
+      { "id": "c", "text": "The implicit trust zone behind the policy enforcement point is too large" },
+      { "id": "d", "text": "The policy administrator and the policy engine are separate components" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "The policy enforcement point belongs in the traffic path, in the data plane. That placement is correct.",
+      "b": "Denying a request, even one from a managed device, is exactly what the policy engine is for.",
+      "c": "Everything behind the gateway is trusted after one check. With 40 servers in that zone, one approved session can reach far more than it needs.",
+      "d": "The policy engine and the policy administrator are meant to be separate roles in the control plane. That is not a weakness."
+    },
+    "explanation": "The implicit trust zone is the area behind a policy enforcement point where traffic is not checked again. Zero Trust keeps it as small as possible, ideally a single resource."
+  },
+  {
+    "id": "q-1.2-022",
+    "objective": "1.2",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A review at Pellam Logistics finds that anyone connected to the VPN can reach every internal application, because the access rules are based only on the source subnet. Which change moves the company closest to policy-driven access control?",
+    "options": [
+      { "id": "a", "text": "Move the VPN users to a new subnet and tighten that subnet's firewall rules" },
+      { "id": "b", "text": "Require a longer password and a shorter session timeout for the VPN" },
+      { "id": "c", "text": "Place a honeypot on the VPN subnet to detect users who scan the network" },
+      { "id": "d", "text": "Decide each request by rules on user identity, device health and context" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "Access would still depend on network location. Anyone who lands in the subnet gets the same access.",
+      "b": "This strengthens authentication at the edge, but access after sign-in would still be decided by subnet.",
+      "c": "A honeypot may detect an intruder, but it does not change how access decisions are made.",
+      "d": "Policy-driven access control decides each request by defined rules about who is asking, from what device and in what context, not by where the traffic comes from."
+    },
+    "explanation": "Policy-driven access control makes access decisions for each request from defined policies that combine identity, device and context, rather than from network location."
+  },
+  {
+    "id": "q-1.2-023",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "Staff at a data center use their badges to open the main door, but unauthorized people sometimes follow them through before the door closes. Which physical control is designed to stop this?",
+    "options": [
+      { "id": "a", "text": "Bollards at the entrance" },
+      { "id": "b", "text": "Access control vestibule" },
+      { "id": "c", "text": "Taller perimeter fencing" },
+      { "id": "d", "text": "Infrared motion sensor" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Bollards stop vehicles. People walk between them freely.",
+      "b": "A vestibule has two interlocking doors and admits one verified person at a time, so nobody can follow through.",
+      "c": "Fencing protects the site perimeter. The problem here is at a door that authorized staff are opening.",
+      "d": "An infrared sensor can detect a person's body heat, but it cannot stop that person from walking through the door."
+    },
+    "explanation": "An access control vestibule is a small room with two interlocking doors that lets one verified person through at a time, which prevents tailgating."
+  },
+  {
+    "id": "q-1.2-024",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "match",
+    "prompt": "Match each physical security control to what it does.",
+    "left": [
+      { "id": "l1", "text": "Bollards" },
+      { "id": "l2", "text": "Fencing" },
+      { "id": "l3", "text": "Video surveillance" },
+      { "id": "l4", "text": "Security guard" },
+      { "id": "l5", "text": "Access badge" },
+      { "id": "l6", "text": "Lighting" }
+    ],
+    "right": [
+      { "id": "r1", "text": "Captures activity on camera so it can be watched live or reviewed later" },
+      { "id": "r2", "text": "Stops vehicles from reaching a building while letting pedestrians pass" },
+      { "id": "r3", "text": "Identifies the holder and creates an electronic record of each door opened" },
+      { "id": "r4", "text": "Removes dark areas where an intruder could approach unseen" },
+      { "id": "r5", "text": "Encloses the site perimeter to deter intruders and slow them down" },
+      { "id": "r6", "text": "Uses human judgment to check visitors and respond to incidents" }
+    ],
+    "correct": {
+      "l1": "r2",
+      "l2": "r5",
+      "l3": "r1",
+      "l4": "r6",
+      "l5": "r3",
+      "l6": "r4"
+    },
+    "explanation": "Bollards block vehicles, fencing encloses the perimeter, lighting removes hiding places, video surveillance records, an access badge identifies its holder and logs door use, and a security guard adds human judgment and response."
+  },
+  {
+    "id": "q-1.2-025",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "match",
+    "prompt": "Match each sensor type to the way it detects an intruder.",
+    "left": [
+      { "id": "l1", "text": "Infrared" },
+      { "id": "l2", "text": "Pressure" },
+      { "id": "l3", "text": "Microwave" },
+      { "id": "l4", "text": "Ultrasonic" }
+    ],
+    "right": [
+      { "id": "r1", "text": "Measures reflections of sound waves pitched above human hearing" },
+      { "id": "r2", "text": "Senses the heat given off by a person's body" },
+      { "id": "r3", "text": "Measures reflections of radio pulses, which can pass through thin walls" },
+      { "id": "r4", "text": "Senses a change in the weight or force applied to a surface" }
+    ],
+    "correct": {
+      "l1": "r2",
+      "l2": "r4",
+      "l3": "r3",
+      "l4": "r1"
+    },
+    "explanation": "Infrared sensors detect heat, pressure sensors detect weight or force, microwave sensors use reflected radio waves, and ultrasonic sensors use reflected sound waves."
+  },
+  {
+    "id": "q-1.2-026",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "After a server went missing, a company wants a record of who entered the server room and when, plus evidence it can review afterwards. Which two controls provide this? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "Bollards outside the building entrance" },
+      { "id": "b", "text": "Access badge readers on the server room door" },
+      { "id": "c", "text": "Brighter lighting in the corridor" },
+      { "id": "d", "text": "A higher fence around the site perimeter" },
+      { "id": "e", "text": "Video surveillance covering the server room door" },
+      { "id": "f", "text": "A pressure sensor under the server room floor" }
+    ],
+    "correct": ["b", "e"],
+    "why": {
+      "a": "Bollards block vehicles. They record nothing about who enters a room.",
+      "b": "Each badge use is logged with the holder's identity, the door and the time.",
+      "c": "Lighting helps cameras and guards to see, but on its own it keeps no record.",
+      "d": "A fence delays intruders at the perimeter. It does not record who enters a room inside the building.",
+      "e": "Recorded footage shows who went through the door and what they carried, and it can be reviewed later.",
+      "f": "A pressure sensor shows that someone stepped on the floor, but not who it was."
+    },
+    "explanation": "Access badges give an electronic log of who used which door and when, and video surveillance gives footage to review. Barriers, lighting and sensors deter, delay or detect, but they do not record who a person is."
+  },
+  {
+    "id": "q-1.2-027",
+    "objective": "1.2",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A motion sensor in a stock room raises alarms at night although the room is empty. The alarms match the times when a guard walks along the corridor on patrol, on the other side of a thin partition wall. Which type of sensor is most likely installed in the stock room?",
+    "options": [
+      { "id": "a", "text": "Pressure" },
+      { "id": "b", "text": "Infrared" },
+      { "id": "c", "text": "Ultrasonic" },
+      { "id": "d", "text": "Microwave" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "A pressure sensor reacts to weight on a surface inside the room. A person in the corridor puts no weight on it.",
+      "b": "A passive infrared sensor needs a direct view of a warm body. The wall blocks body heat.",
+      "c": "Ultrasonic sensors use sound waves, which stay inside the room and do not pass through walls.",
+      "d": "Microwave signals pass through thin walls, so movement on the other side can be detected and cause false alarms."
+    },
+    "explanation": "Microwave sensors cover large areas, and their signals pass through thin walls and glass. That reach is useful in a warehouse but can cause false alarms from movement outside the protected room."
+  },
+  {
+    "id": "q-1.2-028",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A security team places a file named 'executive-passwords.xlsx' on the finance file share. The file contains nothing real, and an alert is raised whenever anyone opens it. What is this file?",
+    "options": [
+      { "id": "a", "text": "Honeypot" },
+      { "id": "b", "text": "Honeynet" },
+      { "id": "c", "text": "Honeyfile" },
+      { "id": "d", "text": "Honeytoken" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "A honeypot is a whole decoy system. Here the bait is one file on a real server.",
+      "b": "A honeynet is a network of decoy systems, not a file.",
+      "c": "A bait file with a tempting name that raises an alert when it is opened is a honeyfile.",
+      "d": "A honeytoken is an item of fake data, such as one record or one set of login details, tracked when it is used or turns up elsewhere. A bait file that alerts when opened is a honeyfile."
+    },
+    "explanation": "A honeyfile is a decoy file placed on a real system. Nobody has a legitimate reason to open it, so opening it raises an alert."
+  },
+  {
+    "id": "q-1.2-029",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A bank adds a made-up customer record to its customer database. The email address in the record exists nowhere else. Six months later, phishing emails start to arrive at that address. Which deception technology showed the bank that its customer data had been copied?",
+    "options": [
+      { "id": "a", "text": "Honeytoken" },
+      { "id": "b", "text": "Honeyfile" },
+      { "id": "c", "text": "Honeypot" },
+      { "id": "d", "text": "Honeynet" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "A fake, traceable item of data planted among real data is a honeytoken. Its appearance outside the bank shows that the data was taken.",
+      "b": "A honeyfile is a bait file that raises an alert when it is opened. Here the bait is a single record inside a real database.",
+      "c": "A honeypot is a decoy system for attackers to interact with. No decoy system is involved.",
+      "d": "A honeynet is a network of decoy systems. The bait here is one record, not a network."
+    },
+    "explanation": "A honeytoken is a piece of fake data, such as a record, a credential or an address, with no legitimate use. If it is used or shows up somewhere, data has been stolen."
+  },
+  {
+    "id": "q-1.2-030",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A university's security team wants to study how intruders move from one machine to another. It builds an isolated set of decoys: a fake web server, a fake database server and two fake workstations, all connected together. What has the team built?",
+    "options": [
+      { "id": "a", "text": "Honeypot" },
+      { "id": "b", "text": "Honeynet" },
+      { "id": "c", "text": "Honeyfile" },
+      { "id": "d", "text": "Honeytoken" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "A honeypot is a single decoy system. Several connected decoys form something larger.",
+      "b": "A honeynet is a network of honeypots that imitates a real environment, which lets defenders watch attackers move between systems.",
+      "c": "A honeyfile is a single bait file on a real system, not a set of decoy machines.",
+      "d": "A honeytoken is an item of fake data, not a system or a network."
+    },
+    "explanation": "One decoy system is a honeypot. Several honeypots connected into a decoy network are a honeynet."
+  },
+  {
+    "id": "q-1.2-031",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "A company deploys a honeypot on its internal network. Which two statements describe what the honeypot does for the security team? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "It blocks malicious traffic before that traffic can reach the production servers" },
+      { "id": "b", "text": "It raises reliable alerts, because legitimate users have no reason to connect to it" },
+      { "id": "c", "text": "It removes the need to patch the production servers that it is made to resemble" },
+      { "id": "d", "text": "It lets the team watch an attacker's methods on a system that holds nothing of value" },
+      { "id": "e", "text": "It encrypts the data held on the real servers in the same network segment" }
+    ],
+    "correct": ["b", "d"],
+    "why": {
+      "a": "A honeypot is a decoy, not a filter. It does not sit in the path of traffic to production systems.",
+      "b": "Any connection to a system with no business use is suspicious, so honeypot alerts are rarely false alarms.",
+      "c": "Real systems still have their own weaknesses. A decoy fixes none of them.",
+      "d": "The decoy holds no real data, so defenders can study the tools and techniques used against it at little risk.",
+      "e": "A honeypot does not change how other servers store their data."
+    },
+    "explanation": "A honeypot detects and distracts: any interaction with it is suspicious, and it shows how attackers work. It does not block attacks or fix weaknesses on real systems."
+  },
+  {
+    "id": "q-1.2-032",
+    "objective": "1.2",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A student at Ashby College is allowed to view his own exam record in the student portal. He finds a flaw in the portal and uses it to change his grade from 52 to 82. He saw nothing that he was not already allowed to see, and the portal stayed online throughout. Which security goal was compromised?",
+    "options": [
+      { "id": "a", "text": "Confidentiality" },
+      { "id": "b", "text": "Non-repudiation" },
+      { "id": "c", "text": "Availability" },
+      { "id": "d", "text": "Integrity" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "Confidentiality is about data being read by someone who is not authorized. The student was allowed to view his own record and saw nothing else.",
+      "b": "Non-repudiation is about proving who took an action when they deny it. The harm here is the false grade, not a denial.",
+      "c": "Availability is about systems and data being reachable when needed. The portal stayed online.",
+      "d": "The grade was changed by someone who was not allowed to change it, so the record is no longer accurate. That is a loss of integrity."
+    },
+    "explanation": "Integrity is lost when data is changed without authorization, even if nobody saw anything they should not have seen and the system stayed available."
+  },
+  {
+    "id": "q-1.2-033",
+    "objective": "1.2",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A flood of junk traffic from thousands of infected devices overwhelms the online booking site of Hartwell Dental Group, and patients cannot make appointments for three hours. Checks afterwards show that no records were read or changed. Which security goal was compromised?",
+    "options": [
+      { "id": "a", "text": "Availability" },
+      { "id": "b", "text": "Confidentiality" },
+      { "id": "c", "text": "Integrity" },
+      { "id": "d", "text": "Authentication" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Patients could not reach the booking site when they needed it. That is a loss of availability.",
+      "b": "Confidentiality is about data being read by the wrong people. The checks show that no records were read.",
+      "c": "Integrity is about unauthorized change. The checks show that no records were changed.",
+      "d": "Authentication is proving an identity. The attack did not involve anyone signing in as somebody else."
+    },
+    "explanation": "Availability is lost when authorized users cannot reach a system or its data when they need it, even if nothing was read or changed."
+  }
+]

@@ -82,5 +82,251 @@
     "objective": "1.1",
     "term": "IDS vs. IPS (control type)",
     "definition": "An intrusion detection system only alerts, so it is detective. An intrusion prevention system blocks the traffic, so it is preventive."
+  },
+  {
+    "id": "f-1.2-001",
+    "objective": "1.2",
+    "term": "CIA triad",
+    "definition": "The three goals of security: confidentiality, integrity and availability."
+  },
+  {
+    "id": "f-1.2-002",
+    "objective": "1.2",
+    "term": "Confidentiality",
+    "definition": "Only authorized people and systems can read the information. Protected by encryption and access permissions."
+  },
+  {
+    "id": "f-1.2-003",
+    "objective": "1.2",
+    "term": "Integrity",
+    "definition": "Information is accurate and is changed only by those allowed to change it. Checked with hashes and digital signatures."
+  },
+  {
+    "id": "f-1.2-004",
+    "objective": "1.2",
+    "term": "Availability",
+    "definition": "Systems and data can be reached when authorized users need them. Protected by redundancy, backups and patching."
+  },
+  {
+    "id": "f-1.2-005",
+    "objective": "1.2",
+    "term": "Non-repudiation",
+    "definition": "A person cannot credibly deny an action, because proof exists that only they could have produced, such as a digital signature."
+  },
+  {
+    "id": "f-1.2-006",
+    "objective": "1.2",
+    "term": "AAA",
+    "definition": "Authentication, Authorization, and Accounting: prove who you are, receive only the access you are allowed, and have your activity recorded."
+  },
+  {
+    "id": "f-1.2-007",
+    "objective": "1.2",
+    "term": "Identification",
+    "definition": "Claiming an identity, for example by typing a username. The claim proves nothing until it is authenticated."
+  },
+  {
+    "id": "f-1.2-008",
+    "objective": "1.2",
+    "term": "Authentication",
+    "definition": "Proving a claimed identity, for example with a password, a token, a fingerprint or a certificate."
+  },
+  {
+    "id": "f-1.2-009",
+    "objective": "1.2",
+    "term": "Authorization",
+    "definition": "Deciding what an authenticated user or device is allowed to access or do."
+  },
+  {
+    "id": "f-1.2-010",
+    "objective": "1.2",
+    "term": "Accounting",
+    "definition": "Recording what users and devices do: sign-in time, resources used, data transferred and sign-out time."
+  },
+  {
+    "id": "f-1.2-011",
+    "objective": "1.2",
+    "term": "Authenticating people",
+    "definition": "Proving a person's identity with factors: something you know, something you have, something you are (objective 4.6 adds somewhere you are). Two different factors make multifactor authentication."
+  },
+  {
+    "id": "f-1.2-012",
+    "objective": "1.2",
+    "term": "Authenticating systems",
+    "definition": "Proving the identity of a device or service, usually with a digital certificate issued by a certificate authority the organization trusts."
+  },
+  {
+    "id": "f-1.2-013",
+    "objective": "1.2",
+    "term": "Authorization model",
+    "definition": "A consistent method for deciding access, by roles, attributes, rules or labels, so that permissions are not set by hand for each user."
+  },
+  {
+    "id": "f-1.2-014",
+    "objective": "1.2",
+    "term": "Gap analysis",
+    "definition": "A comparison of current security with a target standard or baseline. It produces a list of shortfalls and a plan to close them."
+  },
+  {
+    "id": "f-1.2-015",
+    "objective": "1.2",
+    "term": "Zero Trust",
+    "definition": "A model in which no user or device is trusted because of its network location. Every access request is authenticated and authorized."
+  },
+  {
+    "id": "f-1.2-016",
+    "objective": "1.2",
+    "term": "Control plane",
+    "definition": "The part of a Zero Trust architecture that makes and communicates access decisions. It contains the policy engine and the policy administrator."
+  },
+  {
+    "id": "f-1.2-017",
+    "objective": "1.2",
+    "term": "Data plane",
+    "definition": "The part of a Zero Trust architecture that carries the actual traffic between subject and resource, through the policy enforcement point."
+  },
+  {
+    "id": "f-1.2-018",
+    "objective": "1.2",
+    "term": "Adaptive identity",
+    "definition": "Zero Trust control-plane concept: adjusting how much proof of identity is required by using context such as location, device, time and behavior."
+  },
+  {
+    "id": "f-1.2-019",
+    "objective": "1.2",
+    "term": "Threat scope reduction",
+    "definition": "Zero Trust control-plane concept: limiting an attacker's entry points and how far a compromise can spread, through least privilege, segmentation and small implicit trust zones."
+  },
+  {
+    "id": "f-1.2-020",
+    "objective": "1.2",
+    "term": "Policy-driven access control",
+    "definition": "Zero Trust control-plane concept: deciding each access request from defined policies that combine identity, device and context, not from network location."
+  },
+  {
+    "id": "f-1.2-021",
+    "objective": "1.2",
+    "term": "Policy engine",
+    "definition": "Zero Trust control-plane component that decides whether to grant, deny or revoke access for each request."
+  },
+  {
+    "id": "f-1.2-022",
+    "objective": "1.2",
+    "term": "Policy administrator",
+    "definition": "Zero Trust control-plane component that carries out the policy engine's decision by telling the policy enforcement point to open or close a session."
+  },
+  {
+    "id": "f-1.2-023",
+    "objective": "1.2",
+    "term": "Policy enforcement point (PEP)",
+    "definition": "Zero Trust data-plane gatekeeper in the traffic path. It allows, monitors and ends connections as the policy administrator instructs."
+  },
+  {
+    "id": "f-1.2-024",
+    "objective": "1.2",
+    "term": "Implicit trust zone",
+    "definition": "The area behind a policy enforcement point where traffic is not checked again. Zero Trust keeps it as small as possible."
+  },
+  {
+    "id": "f-1.2-025",
+    "objective": "1.2",
+    "term": "Subject/system",
+    "definition": "In Zero Trust, the user, application or service requesting access (subject) and the device it uses (system). Both are verified."
+  },
+  {
+    "id": "f-1.2-026",
+    "objective": "1.2",
+    "term": "Bollards",
+    "definition": "Short, sturdy posts that stop vehicles from reaching a building while letting pedestrians walk through."
+  },
+  {
+    "id": "f-1.2-027",
+    "objective": "1.2",
+    "term": "Access control vestibule",
+    "definition": "A small room with two interlocking doors that admits one verified person at a time. It prevents tailgating. Formerly called a mantrap."
+  },
+  {
+    "id": "f-1.2-028",
+    "objective": "1.2",
+    "term": "Fencing",
+    "definition": "A barrier that encloses the site perimeter. It deters intruders and slows them down."
+  },
+  {
+    "id": "f-1.2-029",
+    "objective": "1.2",
+    "term": "Video surveillance",
+    "definition": "Cameras that are watched live or recorded (CCTV). They detect activity, provide evidence afterwards and deter when visible."
+  },
+  {
+    "id": "f-1.2-030",
+    "objective": "1.2",
+    "term": "Security guard",
+    "definition": "A person who checks identification, handles visitors and responds to incidents. Adds human judgment that the other physical controls in this objective lack."
+  },
+  {
+    "id": "f-1.2-031",
+    "objective": "1.2",
+    "term": "Access badge",
+    "definition": "An ID card read by door readers. It identifies the holder, and each use is logged with the door and the time."
+  },
+  {
+    "id": "f-1.2-032",
+    "objective": "1.2",
+    "term": "Lighting",
+    "definition": "A physical control that removes dark areas where intruders could approach unseen, and lets guards and cameras see."
+  },
+  {
+    "id": "f-1.2-033",
+    "objective": "1.2",
+    "term": "Infrared sensor",
+    "definition": "Detects infrared radiation (heat), such as a warm body moving across its view. Works in light and in darkness."
+  },
+  {
+    "id": "f-1.2-034",
+    "objective": "1.2",
+    "term": "Pressure sensor",
+    "definition": "Detects a change in weight or force on a surface, such as a step on a floor mat or an object being lifted."
+  },
+  {
+    "id": "f-1.2-035",
+    "objective": "1.2",
+    "term": "Microwave sensor",
+    "definition": "Detects movement by sending out microwave (radio) pulses and measuring the reflections. Covers large areas; the signal passes through thin walls."
+  },
+  {
+    "id": "f-1.2-036",
+    "objective": "1.2",
+    "term": "Ultrasonic sensor",
+    "definition": "Detects movement by sending out sound waves above human hearing and measuring the reflections. The sound stays inside the room."
+  },
+  {
+    "id": "f-1.2-037",
+    "objective": "1.2",
+    "term": "Deception and disruption technology",
+    "definition": "Decoys with no business use, planted to detect attackers, waste their time and reveal their methods. Any interaction with a decoy is suspicious."
+  },
+  {
+    "id": "f-1.2-038",
+    "objective": "1.2",
+    "term": "Honeypot",
+    "definition": "A single decoy system made to look like a real, attractive target, used to detect and observe attackers."
+  },
+  {
+    "id": "f-1.2-039",
+    "objective": "1.2",
+    "term": "Honeynet",
+    "definition": "A network of honeypots that imitates a real environment, showing how attackers move between systems."
+  },
+  {
+    "id": "f-1.2-040",
+    "objective": "1.2",
+    "term": "Honeyfile",
+    "definition": "A bait file with a tempting name placed on a real system. Opening it raises an alert."
+  },
+  {
+    "id": "f-1.2-041",
+    "objective": "1.2",
+    "term": "Honeytoken",
+    "definition": "A piece of fake, tracked data, such as a record or login details. If it is used or appears elsewhere, data has been stolen."
   }
 ]
