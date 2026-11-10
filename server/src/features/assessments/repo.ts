@@ -4,7 +4,7 @@ import type { Db } from '../../db/db.js';
 import { HttpError } from '../../http.js';
 import { PASS, pickMock, pickQuiz, pickSpread, scaledScore, seededRng } from '../../services/assembler.js';
 import { AnswerShapeError, correctAnswerOf, feedbackFor, grade, toPublicQuestion } from '../../services/scoring.js';
-import { safeTimeZone } from '../../services/time.js';
+import { localDate, safeTimeZone } from '../../services/time.js';
 import { XP } from '../../services/xp.js';
 import { assertObjectiveOpen, unlockedDomains } from '../access.js';
 import { DuplicateAttemptError, recordAnswer } from '../answers/repo.js';
@@ -361,13 +361,16 @@ export async function finalize(db: Db, content: Content, user: User, id: number,
       id,
     ]);
     if (passed) {
+      // The mock bonus needs a full-length (non-partial) mock and is paid at most once per learner-local day.
       const bonus =
         row.kind === 'objective'
           ? { amount: XP.objectiveQuizPass, reason: 'quiz-pass', ref: row.scope! }
           : row.kind === 'domain'
             ? { amount: XP.domainExamPass, reason: 'domain-pass', ref: row.scope! }
-            : { amount: XP.mockExamPass, reason: 'mock-pass', ref: String(id) };
-      if (await awardXp(tx, { userId: user.id, ...bonus, now })) xp += bonus.amount;
+            : breakdownOf(row).partial === true
+              ? undefined
+              : { amount: XP.mockExamPass, reason: 'mock-pass', ref: localDate(now, tz) };
+      if (bonus && (await awardXp(tx, { userId: user.id, ...bonus, now }))) xp += bonus.amount;
     }
     (await evaluateBadges(tx, user.id, tz, now)).forEach((b) => newBadges.add(b));
 

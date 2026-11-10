@@ -257,7 +257,7 @@ test('domain exam at 75% passes, unlocks the next domain in unlockedDomains, awa
   expect(await bonus()).toHaveLength(1);
 });
 
-test('mock result has scaledScore and byDomain; passing at >= 750 awards 500 XP', async () => {
+test('mock result has scaledScore and byDomain; a passing partial mock awards no bonus XP', async () => {
   const { agent, content, db, user } = await setup();
   const a = await start(agent, { kind: 'mock' });
   expect(a.status).toBe(201);
@@ -277,12 +277,37 @@ test('mock result has scaledScore and byDomain; passing at >= 750 awards 500 XP'
   const pass = await agent.post(`/api/assessments/${b.body.id}/submit`);
   expect(pass.body.result).toMatchObject({ scorePct: 100, scaledScore: 900, passed: true });
   expect(pass.body.result.newBadges).toContain('first-mock-pass');
-  expect(await db.query("SELECT amount, ref FROM xp_events WHERE user_id = ? AND reason = 'mock-pass'", [user.id])).toEqual([
-    { amount: 500, ref: String(b.body.id) },
-  ]);
+  expect(await db.query("SELECT amount, ref FROM xp_events WHERE user_id = ? AND reason = 'mock-pass'", [user.id])).toEqual([]);
   const stored = await agent.get(`/api/assessments/${b.body.id}`);
   expect(stored.body.partial).toBe(true); // still reported after finalize
   expect(stored.body.result.scaledScore).toBe(900);
+});
+
+test('a passing non-partial mock awards 500 XP once per learner-local day', async () => {
+  const { agent, content, db, user, setNow } = await setup();
+  content.manifest.domains.splice(1); // only domain 1 remains, so every domain has content: the mock is not partial
+  const bonus = () => db.query("SELECT amount, ref FROM xp_events WHERE user_id = ? AND reason = 'mock-pass'", [user.id]);
+  const passMock = async () => {
+    const a = await start(agent, { kind: 'mock' });
+    const got = await agent.get(`/api/assessments/${a.body.id}`);
+    expect(got.body.partial).toBe(false);
+    await answer(agent, content, a.body.id, idsOf(got.body), got.body.questions.length);
+    const res = await agent.post(`/api/assessments/${a.body.id}/submit`);
+    expect(res.body.result.passed).toBe(true);
+    return res.body.result;
+  };
+  const first = await passMock();
+  expect(await bonus()).toEqual([{ amount: 500, ref: '2026-11-10' }]);
+  expect(first.xp).toBeGreaterThanOrEqual(500);
+  setNow(minutes(30)); // same local day: no second bonus
+  await passMock();
+  expect(await bonus()).toHaveLength(1);
+  setNow(new Date('2026-11-11T12:00:00Z'));
+  await passMock();
+  expect(await bonus()).toEqual([
+    { amount: 500, ref: '2026-11-10' },
+    { amount: 500, ref: '2026-11-11' },
+  ]);
 });
 
 test('after deadline: PUT returns 409; GET returns the assessment already finalized with saved answers scored', async () => {

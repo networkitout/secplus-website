@@ -7,8 +7,10 @@ import { adminRouter } from './features/admin/routes.js';
 import { assessmentsRouter } from './features/assessments/routes.js';
 import { authRouter } from './features/auth/routes.js';
 import { answersRouter } from './features/answers/routes.js';
+import { dashboardRouter, pathRouter, practiceRouter } from './features/dashboard/routes.js';
 import { lessonsRouter } from './features/lessons/routes.js';
 import { reviewRouter } from './features/review/routes.js';
+import { settingsRouter } from './features/settings/routes.js';
 import { HttpError, requireCsrfHeader } from './http.js';
 
 export type AppDeps = {
@@ -64,6 +66,10 @@ export function createApp(deps: AppDeps): Express {
   app.use('/api/lessons', lessonsRouter(deps));
   app.use('/api/answers', answersRouter(deps));
   app.use('/api/assessments', assessmentsRouter(deps));
+  app.use('/api/path', pathRouter(deps));
+  app.use('/api/dashboard', dashboardRouter(deps));
+  app.use('/api/practice', practiceRouter(deps));
+  app.use('/api/settings', settingsRouter(deps));
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });

@@ -11,7 +11,7 @@ import {
   validate,
   type AuthUser,
 } from '../../http.js';
-import { findInvite, LOGIN_PATTERN, MIN_PASSWORD_LENGTH } from './repo.js';
+import { findInvite, loadAccountUser, LOGIN_PATTERN, MIN_PASSWORD_LENGTH } from './repo.js';
 import { hashToken } from './tokens.js';
 
 const WINDOW_MS = 15 * 60 * 1000;
@@ -137,8 +137,8 @@ export function authRouter(deps: AppDeps): Router {
     res.json({ ok: true });
   });
 
-  router.get('/me', requireAuth, (req, res) => {
-    res.json({ user: req.user });
+  router.get('/me', requireAuth, async (req, res) => {
+    res.json({ user: await loadAccountUser(db, req.user!.id) });
   });
 
   router.get('/invite/:token', async (req, res) => {
