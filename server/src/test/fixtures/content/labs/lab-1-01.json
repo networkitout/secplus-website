@@ -1,0 +1,195 @@
+{
+  "id": "lab-1-01",
+  "domain": 1,
+  "objectives": [
+    "1.1"
+  ],
+  "title": "Fixture lab",
+  "scenario": "A fixture scenario.",
+  "steps": [
+    {
+      "id": "lab-1-01-s1",
+      "objective": "1.1",
+      "difficulty": 1,
+      "prompt": "Fixture prompt lab-1-01-s1?",
+      "explanation": "Fixture explanation for lab-1-01-s1.",
+      "type": "single",
+      "options": [
+        {
+          "id": "a",
+          "text": "Option a"
+        },
+        {
+          "id": "b",
+          "text": "Option b"
+        },
+        {
+          "id": "c",
+          "text": "Option c"
+        },
+        {
+          "id": "d",
+          "text": "Option d"
+        }
+      ],
+      "correct": "b",
+      "why": {
+        "a": "This is wrong.",
+        "b": "This is right.",
+        "c": "This is wrong.",
+        "d": "This is wrong."
+      }
+    },
+    {
+      "id": "lab-1-01-s2",
+      "objective": "1.1",
+      "difficulty": 2,
+      "prompt": "Fixture prompt lab-1-01-s2?",
+      "explanation": "Fixture explanation for lab-1-01-s2.",
+      "type": "multi",
+      "options": [
+        {
+          "id": "a",
+          "text": "Option a"
+        },
+        {
+          "id": "b",
+          "text": "Option b"
+        },
+        {
+          "id": "c",
+          "text": "Option c"
+        },
+        {
+          "id": "d",
+          "text": "Option d"
+        }
+      ],
+      "correct": [
+        "a",
+        "c"
+      ],
+      "why": {
+        "a": "This is right.",
+        "b": "This is wrong.",
+        "c": "This is right.",
+        "d": "This is wrong."
+      }
+    },
+    {
+      "id": "lab-1-01-s3",
+      "objective": "1.1",
+      "difficulty": 3,
+      "prompt": "Fixture prompt lab-1-01-s3?",
+      "explanation": "Fixture explanation for lab-1-01-s3.",
+      "type": "order",
+      "items": [
+        {
+          "id": "i1",
+          "text": "First"
+        },
+        {
+          "id": "i2",
+          "text": "Second"
+        },
+        {
+          "id": "i3",
+          "text": "Third"
+        },
+        {
+          "id": "i4",
+          "text": "Fourth"
+        }
+      ],
+      "correct": [
+        "i2",
+        "i1",
+        "i4",
+        "i3"
+      ]
+    },
+    {
+      "id": "lab-1-01-s4",
+      "objective": "1.1",
+      "difficulty": 1,
+      "prompt": "Fixture prompt lab-1-01-s4?",
+      "explanation": "Fixture explanation for lab-1-01-s4.",
+      "type": "match",
+      "left": [
+        {
+          "id": "l1",
+          "text": "Left 1"
+        },
+        {
+          "id": "l2",
+          "text": "Left 2"
+        },
+        {
+          "id": "l3",
+          "text": "Left 3"
+        }
+      ],
+      "right": [
+        {
+          "id": "r1",
+          "text": "Right 1"
+        },
+        {
+          "id": "r2",
+          "text": "Right 2"
+        },
+        {
+          "id": "r3",
+          "text": "Right 3"
+        }
+      ],
+      "correct": {
+        "l1": "r2",
+        "l2": "r3",
+        "l3": "r1"
+      }
+    },
+    {
+      "id": "lab-1-01-s5",
+      "objective": "1.1",
+      "difficulty": 2,
+      "prompt": "Fixture prompt lab-1-01-s5?",
+      "explanation": "Fixture explanation for lab-1-01-s5.",
+      "type": "categorize",
+      "items": [
+        {
+          "id": "t1",
+          "text": "Thing 1"
+        },
+        {
+          "id": "t2",
+          "text": "Thing 2"
+        },
+        {
+          "id": "t3",
+          "text": "Thing 3"
+        },
+        {
+          "id": "t4",
+          "text": "Thing 4"
+        }
+      ],
+      "buckets": [
+        {
+          "id": "x",
+          "text": "Bucket X"
+        },
+        {
+          "id": "y",
+          "text": "Bucket Y"
+        }
+      ],
+      "correct": {
+        "t1": "x",
+        "t2": "y",
+        "t3": "x",
+        "t4": "y"
+      }
+    }
+  ]
+}

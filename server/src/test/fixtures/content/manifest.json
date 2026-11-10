@@ -1,0 +1,39 @@
+{
+  "exam": "SY0-701",
+  "domains": [
+    {
+      "id": 1,
+      "title": "Fixture Domain One",
+      "weight": 50,
+      "mockCount": 4,
+      "objectives": [
+        {
+          "id": "1.1",
+          "title": "Fixture objective one",
+          "published": true,
+          "minQuestions": 3
+        },
+        {
+          "id": "1.2",
+          "title": "Fixture objective two",
+          "published": true,
+          "minQuestions": 3
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Fixture Domain Two",
+      "weight": 50,
+      "mockCount": 2,
+      "objectives": [
+        {
+          "id": "2.1",
+          "title": "Fixture objective three",
+          "published": false,
+          "minQuestions": 3
+        }
+      ]
+    }
+  ]
+}

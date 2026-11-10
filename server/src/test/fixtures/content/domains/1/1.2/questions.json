@@ -1,0 +1,398 @@
+[
+  {
+    "id": "q-1.2-001",
+    "objective": "1.2",
+    "difficulty": 1,
+    "prompt": "Fixture prompt q-1.2-001?",
+    "explanation": "Fixture explanation for q-1.2-001.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-002",
+    "objective": "1.2",
+    "difficulty": 2,
+    "prompt": "Fixture prompt q-1.2-002?",
+    "explanation": "Fixture explanation for q-1.2-002.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-003",
+    "objective": "1.2",
+    "difficulty": 3,
+    "prompt": "Fixture prompt q-1.2-003?",
+    "explanation": "Fixture explanation for q-1.2-003.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-004",
+    "objective": "1.2",
+    "difficulty": 1,
+    "prompt": "Fixture prompt q-1.2-004?",
+    "explanation": "Fixture explanation for q-1.2-004.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-005",
+    "objective": "1.2",
+    "difficulty": 2,
+    "prompt": "Fixture prompt q-1.2-005?",
+    "explanation": "Fixture explanation for q-1.2-005.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-006",
+    "objective": "1.2",
+    "difficulty": 3,
+    "prompt": "Fixture prompt q-1.2-006?",
+    "explanation": "Fixture explanation for q-1.2-006.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-007",
+    "objective": "1.2",
+    "difficulty": 1,
+    "prompt": "Fixture prompt q-1.2-007?",
+    "explanation": "Fixture explanation for q-1.2-007.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-008",
+    "objective": "1.2",
+    "difficulty": 2,
+    "prompt": "Fixture prompt q-1.2-008?",
+    "explanation": "Fixture explanation for q-1.2-008.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-009",
+    "objective": "1.2",
+    "difficulty": 3,
+    "prompt": "Fixture prompt q-1.2-009?",
+    "explanation": "Fixture explanation for q-1.2-009.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-010",
+    "objective": "1.2",
+    "difficulty": 1,
+    "prompt": "Fixture prompt q-1.2-010?",
+    "explanation": "Fixture explanation for q-1.2-010.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-011",
+    "objective": "1.2",
+    "difficulty": 2,
+    "prompt": "Fixture prompt q-1.2-011?",
+    "explanation": "Fixture explanation for q-1.2-011.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  },
+  {
+    "id": "q-1.2-012",
+    "objective": "1.2",
+    "difficulty": 3,
+    "prompt": "Fixture prompt q-1.2-012?",
+    "explanation": "Fixture explanation for q-1.2-012.",
+    "type": "single",
+    "options": [
+      {
+        "id": "a",
+        "text": "Option a"
+      },
+      {
+        "id": "b",
+        "text": "Option b"
+      },
+      {
+        "id": "c",
+        "text": "Option c"
+      },
+      {
+        "id": "d",
+        "text": "Option d"
+      }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "This is wrong.",
+      "b": "This is right.",
+      "c": "This is wrong.",
+      "d": "This is wrong."
+    }
+  }
+]
