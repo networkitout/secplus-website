@@ -1,1 +1,134 @@
-[]
+[
+  {
+    "id": "f-1.3-001",
+    "objective": "1.3",
+    "term": "Change management",
+    "definition": "The formal process for controlling changes to systems: each change is requested, assessed, approved, tested, scheduled, implemented, verified and documented."
+  },
+  {
+    "id": "f-1.3-002",
+    "objective": "1.3",
+    "term": "Approval process",
+    "definition": "The formal review in which someone other than the implementer, often a change advisory board, decides whether a requested change may go ahead."
+  },
+  {
+    "id": "f-1.3-003",
+    "objective": "1.3",
+    "term": "Change advisory board (CAB)",
+    "definition": "A group from IT, security and the business that reviews change requests and approves, rejects or returns them."
+  },
+  {
+    "id": "f-1.3-004",
+    "objective": "1.3",
+    "term": "Ownership (of a change)",
+    "definition": "Accountability for a change from request to sign-off. The owner needs the change and follows it through, but often does not perform or approve it."
+  },
+  {
+    "id": "f-1.3-005",
+    "objective": "1.3",
+    "term": "Stakeholders",
+    "definition": "Everyone a change affects. They are consulted about its impact and told what will happen and when."
+  },
+  {
+    "id": "f-1.3-006",
+    "objective": "1.3",
+    "term": "Impact analysis",
+    "definition": "An assessment made before a change of which systems and users it affects, what could go wrong, and the risk of not making it."
+  },
+  {
+    "id": "f-1.3-007",
+    "objective": "1.3",
+    "term": "Test results",
+    "definition": "Recorded evidence from trying a change in a test environment, showing that it works and has not broken function or security settings."
+  },
+  {
+    "id": "f-1.3-008",
+    "objective": "1.3",
+    "term": "Backout plan",
+    "definition": "The documented way to return a system to its previous working state if a change fails: a restore point, written steps and a decision point."
+  },
+  {
+    "id": "f-1.3-009",
+    "objective": "1.3",
+    "term": "Maintenance window",
+    "definition": "An agreed period, chosen to disturb the business least, during which an approved change may be made."
+  },
+  {
+    "id": "f-1.3-010",
+    "objective": "1.3",
+    "term": "Standard operating procedure (SOP)",
+    "definition": "Written step-by-step instructions for a routine task, so that it is done the same way every time."
+  },
+  {
+    "id": "f-1.3-011",
+    "objective": "1.3",
+    "term": "Allow list",
+    "definition": "A list of permitted items, such as applications or addresses. Anything not on the list is blocked."
+  },
+  {
+    "id": "f-1.3-012",
+    "objective": "1.3",
+    "term": "Deny list",
+    "definition": "A list of blocked items, such as applications or addresses. Anything not on the list is permitted."
+  },
+  {
+    "id": "f-1.3-013",
+    "objective": "1.3",
+    "term": "Restricted activities",
+    "definition": "The limit an approval places on a change: only the approved actions, on the approved systems, in the approved window. Anything else needs its own approval."
+  },
+  {
+    "id": "f-1.3-014",
+    "objective": "1.3",
+    "term": "Downtime",
+    "definition": "A period when a service is unavailable to its users. Changes should plan it, keep it short and place it in the maintenance window."
+  },
+  {
+    "id": "f-1.3-015",
+    "objective": "1.3",
+    "term": "Service restart",
+    "definition": "Stopping and starting one background service so that it loads a change, while the operating system and other services keep running."
+  },
+  {
+    "id": "f-1.3-016",
+    "objective": "1.3",
+    "term": "Application restart",
+    "definition": "Closing and reopening a program so that it loads a new version or settings. Its users may lose sessions or unsaved work."
+  },
+  {
+    "id": "f-1.3-017",
+    "objective": "1.3",
+    "term": "Legacy application",
+    "definition": "An old application the business still relies on that is no longer supported or well understood, so changes around it are risky."
+  },
+  {
+    "id": "f-1.3-018",
+    "objective": "1.3",
+    "term": "Dependencies",
+    "definition": "Cases where one component needs another to work, so changing one can break others or force them to change first."
+  },
+  {
+    "id": "f-1.3-019",
+    "objective": "1.3",
+    "term": "Updating diagrams",
+    "definition": "Revising network and data flow diagrams after a change so that they still match the real environment."
+  },
+  {
+    "id": "f-1.3-020",
+    "objective": "1.3",
+    "term": "Updating policies/procedures",
+    "definition": "Revising written policies and procedures when a change alters how work is done, so that people do not follow outdated instructions."
+  },
+  {
+    "id": "f-1.3-021",
+    "objective": "1.3",
+    "term": "Version control",
+    "definition": "Tracking every version of a file, such as code or a configuration: who changed what, when and why, with the ability to restore earlier versions."
+  },
+  {
+    "id": "f-1.3-022",
+    "objective": "1.3",
+    "term": "Emergency change",
+    "definition": "An urgent change that takes a faster approval route and is documented straight afterwards. It is still approved and recorded."
+  }
+]

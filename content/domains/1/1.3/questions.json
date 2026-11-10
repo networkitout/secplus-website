@@ -1,0 +1,544 @@
+[
+  {
+    "id": "q-1.3-001",
+    "objective": "1.3",
+    "difficulty": 1,
+    "type": "multi",
+    "prompt": "Larkfield Insurance has no formal process for changes. Administrators alter firewall rules and server settings whenever they see fit and rarely write anything down. The security manager proposes a change management process. Which TWO security benefits can she expect from it? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "Changes will no longer cause any downtime" },
+      { "id": "b", "text": "Changes are reviewed before they are made, so risky or untested ones can be stopped" },
+      { "id": "c", "text": "Security patches will install themselves without anyone scheduling them" },
+      { "id": "d", "text": "Each change leaves a record, so the company can see who changed what and undo it" },
+      { "id": "e", "text": "Attackers will no longer be able to exploit flaws in the company's software" }
+    ],
+    "correct": ["b", "d"],
+    "why": {
+      "a": "Wrong. Change management plans and limits downtime, but many changes still need some. It does not remove downtime.",
+      "b": "Right. Review and approval before the work is the point at which a change that would cause an outage or open a hole is caught.",
+      "c": "Wrong. Change management controls how patches are approved and scheduled. It does not install anything automatically.",
+      "d": "Right. Records make changes auditable and reversible, and make an unrecorded change stand out.",
+      "e": "Wrong. Change management reduces holes caused by careless changes. It does not make software free of flaws."
+    },
+    "explanation": "Change management matters to security because it stops unapproved or untested changes from causing outages and opening holes, and because its records make every change traceable and reversible."
+  },
+  {
+    "id": "q-1.3-002",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "order",
+    "prompt": "Kestrel Logistics must upgrade the firmware on its core network switches. At Kestrel, the change advisory board decides using the impact analysis attached to the request, approves a change before any lab time is spent on it, and makes a successful lab test a condition for going live. Put the steps of this change in order, from first to last.",
+    "items": [
+      { "id": "i1", "text": "Install the firmware on the production switches during the maintenance window" },
+      { "id": "i2", "text": "Submit a change request that describes the upgrade and the reason for it" },
+      { "id": "i3", "text": "Update the network documentation and close the change record" },
+      { "id": "i4", "text": "Test the firmware on a spare switch in the lab and record the results" },
+      { "id": "i5", "text": "Analyze the impact: which systems and users are affected and what could go wrong" },
+      { "id": "i6", "text": "Check that the upgraded switches work as expected, and back out if they do not" },
+      { "id": "i7", "text": "Obtain approval from the change advisory board" }
+    ],
+    "correct": ["i2", "i5", "i7", "i4", "i1", "i6", "i3"],
+    "explanation": "A controlled change runs: request, impact analysis, approval, test, implement in the maintenance window, verify or back out, update documentation. Nothing reaches production before it is approved and tested, and the change is not closed until the documentation matches the system."
+  },
+  {
+    "id": "q-1.3-003",
+    "objective": "1.3",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "The payroll manager at Pinecrest College requests an upgrade of the payroll application and is accountable for the change. Two IT technicians will do the work. The finance team, the HR team and the help desk will all be affected by the upgrade and must be told about it in advance. In change management terms, what are the finance team, the HR team and the help desk?",
+    "options": [
+      { "id": "a", "text": "Owners" },
+      { "id": "b", "text": "Stakeholders" },
+      { "id": "c", "text": "The change advisory board" },
+      { "id": "d", "text": "Implementers" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Wrong. The owner is the one accountable for the change, here the payroll manager. Being affected by a change does not make a team its owner.",
+      "b": "Right. Stakeholders are the people a change affects. They are consulted about its impact and told what will happen and when.",
+      "c": "Wrong. A change advisory board reviews and approves change requests. These teams are affected by the change; they do not decide on it.",
+      "d": "Wrong. The people who carry out the work are the two IT technicians."
+    },
+    "explanation": "Stakeholders are everyone a change affects, and they must be consulted or informed. The owner is accountable for the change, and the approval body decides whether it goes ahead."
+  },
+  {
+    "id": "q-1.3-004",
+    "objective": "1.3",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "The warehouse manager at Dunmore Freight asks for new software on the label printers and remains accountable for the change until it is signed off. The change advisory board approves it, and two IT technicians install the software on Sunday. The warehouse staff start using it on Monday. Who is the owner of this change?",
+    "options": [
+      { "id": "a", "text": "The two IT technicians" },
+      { "id": "b", "text": "The change advisory board" },
+      { "id": "c", "text": "The warehouse manager" },
+      { "id": "d", "text": "The warehouse staff" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Wrong. The technicians carry out the work. Doing the technical work does not make someone the owner.",
+      "b": "Wrong. The board is the approval body. It decides whether the change may go ahead but is not accountable for this particular change.",
+      "c": "Right. The warehouse manager needs the change and is accountable for it from request to sign-off, which is what ownership means.",
+      "d": "Wrong. The staff are affected by the change, which makes them stakeholders."
+    },
+    "explanation": "Ownership means accountability for the change from start to finish. The owner is usually whoever needs the change, and is often not the person who performs it or the body that approves it."
+  },
+  {
+    "id": "q-1.3-005",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "Tessera Health plans to replace the wireless controllers that serve its hospital wards. Which THREE groups are stakeholders who should be consulted or informed before the change? (Choose three.)",
+    "options": [
+      { "id": "a", "text": "Nurses who record patient notes on wireless tablets" },
+      { "id": "b", "text": "The landscaping contractor, whose staff work only in the hospital grounds" },
+      { "id": "c", "text": "The biomedical engineering team, whose infusion pumps report over the ward Wi-Fi" },
+      { "id": "d", "text": "The administrators of the finance database, which is reached only over the wired office network" },
+      { "id": "e", "text": "The help desk, which will take the calls if devices fail to reconnect" },
+      { "id": "f", "text": "The vending machine supplier, whose cash-only machines have no network connection" }
+    ],
+    "correct": ["a", "c", "e"],
+    "why": {
+      "a": "Right. The nurses use the ward Wi-Fi directly, so an outage or a reconnection problem affects their work.",
+      "b": "Wrong. The contractor does not use the ward wireless network, so the change does not affect it.",
+      "c": "Right. Medical devices that report over the ward Wi-Fi are affected. Less obvious stakeholders like this team are the ones most often missed.",
+      "d": "Wrong. The finance database is reached only over the wired network, so a change to the ward wireless controllers does not affect it.",
+      "e": "Right. The help desk supports the users afterwards and needs to know what is changing and when.",
+      "f": "Wrong. Machines with no network connection cannot be affected by a change to the wireless controllers."
+    },
+    "explanation": "A stakeholder is anyone a change affects, including teams that only depend on the system indirectly and the people who support it. Trace who and what uses the system to find them."
+  },
+  {
+    "id": "q-1.3-006",
+    "objective": "1.3",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "At 10:00, Marlow County Credit Union learns that attackers are actively exploiting a flaw in its VPN gateway software. The vendor has released a patch. The change advisory board next meets in six days, and the company's change policy includes an emergency change procedure. What should the security team do?",
+    "options": [
+      { "id": "a", "text": "Wait six days for the scheduled meeting, because every change needs the full board's approval" },
+      { "id": "b", "text": "Apply the patch at once without telling anyone, because security fixes are exempt from the process" },
+      { "id": "c", "text": "Suspend the change management policy until the patch is installed on every gateway" },
+      { "id": "d", "text": "Follow the emergency procedure: get expedited approval, patch, and complete the records afterwards" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "Wrong. Leaving an actively exploited flaw open for six days is a greater risk than the change. The emergency procedure exists for this case.",
+      "b": "Wrong. Security fixes are still changes. An unapproved, unrecorded patch can cause an outage that nobody can explain or reverse.",
+      "c": "Wrong. Suspending the policy removes control over every change at the moment it is needed most. The policy already provides a faster route.",
+      "d": "Right. An emergency change is still approved and documented. The approval is quicker and the paperwork follows the work."
+    },
+    "explanation": "Urgent does not mean uncontrolled. An emergency change still goes through the approval process, in an expedited form, and is fully documented afterwards."
+  },
+  {
+    "id": "q-1.3-007",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "match",
+    "prompt": "A change record for a file server upgrade at the law firm Calder & Voss contains the lines below. Match each line to the part of change management it represents.",
+    "left": [
+      { "id": "l1", "text": "The head of Finance requested this change and is accountable for it" },
+      { "id": "l2", "text": "340 users in two offices are affected; the scanning service relies on this server; risk rated medium" },
+      { "id": "l3", "text": "All 28 checks passed in the staging environment on 3 March" },
+      { "id": "l4", "text": "If logins still fail at 04:00, restore the snapshot taken before the upgrade" },
+      { "id": "l5", "text": "Work may take place only on Sunday between 02:00 and 05:00" }
+    ],
+    "right": [
+      { "id": "r1", "text": "Maintenance window" },
+      { "id": "r2", "text": "Test results" },
+      { "id": "r3", "text": "Ownership" },
+      { "id": "r4", "text": "Backout plan" },
+      { "id": "r5", "text": "Impact analysis" },
+      { "id": "r6", "text": "Standard operating procedure" }
+    ],
+    "correct": {
+      "l1": "r3",
+      "l2": "r5",
+      "l3": "r2",
+      "l4": "r4",
+      "l5": "r1"
+    },
+    "explanation": "Ownership names who is accountable. Impact analysis says what is affected and how risky the change is. Test results are the evidence from a trial run. The backout plan says how to undo the change, and the maintenance window says when the work may be done. No line here is a standard operating procedure, which would be step-by-step instructions for a routine task."
+  },
+  {
+    "id": "q-1.3-008",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Orrin Manufacturing tests a router firmware upgrade in its lab before the approved go-live. The firmware installs cleanly and traffic flows. However, the test results show that the new firmware turns Telnet back on. Telnet is an unencrypted remote administration protocol that the company had disabled. What should the team do with this result?",
+    "options": [
+      { "id": "a", "text": "Record it, add a step that turns Telnet off again, and have the revised plan reviewed" },
+      { "id": "b", "text": "Go live as planned, because the firmware installed and traffic flowed normally" },
+      { "id": "c", "text": "Go live as planned and raise a request next month to turn Telnet off again" },
+      { "id": "d", "text": "Abandon the upgrade for good, because firmware that alters security settings is unusable" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Right. The test exposed a security side effect. The plan is corrected and reviewed before anything reaches production.",
+      "b": "Wrong. A test passes only if the change works and leaves security settings intact. Going live would reopen an insecure protocol.",
+      "c": "Wrong. This knowingly puts an unencrypted administration service into production for a month when the fix can be part of the change.",
+      "d": "Wrong. The side effect can be corrected with one extra step. Refusing the upgrade leaves the routers on old firmware for no good reason."
+    },
+    "explanation": "Test results are evidence for the go-live decision, and they must cover security settings as well as function. A change that works but weakens a control has not passed."
+  },
+  {
+    "id": "q-1.3-009",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Northgate Foods is upgrading its order database in an approved maintenance window that ends at 05:00. At 04:10 the upgraded database fails its verification checks. The backout plan says that if verification fails, the team restores the pre-change snapshot, which takes about 30 minutes. What should the team do?",
+    "options": [
+      { "id": "a", "text": "Keep troubleshooting, and let the work run past 05:00 if necessary" },
+      { "id": "b", "text": "Start the backout now so that the old version is running before the window closes" },
+      { "id": "c", "text": "Leave the database as it is and file a new change request in the morning" },
+      { "id": "d", "text": "Extend the maintenance window by an hour themselves and attempt the upgrade again" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Wrong. Work after 05:00 is outside the approved window and causes downtime that the business did not agree to.",
+      "b": "Right. The plan's condition for backing out has been met, and there is just enough time to restore before the window ends.",
+      "c": "Wrong. This leaves a database that failed its checks in production when business starts.",
+      "d": "Wrong. The team cannot extend its own window. The window was agreed with the business and approved as part of the change."
+    },
+    "explanation": "The maintenance window says when work is allowed. The backout plan says how to return to the previous state. The decision to back out must be made while there is still time to finish it inside the window."
+  },
+  {
+    "id": "q-1.3-010",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "multi",
+    "prompt": "A team at Brightwater Dental Group is writing the backout plan for an upgrade of its patient records database. Which TWO elements make the plan usable on the night? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "A backup or snapshot taken just before the change and checked to be restorable" },
+      { "id": "b", "text": "A statement from the vendor that this upgrade rarely causes problems" },
+      { "id": "c", "text": "Permission to keep troubleshooting in production for as long as it takes" },
+      { "id": "d", "text": "Written restore steps, with the conditions and deadline for deciding to back out" },
+      { "id": "e", "text": "Network diagrams redrawn in advance to show the upgraded database" }
+    ],
+    "correct": ["a", "d"],
+    "why": {
+      "a": "Right. A backout needs a known good state to return to, and a backup that cannot be restored is of no use.",
+      "b": "Wrong. A vendor's reassurance lowers the expected risk but gives the team no way to undo a failed upgrade.",
+      "c": "Wrong. Open-ended troubleshooting in production is what a backout plan is meant to replace.",
+      "d": "Right. Written steps and an agreed decision point let the team back out quickly instead of arguing about it at 04:00.",
+      "e": "Wrong. Diagrams are updated after a successful change. They do not help to reverse a failed one."
+    },
+    "explanation": "A backout plan needs something to go back to, written steps for getting there, and an agreed point at which the team stops and backs out."
+  },
+  {
+    "id": "q-1.3-011",
+    "objective": "1.3",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "A new technician at Larkfield Insurance must apply the monthly patches to the print servers. Which document gives the step-by-step instructions that the company expects him to follow every time he does this task?",
+    "options": [
+      { "id": "a", "text": "Acceptable use policy" },
+      { "id": "b", "text": "Impact analysis" },
+      { "id": "c", "text": "Backout plan" },
+      { "id": "d", "text": "Standard operating procedure" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "Wrong. An acceptable use policy sets rules for how people may use the company's systems. It does not describe how to do a technical task.",
+      "b": "Wrong. An impact analysis assesses what a change affects and what could go wrong. It is not a set of instructions.",
+      "c": "Wrong. A backout plan describes how to undo a change that has failed, not how to carry out the routine task.",
+      "d": "Right. A standard operating procedure is the written, step-by-step method for a routine task, so that it is done the same way each time."
+    },
+    "explanation": "A standard operating procedure (SOP) gives step-by-step instructions for a routine task. Following it keeps the work consistent and stops steps from being forgotten."
+  },
+  {
+    "id": "q-1.3-012",
+    "objective": "1.3",
+    "difficulty": 1,
+    "type": "categorize",
+    "prompt": "Sort each rule or behavior by the kind of list it describes.",
+    "items": [
+      { "id": "t1", "text": "Only the 40 approved applications may run on finance PCs; everything else is blocked" },
+      { "id": "t2", "text": "Block these 200 known malicious domains; every other domain can be reached" },
+      { "id": "t3", "text": "A program that nobody has reviewed is blocked by default" },
+      { "id": "t4", "text": "A program that nobody has reviewed runs by default" },
+      { "id": "t5", "text": "The mail gateway accepts mail only from the listed partner domains" },
+      { "id": "t6", "text": "The firewall drops traffic from a list of hostile IP addresses and passes the rest" }
+    ],
+    "buckets": [
+      { "id": "allow", "text": "Allow list" },
+      { "id": "deny", "text": "Deny list" }
+    ],
+    "correct": {
+      "t1": "allow",
+      "t2": "deny",
+      "t3": "allow",
+      "t4": "deny",
+      "t5": "allow",
+      "t6": "deny"
+    },
+    "explanation": "An allow list permits only what is listed and blocks everything else, so unknown items are blocked. A deny list blocks only what is listed and permits everything else, so unknown items get through."
+  },
+  {
+    "id": "q-1.3-013",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Workstations at Halvorsen Eye Clinic use an application allow list. The list identifies each approved program by its hash, a fingerprint calculated from the program file. After an approved update to the charting application, users report that it will not start. What is the most likely cause?",
+    "options": [
+      { "id": "a", "text": "The deny list blocks every application that has recently been updated" },
+      { "id": "b", "text": "The maintenance window closed before the users logged in" },
+      { "id": "c", "text": "The updated executable has a new hash that is not on the allow list" },
+      { "id": "d", "text": "Version control put the previous release back on the workstations" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Wrong. A deny list blocks only the specific items placed on it. It does not react to an application being updated.",
+      "b": "Wrong. A maintenance window limits when the change may be made. It has no effect on whether a program starts afterwards.",
+      "c": "Right. A changed file produces a different hash. The allow list still holds the old one, so the new version is treated as unknown and blocked.",
+      "d": "Wrong. Version control tracks and restores versions when someone asks it to. Also, the previous release would still match the allow list and start."
+    },
+    "explanation": "Under an allow list, anything not listed is blocked, including a new version of an approved program. Updating the allow list has to be part of the change plan."
+  },
+  {
+    "id": "q-1.3-014",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "A technician at Marlow County Credit Union has approval to replace an expiring certificate on one web server during tonight's maintenance window. While logged in, he notices that the server still accepts an outdated version of TLS, the protocol that encrypts its web traffic. Fixing it would take two minutes, and the window has an hour left. What should he do?",
+    "options": [
+      { "id": "a", "text": "Do only the approved certificate work and raise a change request for the TLS setting" },
+      { "id": "b", "text": "Fix the TLS setting now, because the window is open and the fix improves security" },
+      { "id": "c", "text": "Fix the TLS setting now and add a note about it to the change record afterwards" },
+      { "id": "d", "text": "Ask a second technician to make the TLS fix so that two people have checked it" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Right. The approval covers the certificate only. The TLS change has had no impact analysis, test or backout plan, so it needs its own request.",
+      "b": "Wrong. An open window is not approval. Turning off an old TLS version can lock out older clients, which nobody has assessed.",
+      "c": "Wrong. Recording an unapproved change afterwards does not make it approved or tested.",
+      "d": "Wrong. A second pair of eyes is not the approval process. The work is still outside the approved scope."
+    },
+    "explanation": "Restricted activities: an approval covers a defined scope and nothing more. Extra work found during a change, even a security improvement, goes through the change process itself."
+  },
+  {
+    "id": "q-1.3-015",
+    "objective": "1.3",
+    "difficulty": 3,
+    "type": "categorize",
+    "prompt": "Northgate Foods approves this change: install one security patch on the intranet web servers WEB01 and WEB02 on Saturday between 22:00 and 24:00, restart the web service on each server, and restore the pre-change snapshot if a server fails its checks. Sort each action by whether this approval covers it.",
+    "items": [
+      { "id": "t1", "text": "Install the patch on WEB01 at 22:15 on Saturday" },
+      { "id": "t2", "text": "Install the same patch on the public web server WEB03 on Saturday at 23:00" },
+      { "id": "t3", "text": "Restart the web service on WEB02 after patching it" },
+      { "id": "t4", "text": "Upgrade the scripting runtime on WEB01 while its web service is stopped" },
+      { "id": "t5", "text": "Restore WEB02 from its pre-change snapshot at 23:20 because it failed its checks" },
+      { "id": "t6", "text": "Patch WEB02 on Sunday afternoon because Saturday's work overran" }
+    ],
+    "buckets": [
+      { "id": "in", "text": "Covered by this approval" },
+      { "id": "out", "text": "Needs its own approval" }
+    ],
+    "correct": {
+      "t1": "in",
+      "t2": "out",
+      "t3": "in",
+      "t4": "out",
+      "t5": "in",
+      "t6": "out"
+    },
+    "explanation": "An approval is limited to its stated actions, systems and maintenance window, and it includes the backout plan. A different server, a different action or a different time is a restricted activity that needs approval of its own."
+  },
+  {
+    "id": "q-1.3-016",
+    "objective": "1.3",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "An administrator at Kestrel Logistics edits the configuration file of the DHCP server software on a Linux server. To load the new settings, she stops and starts only the DHCP daemon (the background process that hands out addresses). The operating system and everything else on the server keep running. What has she performed?",
+    "options": [
+      { "id": "a", "text": "An application restart" },
+      { "id": "b", "text": "A service restart" },
+      { "id": "c", "text": "A full system reboot" },
+      { "id": "d", "text": "A backout" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Wrong. An application restart means closing and reopening a program that people use directly, such as a desktop client.",
+      "b": "Right. One background service was stopped and started so that it loads the change, while the rest of the server kept running.",
+      "c": "Wrong. A reboot restarts the operating system and everything on it. Here the operating system kept running.",
+      "d": "Wrong. A backout returns a system to its state before a failed change. Here the change is being put into effect."
+    },
+    "explanation": "A service restart stops and starts one background service so that it picks up a change. It affects that service and anything that relies on it, and nothing else on the system."
+  },
+  {
+    "id": "q-1.3-017",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "match",
+    "prompt": "Match each situation from a change plan to the technical implication it describes.",
+    "left": [
+      { "id": "l1", "text": "The booking website will be unreachable for about 30 minutes while its database is moved" },
+      { "id": "l2", "text": "The administrator stops and starts the web server's background process so that it loads a new certificate; the operating system keeps running" },
+      { "id": "l3", "text": "Staff must close the desktop CRM client and open it again to pick up the new version" },
+      { "id": "l4", "text": "The reporting module cannot be installed until the database driver is upgraded to version 5" },
+      { "id": "l5", "text": "The warehouse system was written 20 years ago, its vendor no longer exists, and nobody on staff knows how it works" }
+    ],
+    "right": [
+      { "id": "r1", "text": "Legacy application" },
+      { "id": "r2", "text": "Downtime" },
+      { "id": "r3", "text": "Dependency" },
+      { "id": "r4", "text": "Application restart" },
+      { "id": "r5", "text": "Service restart" }
+    ],
+    "correct": {
+      "l1": "r2",
+      "l2": "r5",
+      "l3": "r4",
+      "l4": "r3",
+      "l5": "r1"
+    },
+    "explanation": "Downtime is a period when users cannot reach the service. A service restart cycles one background service, and an application restart closes and reopens a program people use. A dependency means one component needs another, and a legacy application is old, unsupported and poorly understood."
+  },
+  {
+    "id": "q-1.3-018",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Orrin Manufacturing schedules production with an application written in 2004. Its vendor has closed, nobody on staff knows its internals, and it has never been run on a current operating system. The server it runs on is due for an operating system upgrade. What is the best way to handle the upgrade?",
+    "options": [
+      { "id": "a", "text": "Upgrade the production server directly, because old applications are simple and rarely break" },
+      { "id": "b", "text": "Exclude the server from change management so that nobody alters it again" },
+      { "id": "c", "text": "Add the application to a deny list so that the upgrade cannot affect it" },
+      { "id": "d", "text": "Test the upgrade on a copy of the server first and prepare a backout plan that has been tried" }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "Wrong. Legacy applications are the ones most likely to break after a change around them, and here nobody could repair it.",
+      "b": "Wrong. Exempting the server leaves it unpatched and undocumented, which raises the risk each year.",
+      "c": "Wrong. A deny list blocks listed items from running. It would stop the application and would not protect it from the upgrade.",
+      "d": "Right. With no vendor and no in-house knowledge, the safeguards are thorough testing away from production and a reliable way back."
+    },
+    "explanation": "Legacy applications raise the risk of a change because they may break and nobody can fix them. Keep them inside change management, test more, and make sure the backout plan works."
+  },
+  {
+    "id": "q-1.3-019",
+    "objective": "1.3",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A change request at Calder & Voss covers one action: upgrade the database engine on a server from version 12 to version 15. During the impact analysis, the team learns that the reporting tool works only with versions up to 13, and that the backup agent must be upgraded before it can back up version 15. What has the team found, and what should happen next?",
+    "options": [
+      { "id": "a", "text": "Dependencies: revise the request to cover the other two components, then seek approval" },
+      { "id": "b", "text": "Restricted activities: upgrade all three components on the night under the existing request" },
+      { "id": "c", "text": "Legacy applications: cancel the database upgrade and never attempt it again" },
+      { "id": "d", "text": "Downtime: move the upgrade into business hours so that problems are noticed sooner" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Right. Other components rely on the database version. The change has to include them, in the right order, and be approved with that scope.",
+      "b": "Wrong. Restricted activities means the opposite: work outside the approved scope may not be done under the existing request.",
+      "c": "Wrong. Nothing suggests these are old, unsupported products. They need to be upgraded or handled as part of the plan.",
+      "d": "Wrong. The finding concerns what else must change, not when. Business hours would also increase the impact of any outage."
+    },
+    "explanation": "Dependencies mean that changing one component affects others, and they often set the order of the work. The impact analysis should find them so that the approved scope covers everything that has to change."
+  },
+  {
+    "id": "q-1.3-020",
+    "objective": "1.3",
+    "difficulty": 3,
+    "type": "multi",
+    "prompt": "An approved change will update a shared encryption library on a Linux server that hosts three internal web services. Each service loads the library into memory when it starts. Which TWO technical implications must the change plan address? (Choose two.)",
+    "options": [
+      { "id": "a", "text": "The server must be placed on a deny list until the update is complete" },
+      { "id": "b", "text": "The update takes effect in running services at once, so no restart is needed" },
+      { "id": "c", "text": "The services must be restarted before they use the updated library" },
+      { "id": "d", "text": "The server's hardware must be replaced before the library can be updated" },
+      { "id": "e", "text": "Each service depends on the library and must be tested against the new version" }
+    ],
+    "correct": ["c", "e"],
+    "why": {
+      "a": "Wrong. A deny list blocks listed items. Blocking the server is not part of updating a library on it.",
+      "b": "Wrong. A running service keeps using the copy it loaded at startup. Until it is restarted, it still runs the old, vulnerable code.",
+      "c": "Right. Each service loads the library when it starts, so a service restart is needed, and the brief interruption must be planned.",
+      "d": "Wrong. A software library update has nothing to do with the server's hardware.",
+      "e": "Right. The library is a dependency of all three services. A new version can break any of them, so each must be tested."
+    },
+    "explanation": "A change to a shared component affects everything that depends on it, and it often takes effect only after a service restart. A server can look patched while its running services still use the old code."
+  },
+  {
+    "id": "q-1.3-021",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Larkfield Insurance moves its payment servers into a new VLAN behind an additional firewall. The team verifies that the change has worked. What should the team do before it closes the change record?",
+    "options": [
+      { "id": "a", "text": "Run the backout plan to prove that it works" },
+      { "id": "b", "text": "Update the network diagrams to show the servers' new location" },
+      { "id": "c", "text": "Repeat the impact analysis for the completed change" },
+      { "id": "d", "text": "Delete the change record so that the new layout stays confidential" }
+    ],
+    "correct": "b",
+    "why": {
+      "a": "Wrong. Running the backout plan would undo a change that has just been verified as successful.",
+      "b": "Right. The network layout has changed, so the diagrams must be brought up to date before the change is closed.",
+      "c": "Wrong. The impact analysis informs the decision before the change. Repeating it afterwards adds nothing.",
+      "d": "Wrong. The change record is the audit trail. Records are protected by controlling access to them, not by deleting them."
+    },
+    "explanation": "Updating diagrams is part of the change. Out-of-date diagrams mislead administrators and incident responders, who then investigate or defend a network that no longer exists."
+  },
+  {
+    "id": "q-1.3-022",
+    "objective": "1.3",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Brightwater Dental Group replaces its tape backup system with a cloud backup service. The change goes smoothly. Three months later a server fails, and the on-call technician opens the written restore instructions, which still tell him to load tapes that no longer exist. Which part of the change process was missed?",
+    "options": [
+      { "id": "a", "text": "Updating diagrams" },
+      { "id": "b", "text": "Backout plan" },
+      { "id": "c", "text": "Updating policies/procedures" },
+      { "id": "d", "text": "Impact analysis" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Wrong. Diagrams show how systems connect. The problem here is a written instruction that describes the old way of working.",
+      "b": "Wrong. A backout plan is for undoing a change that fails. This change succeeded and was never meant to be undone.",
+      "c": "Right. The change altered how restores are done, so the written procedure should have been rewritten before the change was closed.",
+      "d": "Wrong. An impact analysis is done before the change to judge its risk. The failure here is in the documentation afterwards."
+    },
+    "explanation": "When a change alters how work is done, the policies and procedures that describe that work must be updated as part of the change. Otherwise people follow instructions for a system that is gone."
+  },
+  {
+    "id": "q-1.3-023",
+    "objective": "1.3",
+    "difficulty": 1,
+    "type": "single",
+    "prompt": "The network team at Tessera Health keeps every router configuration in a repository. The repository records who changed which lines, when and why, and it can return any file to an earlier state. What is this practice called?",
+    "options": [
+      { "id": "a", "text": "Impact analysis" },
+      { "id": "b", "text": "Allow listing" },
+      { "id": "c", "text": "Version control" },
+      { "id": "d", "text": "Standard operating procedure" }
+    ],
+    "correct": "c",
+    "why": {
+      "a": "Wrong. Impact analysis assesses what a proposed change will affect. It does not store or track files.",
+      "b": "Wrong. An allow list permits only listed items. It has nothing to do with the history of a file.",
+      "c": "Right. Version control tracks every version of a file, with who changed it, when and why, and can restore earlier versions.",
+      "d": "Wrong. A standard operating procedure is a set of step-by-step instructions for a routine task."
+    },
+    "explanation": "Version control keeps the history of files such as code, scripts and configurations. It makes changes auditable, because each one is attributed, and reversible, because earlier versions can be restored."
+  },
+  {
+    "id": "q-1.3-024",
+    "objective": "1.3",
+    "difficulty": 3,
+    "type": "single",
+    "prompt": "A web server at Pinecrest College begins to behave oddly. No change request is open for it. An administrator compares the server's live configuration file with the latest approved copy in the version control repository and finds three lines that differ. What is the most useful conclusion?",
+    "options": [
+      { "id": "a", "text": "This is an unauthorized change: investigate it, then restore the approved version" },
+      { "id": "b", "text": "The repository is out of date; overwrite it with the live file so that the two match" },
+      { "id": "c", "text": "The differences are normal, because live files always drift away from the repository" },
+      { "id": "d", "text": "The comparison is unreliable until the server has had a scheduled maintenance window" }
+    ],
+    "correct": "a",
+    "why": {
+      "a": "Right. With no approved change on record, the differences are unauthorized. They may be a shortcut or an attack, and the approved version gives a known good state to return to.",
+      "b": "Wrong. This would accept an unexplained change as the new approved version and destroy the reference needed to investigate it.",
+      "c": "Wrong. Under change management, every difference should trace back to an approved change. Unexplained drift is a warning sign.",
+      "d": "Wrong. A maintenance window controls when changes are made. It has no bearing on whether two files can be compared."
+    },
+    "explanation": "Version control provides a known good reference. Comparing a live system with the approved version reveals changes made outside the process, and the approved version can then be restored."
+  }
+]
