@@ -162,6 +162,10 @@ function ExamRunner({
     };
   }, [saves]);
 
+  // The page scrolls to a new question, so the second tap of a double tap on Next or Previous lands on
+  // something of that question. Its flag takes no press for a moment (its answers: see `QuestionView`).
+  const questionGuard = usePressGuard(index);
+
   // On a new question, focus goes to its heading.
   const shown = useRef(index);
   useEffect(() => {
@@ -293,7 +297,7 @@ function ExamRunner({
   }
 
   function toggleFlag(questionId: string) {
-    if (locked) return;
+    if (locked || !questionGuard.settled()) return;
     const on = !flags.has(questionId);
     setFlags((prev) => {
       const next = new Set(prev);

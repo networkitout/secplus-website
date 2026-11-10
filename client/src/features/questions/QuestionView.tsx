@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { useId } from 'react';
 import type { Answer, Feedback, Item, PublicQuestion } from '../../../../shared/types';
+import { usePressGuard } from '../../ui/pressGuard';
 import { CategorizeQuestion } from './CategorizeQuestion';
 import { FeedbackPanel } from './FeedbackPanel';
 import { MatchQuestion } from './MatchQuestion';
@@ -48,7 +49,8 @@ export function initialAnswer(q: PublicQuestion): Answer | null {
 
 /**
  * One question of any type, as a controlled input. With `feedback` it is locked and shows the marking;
- * `disabled` locks it without a result. Renders the prompt itself.
+ * `disabled` locks it without a result. Renders the prompt itself. It emits nothing during the settle
+ * window after a question appears (see `usePressGuard`).
  */
 export function QuestionView({
   question,
@@ -65,7 +67,13 @@ export function QuestionView({
 }) {
   const promptId = useId();
   const reduced = useReducedMotion();
-  const common = { onChange, feedback, locked: disabled || feedback !== undefined, labelledBy: promptId };
+  // A press that was meant for the screen before (the second tap of a double tap on "Next") lands on
+  // whatever the new question has put under it. For a moment after a question appears it takes no answer.
+  const guard = usePressGuard(question.id);
+  const change = (a: Answer) => {
+    if (guard.settled()) onChange(a);
+  };
+  const common = { onChange: change, feedback, locked: disabled || feedback !== undefined, labelledBy: promptId };
   // With `initial={false}` below, the result animations play when feedback arrives, not when a question
   // is first shown already marked.
   const animated = feedback !== undefined && !reduced;
