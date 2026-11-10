@@ -1,1 +1,314 @@
-[]
+[
+  {
+    "id": "f-1.4-001",
+    "objective": "1.4",
+    "term": "Public key infrastructure (PKI)",
+    "definition": "The system of certificate authorities, certificates, keys and processes used to issue, use and revoke certificates that tie public keys to identities."
+  },
+  {
+    "id": "f-1.4-002",
+    "objective": "1.4",
+    "term": "Public key",
+    "definition": "The half of a key pair that can be given to anyone. Used to encrypt data for its owner and to verify its owner's signatures."
+  },
+  {
+    "id": "f-1.4-003",
+    "objective": "1.4",
+    "term": "Private key",
+    "definition": "The half of a key pair that never leaves its owner. Used to decrypt data sent to the owner and to create the owner's signatures."
+  },
+  {
+    "id": "f-1.4-004",
+    "objective": "1.4",
+    "term": "Key escrow",
+    "definition": "A trusted third party holds a copy of keys so that encrypted data can be recovered if a key is lost or its owner leaves."
+  },
+  {
+    "id": "f-1.4-005",
+    "objective": "1.4",
+    "term": "Symmetric encryption",
+    "definition": "Encryption that uses one shared key to encrypt and decrypt. Fast and suited to bulk data, but the key must be shared securely."
+  },
+  {
+    "id": "f-1.4-006",
+    "objective": "1.4",
+    "term": "Asymmetric encryption",
+    "definition": "Encryption that uses a linked key pair: encrypt with the recipient's public key, decrypt with the recipient's private key. Slower than symmetric encryption."
+  },
+  {
+    "id": "f-1.4-007",
+    "objective": "1.4",
+    "term": "Hybrid encryption",
+    "definition": "Using asymmetric cryptography to set up a symmetric key, then using that symmetric key to encrypt the data. TLS works this way."
+  },
+  {
+    "id": "f-1.4-008",
+    "objective": "1.4",
+    "term": "Key exchange",
+    "definition": "The way two parties end up with the same symmetric key over an untrusted network, for example with Diffie-Hellman."
+  },
+  {
+    "id": "f-1.4-009",
+    "objective": "1.4",
+    "term": "Diffie-Hellman",
+    "definition": "An asymmetric key exchange algorithm. Both sides calculate the same secret from exchanged public values. It does not encrypt data."
+  },
+  {
+    "id": "f-1.4-010",
+    "objective": "1.4",
+    "term": "Key length",
+    "definition": "The number of bits in a key. Longer is stronger within one algorithm; lengths cannot be compared across different algorithm families."
+  },
+  {
+    "id": "f-1.4-011",
+    "objective": "1.4",
+    "term": "AES",
+    "definition": "Advanced Encryption Standard. The current standard symmetric block cipher, with 128-, 192- or 256-bit keys."
+  },
+  {
+    "id": "f-1.4-012",
+    "objective": "1.4",
+    "term": "ChaCha20",
+    "definition": "A modern symmetric stream cipher, used as an alternative to AES."
+  },
+  {
+    "id": "f-1.4-013",
+    "objective": "1.4",
+    "term": "DES, 3DES and RC4",
+    "definition": "Older symmetric ciphers that are deprecated or insecure and should be replaced with AES or ChaCha20."
+  },
+  {
+    "id": "f-1.4-014",
+    "objective": "1.4",
+    "term": "RSA",
+    "definition": "An asymmetric algorithm used for encryption and digital signatures. Keys of 2048 bits are the minimum in current practice."
+  },
+  {
+    "id": "f-1.4-015",
+    "objective": "1.4",
+    "term": "ECC",
+    "definition": "Elliptic curve cryptography. Asymmetric algorithms (ECDSA for signatures, ECDH for key exchange) that match RSA's strength with much shorter keys."
+  },
+  {
+    "id": "f-1.4-016",
+    "objective": "1.4",
+    "term": "SHA-2 and SHA-3",
+    "definition": "The current secure hash algorithm families. SHA-256 is a member of SHA-2."
+  },
+  {
+    "id": "f-1.4-017",
+    "objective": "1.4",
+    "term": "MD5 and SHA-1",
+    "definition": "Older hash algorithms that are broken for collision resistance. Do not use them for signatures or certificates."
+  },
+  {
+    "id": "f-1.4-018",
+    "objective": "1.4",
+    "term": "Full-disk encryption",
+    "definition": "Encrypts the whole drive, including the operating system. Protects a powered-off, lost or stolen device, not data on a running, unlocked system."
+  },
+  {
+    "id": "f-1.4-019",
+    "objective": "1.4",
+    "term": "Partition encryption",
+    "definition": "Encrypts one partition (section) of a drive, while other partitions on the same drive are left unencrypted."
+  },
+  {
+    "id": "f-1.4-020",
+    "objective": "1.4",
+    "term": "Volume encryption",
+    "definition": "Encrypts one logical drive as a unit. The volume may be a single partition, span several disks, or be a mounted container file."
+  },
+  {
+    "id": "f-1.4-021",
+    "objective": "1.4",
+    "term": "File encryption",
+    "definition": "Encrypts individual files or folders, often with a key tied to one user, so other users of the same computer cannot read them."
+  },
+  {
+    "id": "f-1.4-022",
+    "objective": "1.4",
+    "term": "Database encryption",
+    "definition": "Encrypts a database's data files, logs and backups on disk. Transparent database encryption does this without changes to applications."
+  },
+  {
+    "id": "f-1.4-023",
+    "objective": "1.4",
+    "term": "Record encryption",
+    "definition": "Encrypts individual records (rows) or fields in a database with a key the application controls, so even database administrators see ciphertext."
+  },
+  {
+    "id": "f-1.4-024",
+    "objective": "1.4",
+    "term": "Transport/communication encryption",
+    "definition": "Encryption of data while it crosses a network (data in transit), for example with TLS or a VPN tunnel."
+  },
+  {
+    "id": "f-1.4-025",
+    "objective": "1.4",
+    "term": "TLS",
+    "definition": "Transport Layer Security. Its handshake uses asymmetric cryptography to authenticate the server and agree keys; symmetric session keys then encrypt the data."
+  },
+  {
+    "id": "f-1.4-026",
+    "objective": "1.4",
+    "term": "Session key",
+    "definition": "A temporary symmetric key agreed for one connection, such as a TLS session, and used to encrypt that connection's data."
+  },
+  {
+    "id": "f-1.4-027",
+    "objective": "1.4",
+    "term": "Trusted Platform Module (TPM)",
+    "definition": "A chip on the motherboard, bound to one device. Stores that device's keys, such as the disk encryption key, and supports measured boot."
+  },
+  {
+    "id": "f-1.4-028",
+    "objective": "1.4",
+    "term": "Hardware security module (HSM)",
+    "definition": "A dedicated, tamper-resistant device or service that generates, stores and uses keys for many systems. The keys never leave it."
+  },
+  {
+    "id": "f-1.4-029",
+    "objective": "1.4",
+    "term": "Key management system",
+    "definition": "A central service that manages keys through their lifecycle: creation, rotation and revocation, with access rules and logging."
+  },
+  {
+    "id": "f-1.4-030",
+    "objective": "1.4",
+    "term": "Secure enclave",
+    "definition": "An isolated, protected processing area inside a processor or device, separate from the main operating system, for sensitive data and keys."
+  },
+  {
+    "id": "f-1.4-031",
+    "objective": "1.4",
+    "term": "Obfuscation",
+    "definition": "Making data hard to find or hard to understand. Includes steganography, tokenization and data masking."
+  },
+  {
+    "id": "f-1.4-032",
+    "objective": "1.4",
+    "term": "Steganography",
+    "definition": "Hiding the existence of data inside another file, such as an image, audio clip or video."
+  },
+  {
+    "id": "f-1.4-033",
+    "objective": "1.4",
+    "term": "Tokenization",
+    "definition": "Replacing a sensitive value with a random token. The mapping is kept in a separate vault, and the token cannot be reversed by calculation."
+  },
+  {
+    "id": "f-1.4-034",
+    "objective": "1.4",
+    "term": "Data masking",
+    "definition": "Hiding part or all of a value from the viewer, for example showing only the last four digits of a card number."
+  },
+  {
+    "id": "f-1.4-035",
+    "objective": "1.4",
+    "term": "Hashing",
+    "definition": "A one-way function that turns any input into a fixed-length digest. The same input always gives the same hash. Provides integrity."
+  },
+  {
+    "id": "f-1.4-036",
+    "objective": "1.4",
+    "term": "Collision",
+    "definition": "Two different inputs that produce the same hash. A hash algorithm is broken when attackers can create collisions on purpose."
+  },
+  {
+    "id": "f-1.4-037",
+    "objective": "1.4",
+    "term": "Salting",
+    "definition": "Adding a unique random value to each password before hashing, so identical passwords hash differently and rainbow tables fail. The salt is not secret."
+  },
+  {
+    "id": "f-1.4-038",
+    "objective": "1.4",
+    "term": "Rainbow table",
+    "definition": "A precomputed table of hashes for likely passwords, used to look up stolen hashes. Defeated by salting."
+  },
+  {
+    "id": "f-1.4-039",
+    "objective": "1.4",
+    "term": "Key stretching",
+    "definition": "Running a password through a deliberately slow function (bcrypt, PBKDF2, scrypt, Argon2) so that every guess is expensive for an attacker."
+  },
+  {
+    "id": "f-1.4-040",
+    "objective": "1.4",
+    "term": "HMAC",
+    "definition": "A hash calculated with a shared secret key. Provides integrity and authenticity, but not non-repudiation."
+  },
+  {
+    "id": "f-1.4-041",
+    "objective": "1.4",
+    "term": "Digital signature",
+    "definition": "A hash of a message signed with the sender's private key and verified with the sender's public key. Gives integrity, authentication and non-repudiation."
+  },
+  {
+    "id": "f-1.4-042",
+    "objective": "1.4",
+    "term": "Blockchain",
+    "definition": "A distributed, append-only ledger. Each block contains the hash of the previous block, so tampering with an earlier block is evident."
+  },
+  {
+    "id": "f-1.4-043",
+    "objective": "1.4",
+    "term": "Open public ledger",
+    "definition": "A ledger that anyone can read and verify. Provides transparency and integrity, not confidentiality."
+  },
+  {
+    "id": "f-1.4-044",
+    "objective": "1.4",
+    "term": "Certificate",
+    "definition": "A document that binds a public key to an identity, such as a hostname, and is digitally signed by its issuer."
+  },
+  {
+    "id": "f-1.4-045",
+    "objective": "1.4",
+    "term": "Certificate authority (CA)",
+    "definition": "An organization that checks identities and issues certificates by signing them. Root CAs sign intermediate CAs, which sign server certificates."
+  },
+  {
+    "id": "f-1.4-046",
+    "objective": "1.4",
+    "term": "Root of trust",
+    "definition": "The starting point that is trusted without further proof, such as a root CA certificate preinstalled in a device. Everything beneath it chains to it."
+  },
+  {
+    "id": "f-1.4-047",
+    "objective": "1.4",
+    "term": "Third-party certificate",
+    "definition": "A certificate issued by a public CA that browsers and operating systems already trust. Used for anything the public reaches."
+  },
+  {
+    "id": "f-1.4-048",
+    "objective": "1.4",
+    "term": "Self-signed certificate",
+    "definition": "A certificate signed with its own private key instead of by a CA. It can encrypt, but nothing vouches for the identity, so browsers warn."
+  },
+  {
+    "id": "f-1.4-049",
+    "objective": "1.4",
+    "term": "Certificate signing request (CSR)",
+    "definition": "A request sent to a CA containing the applicant's public key and identifying details, signed with the applicant's private key. The private key is never sent."
+  },
+  {
+    "id": "f-1.4-050",
+    "objective": "1.4",
+    "term": "Wildcard certificate",
+    "definition": "A certificate for *.example.com covers every hostname one level below the domain, such as www.example.com, but not a.b.example.com."
+  },
+  {
+    "id": "f-1.4-051",
+    "objective": "1.4",
+    "term": "Certificate revocation list (CRL)",
+    "definition": "A signed list of the serial numbers of revoked certificates, published periodically by the CA."
+  },
+  {
+    "id": "f-1.4-052",
+    "objective": "1.4",
+    "term": "Online Certificate Status Protocol (OCSP)",
+    "definition": "A protocol for asking whether one certificate is good, revoked or unknown, in close to real time."
+  }
+]
