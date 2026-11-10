@@ -93,7 +93,12 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
     }
   }
 
-  /** For a press on Check or "See results": not straight after the button appeared, and one request at a time. */
+  /**
+   * For a press on Check or "See results": not straight after the button appeared, and one request at a
+   * time. An action that has changed what the button will be calls `guard.restart()` before it returns:
+   * the request guard is released before React has shown the change, and a press that is handled in
+   * between must not send the same thing again.
+   */
   const guarded = async (action: () => Promise<void>) => {
     if (guard.settled()) await exclusively(action);
   };
@@ -129,6 +134,7 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
           return;
         }
       }
+      guard.restart();
       // The Check button gives way to Next: keep keyboard focus by the question and its result.
       if (container.current?.contains(document.activeElement)) container.current.focus();
     });
@@ -145,6 +151,7 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
       try {
         await api.post<SubmitResponse>(`assessments/${view.id}/submit`);
         await reload(); // the page now shows the results
+        guard.restart();
       } catch (err) {
         setError(isUnavailable(err) ? "Can't reach the server. Try again in a moment." : "Couldn't finish the quiz. Try again.");
       }

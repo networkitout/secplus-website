@@ -36,6 +36,18 @@ function seenBy(queryClient: QueryClient): Seen {
 }
 
 /**
+ * True for a finalized exam that the server closed because its time had run out (`submittedAt` is after
+ * `deadlineAt`; the server stamps such a closing with the time of the read that did it), and did so after
+ * this page was loaded. The moment the page was loaded is put on the server's clock with `clockOffsetMs`;
+ * without it nothing can be compared, and the answer is no.
+ */
+function closedSince(view: AssessmentView, clockOffsetMs: number | null): boolean {
+  if (clockOffsetMs === null || view.deadlineAt === null || view.submittedAt === null) return false;
+  const submitted = Date.parse(view.submittedAt);
+  return submitted > Date.parse(view.deadlineAt) && submitted >= performance.timeOrigin + clockOffsetMs;
+}
+
+/**
  * One assessment, always read from the server: its answers, flags and deadline may have changed on another
  * device, and the server finalizes an exam whose deadline has passed the next time it is read.
  */
@@ -44,7 +56,8 @@ export function useAssessment(id: string) {
   const { report } = useRewards();
   const query = useQuery({ queryKey: ['assessment', id], queryFn: () => load(id), staleTime: Infinity, gcTime: 0 });
   const { refetch } = query;
-  const view = query.data?.view;
+  const loaded = query.data;
+  const view = loaded?.view;
   // True once this visit has seen the assessment go from open to finalized.
   const [finishedHere, setFinishedHere] = useState(false);
 
@@ -53,13 +66,15 @@ export function useAssessment(id: string) {
    * `fresh`: it was finalized during this visit to the page.
    *
    * What the result earned (`result.xp`, `result.newBadges`: the XP of a quiz's answers is part of it) is
-   * reported once, and only when this app has seen the assessment open: it was submitted from here, or
-   * the server closed it meanwhile (an exam whose time ran out while the learner was on another screen).
-   * A result that was already there when the app first read the assessment is one the learner has come
-   * back to; what it earned was earned, and celebrated, earlier.
+   * reported once, when it is news to this page:
+   * - the app has seen the assessment open: it was submitted from here, or the server closed it meanwhile;
+   * - or the server closed it, when its time had run out, after this page was loaded (`closedSince`): the
+   *   learner left an exam running and closed the tab.
+   * Any other result that is already there when the app first reads the assessment is one the learner has
+   * come back to, or one that was submitted, and reported, elsewhere.
    */
   const note = useCallback(
-    (read: AssessmentView, fresh: boolean) => {
+    ({ view: read, clockOffsetMs }: LoadedAssessment, fresh: boolean) => {
       const seen = seenBy(queryClient);
       if (!read.result) {
         seen.open.add(read.id);
@@ -69,12 +84,12 @@ export function useAssessment(id: string) {
       seen.finalized.add(read.id);
       if (fresh) setFinishedHere(true);
       const { xp, newBadges } = read.result;
-      const news = seen.open.has(read.id);
-      if (news) report({ xp, newBadges });
+      const news = seen.open.has(read.id) || closedSince(read, clockOffsetMs);
       void queryClient.invalidateQueries({ queryKey: ['path'] });
-      // The dashboard is read again once, not twice: by `report` when something was earned, and here
-      // otherwise (the exam history and the exam in progress have changed whatever was earned).
-      if (!(news && (xp > 0 || newBadges.length > 0))) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      // The dashboard is read again once, not twice: `report` says whether it will do that. Where it does
+      // not (nothing was earned, or the result is not news), it is read from here: the exam history and
+      // the exam in progress have changed whatever was earned.
+      if (!(news && report({ xp, newBadges }))) void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
     [queryClient, report],
   );
@@ -85,8 +100,8 @@ export function useAssessment(id: string) {
 
   // An exam that the server finalized while the learner was away arrives finalized on the first read.
   useEffect(() => {
-    if (view) note(view, reloading.current);
-  }, [view, note]);
+    if (loaded) note(loaded, reloading.current);
+  }, [loaded, note]);
 
   /** Reads the assessment again. Rejects on failure. */
   const reload = useCallback(async (): Promise<AssessmentView> => {
@@ -94,7 +109,7 @@ export function useAssessment(id: string) {
     try {
       const { data } = await refetch({ throwOnError: true });
       if (!data) throw new Error('The assessment could not be read');
-      note(data.view, true);
+      note(data, true);
       return data.view;
     } finally {
       reloading.current = false;

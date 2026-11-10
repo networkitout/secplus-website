@@ -147,6 +147,7 @@ export function ResultsView({
   const heading = useRef<HTMLHeadingElement>(null);
   const celebrationBox = useRef<HTMLDivElement>(null);
   const reviewId = useId();
+  const celebrationId = useId();
   // Titles for the bars. Optional: without them the bars are named by number alone. Titles do not change,
   // so a path that is already in the cache is not read again for them.
   const path = useQuery({
@@ -186,13 +187,15 @@ export function ResultsView({
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold">
+      {/* The celebration is read with this heading when it takes focus: it describes it. */}
+      <h1 ref={heading} tabIndex={-1} aria-describedby={celebrating ? celebrationId : undefined} className="text-2xl font-semibold">
         {title}
       </h1>
 
       {celebrating && (
         <div ref={celebrationBox}>
           <ScreenCelebration
+            textId={celebrationId}
             kind={kind === 'objective' ? 'quiz-pass' : 'exam-pass'}
             title={passTitle}
             detail={result.xp > 0 ? `+${result.xp} XP` : undefined}

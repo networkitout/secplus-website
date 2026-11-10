@@ -43,6 +43,9 @@ export function QuestionCard({
       const res = await api.post<ReviewResponse>(cardUrl(card), { answer });
       setProblem(null);
       setMarked({ answer, res });
+      // The request guard is released below, before React has shown Next in place of Check: a press that
+      // is handled in between must not review the card again.
+      guard.restart();
       onReviewed(card, res);
       // Check gives way to Next: keep keyboard focus by the question and its result.
       if (container.current?.contains(document.activeElement)) container.current.focus();

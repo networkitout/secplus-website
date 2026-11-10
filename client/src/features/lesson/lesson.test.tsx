@@ -228,8 +228,11 @@ describe('lesson', () => {
     const done = await sectionHeading("You've finished this lesson");
     expect(done).toHaveFocus();
     expect(bodies('POST /api/lessons/1.1/progress')).toEqual([{ sectionId: 's3' }]);
-    const celebration = screen.getByText('Lesson complete').closest('[role="status"]') as HTMLElement;
+    const celebration = screen.getByRole('group', { name: 'Lesson complete' });
     expect(celebration).toHaveTextContent('Lesson completeSecurity controls+50 XP');
+    // It is announced with the heading that takes focus, not by a live region that arrives with its text.
+    expect(done).toHaveAccessibleDescription(/Lesson complete\s*Security controls\s*\+50 XP/);
+    expect(celebration.closest('[role="status"]')).toBeNull();
     expect(celebration).not.toHaveTextContent('Streak');
     expect(within(celebration).getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
     expect(progress()).toHaveAttribute('aria-valuenow', '3');

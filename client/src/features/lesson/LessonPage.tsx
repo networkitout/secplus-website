@@ -111,6 +111,7 @@ function LessonPlayer({
   const heading = useRef<HTMLHeadingElement>(null);
   const celebrationBox = useRef<HTMLDivElement>(null);
   const hintId = useId();
+  const celebrationId = useId();
 
   // Read by the button handlers. A ref, not state, so that a press always sees the current value, even one
   // that is handled before the next render.
@@ -313,12 +314,14 @@ function LessonPlayer({
         </>
       ) : (
         <section className="space-y-5">
-          <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold">
+          {/* The celebration is read with this heading when it takes focus: it describes it. */}
+          <h2 ref={heading} tabIndex={-1} aria-describedby={celebration ? celebrationId : undefined} className="text-xl font-semibold">
             You've finished this lesson
           </h2>
           {celebration && (
             <div ref={celebrationBox}>
               <ScreenCelebration
+                textId={celebrationId}
                 kind="lesson"
                 title={lesson.title}
                 detail={celebration.xp > 0 ? `+${celebration.xp} XP` : undefined}

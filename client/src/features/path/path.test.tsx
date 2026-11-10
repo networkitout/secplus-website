@@ -199,6 +199,8 @@ describe('path', () => {
     handlers['POST /api/assessments'] = () => json(201, { id: 7 });
     renderPath();
     const open = await domainCard(1);
+    // The page has been on screen for a while: what counts from here on is when the dialog opened.
+    clock.advance(SETTLE_MS);
     await userEvent.click(within(open).getByRole('button', { name: 'Domain exam, Domain 1' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Start the Domain 1 exam?' });

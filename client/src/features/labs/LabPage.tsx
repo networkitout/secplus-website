@@ -120,6 +120,7 @@ function LabRunner({ lab }: { lab: LabView }) {
   const resultsHeading = useRef<HTMLHeadingElement>(null);
   const celebrationBox = useRef<HTMLDivElement>(null);
   const noteId = useId();
+  const celebrationId = useId();
   // "Submit lab" gives way to the results with "Try again", and "Try again" to a new attempt with "Submit
   // lab". A press that arrives straight after either change is ignored.
   const guard = usePressGuard(`${attempt}:${outcome ? 'results' : 'steps'}`);
@@ -162,6 +163,9 @@ function LabRunner({ lab }: { lab: LabView }) {
       const result = await api.post<LabSubmitResponse>(`labs/${encodeURIComponent(lab.id)}/submit`, { answers: sent });
       setProblem(null);
       setOutcome({ sent, result });
+      // The request guard is released below, before React has shown the results: a press that is handled
+      // in between must not submit the lab again.
+      guard.restart();
       submitted(result);
     } catch (err) {
       setProblem(problemOf(err));
@@ -201,12 +205,14 @@ function LabRunner({ lab }: { lab: LabView }) {
         <div className="space-y-6">
           {result && (
             <>
-              <h2 ref={resultsHeading} tabIndex={-1} className="rounded-sm text-xl font-semibold">
+              {/* The celebration is read with this heading when it takes focus: it describes it. */}
+              <h2 ref={resultsHeading} tabIndex={-1} aria-describedby={celebrating ? celebrationId : undefined} className="rounded-sm text-xl font-semibold">
                 Results
               </h2>
               {celebrating && (
                 <div ref={celebrationBox}>
                   <ScreenCelebration
+                    textId={celebrationId}
                     kind="lab-pass"
                     title={lab.title}
                     detail={result.xp > 0 ? `+${result.xp} XP` : undefined}

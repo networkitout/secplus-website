@@ -56,7 +56,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               </NavLink>
             ))}
           </nav>
-          <div className="ml-auto flex flex-wrap items-center gap-3">
+          {/* `min-w-0`: this row may be narrower than what is in it, so a long name wraps instead of widening the page. */}
+          <div className="ml-auto flex min-w-0 flex-wrap items-center gap-3">
             {stats.data && (
               <p className="font-mono text-sm">
                 <span className="sr-only">Your progress: </span>
@@ -68,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <ThemeToggle />
             {user && (
               <>
-                <NavLink to="/settings" className={linkClass}>
+                <NavLink to="/settings" className={(state) => `${linkClass(state)} min-w-0 max-w-full [overflow-wrap:anywhere]`}>
                   {user.name}
                 </NavLink>
                 <button

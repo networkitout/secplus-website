@@ -10,7 +10,7 @@ import type { AssessmentResult, AssessmentView, DashboardMocks, MockHistoryEntry
 import { createQueryClient } from '../../queryClient';
 import { holdPressClock } from '../../test/pressClock';
 import { SETTLE_MS } from '../../ui/pressGuard';
-import { RewardsBanner, RewardsContext, RewardsProvider, useRewards, type RewardsValue } from '../rewards/RewardsProvider';
+import { REFRESH_DELAY_MS, RewardsBanner, RewardsContext, RewardsProvider, useRewards, type RewardsValue } from '../rewards/RewardsProvider';
 import { ExamLobbyPage } from './ExamLobbyPage';
 import { examSaves } from './examSaves';
 import { ExamPage } from './ExamPage';
@@ -187,7 +187,7 @@ function Noted({ children }: { children: ReactNode }) {
     () => ({
       report(r) {
         reported(r);
-        report(r);
+        return report(r);
       },
     }),
     [report],
@@ -267,6 +267,8 @@ const button = (name: string) => screen.getByRole('button', { name });
 const submission = () => screen.getByRole('status', { name: 'Submission' });
 const assessmentReads = (id: number) => calls(`GET /api/assessments/${id}`).length;
 const reviewItems = () => within(screen.getByRole('list', { name: 'Questions' })).getAllByRole('button');
+/** Long enough for a read of the dashboard that a report had asked for to have been sent. */
+const afterRefreshWait = () => new Promise((r) => setTimeout(r, REFRESH_DELAY_MS + 100));
 /** Where the rewards provider shows a new badge or level. */
 const rewardsBanner = () => screen.getByRole('status', { name: 'Rewards' });
 
@@ -370,13 +372,17 @@ describe('quiz', () => {
     await userEvent.click(screen.getByRole('button', { name: 'See results' }));
 
     const title = await heading('Objective 1.1 quiz results', 1);
-    const banner = screen.getByText('Quiz passed').closest('[role="status"]') as HTMLElement;
+    const banner = screen.getByRole('group', { name: 'Quiz passed' });
     expect(banner).toHaveTextContent('+100 XP');
+    // It is announced with the heading that takes focus, not by a live region that arrives with its text.
+    expect(title).toHaveFocus();
+    expect(title).toHaveAccessibleDescription(/Quiz passed\s*Objective 1\.1\s*\+100 XP/);
+    expect(banner.closest('[role="status"]')).toBeNull();
     // The result is reported to the rewards provider once, and the header's numbers are read once for it.
     expect(reported.mock.calls).toEqual([[{ xp: 100, newBadges: [] }]]);
     await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
     await waitFor(() => expect(calls('GET /api/path')).toHaveLength(2));
-    await new Promise((r) => setTimeout(r, 400));
+    await afterRefreshWait();
     expect(calls('GET /api/dashboard')).toHaveLength(2);
 
     await userEvent.click(within(banner).getByRole('button', { name: 'Dismiss' }));
@@ -402,7 +408,7 @@ describe('quiz', () => {
     await userEvent.click(button('See results'));
     const title = await heading('Objective 1.1 quiz results', 1);
     expect(title).toHaveFocus();
-    const own = screen.getByText('Quiz passed').closest('[role="status"]') as HTMLElement;
+    const own = screen.getByRole('group', { name: 'Quiz passed' });
     expect(own).toHaveTextContent('+130 XP');
     expect(reported.mock.calls).toEqual([[{ xp: 130, newBadges: ['first-quiz-pass'] }]]);
 
@@ -532,6 +538,52 @@ describe('quiz', () => {
     await userEvent.click(button('Retake'));
     await heading('Question 1 of 2');
     expect(calls('POST /api/assessments')).toHaveLength(1);
+  });
+
+  it('a press that is handled after the answer came back, and before the page has shown it, sends nothing more', async () => {
+    const clock = holdPressClock();
+    const open = quiz(1);
+    const done = finished(open, 1);
+    const answer = deferred<Response>();
+    const submitted = deferred<Response>();
+    handlers['GET /api/assessments/12'] = () => json(200, open);
+    handlers['PUT /api/assessments/12/answers'] = () => answer.promise;
+    handlers['POST /api/assessments/12/submit'] = () => submitted.promise;
+    renderAt('/quiz/12');
+    await heading('Question 1 of 1');
+    clock.advance(SETTLE_MS);
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    const main = button('Check');
+    await userEvent.click(main);
+    expect(calls('PUT /api/assessments/12/answers')).toHaveLength(1);
+
+    // Inside one `act` nothing is rendered until it ends: the response is handled, and the button on
+    // screen is still "Check", as in the moment before React shows the feedback.
+    await act(async () => {
+      answer.resolve(json(200, { feedback: marked(open.questions[0]!, true) }));
+      await new Promise((r) => setTimeout(r, 20));
+      fireEvent.click(main);
+      fireEvent.click(main);
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(calls('PUT /api/assessments/12/answers')).toHaveLength(1);
+    expect(within(result()).getByText('Alpha is right.')).toBeInTheDocument();
+
+    // The same for "See results": the quiz is submitted once.
+    clock.advance(SETTLE_MS);
+    await userEvent.click(button('See results'));
+    expect(calls('POST /api/assessments/12/submit')).toHaveLength(1);
+    handlers['GET /api/assessments/12'] = () => json(200, done);
+    await act(async () => {
+      submitted.resolve(json(200, { result: done.result }));
+      await new Promise((r) => setTimeout(r, 20));
+      fireEvent.click(main);
+      fireEvent.click(main);
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(calls('POST /api/assessments/12/submit')).toHaveLength(1);
+    expect(assessmentReads(12)).toBe(2);
+    await heading('Objective 1.1 quiz results', 1);
   });
 
   it('shows what the server already holds when a question was answered elsewhere (409), without an error', async () => {
@@ -717,7 +769,7 @@ describe('exam', () => {
     vi.setSystemTime(new Date('2026-11-10T09:00:00.000Z'));
     const serverNow = Date.parse('2026-11-10T12:00:00.000Z');
     const open = exam({ serverNow: new Date(serverNow).toISOString(), deadlineAt: new Date(serverNow + 6 * 60_000).toISOString() });
-    const done = finished(open, 1, {}, 4);
+    const done = finished(open, 1, { xp: 15, newBadges: ['streak-3'] }, 4);
     handlers['GET /api/assessments/30'] = () => json(200, open);
     renderAt('/exam/30');
     await settle();
@@ -782,6 +834,8 @@ describe('exam', () => {
 
     expect(writes()).toEqual([SAVE, SUBMIT]);
     expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
+    // The exam that ended with its time is reported like one that was submitted by hand: once.
+    expect(reported.mock.calls).toEqual([[{ xp: 15, newBadges: ['streak-3'] }]]);
     expect(announced).toEqual(['5 minutes remaining', '1 minute remaining']);
     // The server's time came with the exam itself: nothing else was asked for it.
     expect(calls('GET /api/health')).toHaveLength(0);
@@ -922,7 +976,7 @@ describe('exam', () => {
     expect(reported.mock.calls).toEqual([[{ xp: 0, newBadges: [] }]]);
     await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
     expect(calls('GET /api/path')).toHaveLength(2);
-    await new Promise((r) => setTimeout(r, 400));
+    await afterRefreshWait();
     expect(calls('GET /api/dashboard')).toHaveLength(2);
   });
 
@@ -982,14 +1036,16 @@ describe('exam', () => {
     expect(reported.mock.calls).toEqual([[{ xp: 12, newBadges: ['hundred-correct'] }]]);
   });
 
-  it('shows the results straight away when the exam was finalized while the page was closed, and refreshes the totals once', async () => {
-    handlers['GET /api/assessments/30'] = () => json(200, finished(exam(), 4, { passed: true, xp: 340 }));
+  it('shows results that were there before this page was opened without reporting or celebrating them, and reads the totals once', async () => {
+    // Closed by the server yesterday, when its time ran out.
+    const old = { ...finished(exam(), 4, { passed: true, xp: 340, newBadges: ['domain-1-complete'] }), deadlineAt: '2026-11-09T12:25:00.000Z', submittedAt: '2026-11-09T12:31:00.000Z' };
+    handlers['GET /api/assessments/30'] = () => json(200, old);
     renderAt('/exam/30');
     await heading('Domain 1 exam results', 1);
     expect(screen.getByText('Passed')).toBeInTheDocument();
     expect(screen.queryByRole('timer')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Submit exam' })).not.toBeInTheDocument();
-    // Not finished just now, so not celebrated; but the XP it earned is news to the header and the path.
+    // Not finished just now, so not celebrated; the totals are read again all the same, once.
     expect(screen.queryByText('Exam passed')).not.toBeInTheDocument();
     await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
     await waitFor(() => expect(calls('GET /api/path')).toHaveLength(2));
@@ -999,11 +1055,68 @@ describe('exam', () => {
     await userEvent.click(screen.getByRole('link', { name: 'leave' }));
     await userEvent.click(screen.getByRole('link', { name: 'come back' }));
     await heading('Domain 1 exam results', 1);
-    await new Promise((r) => setTimeout(r, 400));
+    await afterRefreshWait();
     expect(calls('GET /api/dashboard')).toHaveLength(2);
-    // This app never saw the exam open: for all it knows the result is an old one, and it reports nothing.
+    // What it earned, it earned before this page was opened: nothing is reported.
     expect(reported).not.toHaveBeenCalled();
     expect(rewardsBanner()).toBeEmptyDOMElement();
+  });
+
+  it('does not report an exam that the learner submitted elsewhere, before its time was up', async () => {
+    // Submitted a moment ago on another device, with ten minutes left: it was reported there.
+    const now = Date.now();
+    const elsewhere = {
+      ...finished(exam(), 4, { passed: true, xp: 340, newBadges: ['domain-1-complete'] }),
+      deadlineAt: new Date(now + 10 * 60_000).toISOString(), submittedAt: new Date(now).toISOString(), serverNow: new Date(now).toISOString(),
+    };
+    handlers['GET /api/assessments/30'] = () => json(200, elsewhere);
+    renderAt('/exam/30');
+    await heading('Domain 1 exam results', 1);
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    await afterRefreshWait();
+    expect(reported).not.toHaveBeenCalled();
+    expect(rewardsBanner()).toBeEmptyDOMElement();
+  });
+
+  it('reports an exam that the server closed, when its time ran out, while this page was open elsewhere or the tab was closed: once', async () => {
+    // The learner left the exam running and closed the tab. The page was opened again a moment ago; the
+    // server closed the exam when it was next read, which stamps it with the time of that read.
+    const now = Date.now();
+    const closed = {
+      ...finished(exam(), 4, { passed: true, xp: 340, newBadges: ['domain-1-complete'] }),
+      deadlineAt: new Date(now - 20 * 60_000).toISOString(), submittedAt: new Date(now).toISOString(), serverNow: new Date(now).toISOString(),
+    };
+    handlers['GET /api/assessments/30'] = () => json(200, closed);
+    renderAt('/exam/30');
+    const title = await heading('Domain 1 exam results', 1);
+    expect(reported.mock.calls).toEqual([[{ xp: 340, newBadges: ['domain-1-complete'] }]]);
+    await waitFor(() => expect(rewardsBanner()).toHaveTextContent('Badge earned'));
+    // It was not finished on this visit: the page does not celebrate, and the results do not take focus.
+    expect(screen.queryByText('Exam passed')).not.toBeInTheDocument();
+    expect(title).not.toHaveFocus();
+    // One read of the totals: the one the report asks for.
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+
+    await userEvent.click(screen.getByRole('link', { name: 'leave' }));
+    await userEvent.click(screen.getByRole('link', { name: 'come back' }));
+    await heading('Domain 1 exam results', 1);
+    await afterRefreshWait();
+    expect(reported).toHaveBeenCalledTimes(1);
+    expect(calls('GET /api/dashboard')).toHaveLength(2);
+  });
+
+  it('does not report a result whose time on the server cannot be compared with this page', async () => {
+    // Closed by the server after its time ran out, as above, but the response carries no usable server time.
+    const now = Date.now();
+    const closed = {
+      ...finished(exam(), 4, { xp: 340 }),
+      deadlineAt: new Date(now - 20 * 60_000).toISOString(), submittedAt: new Date(now).toISOString(), serverNow: 'soon',
+    };
+    handlers['GET /api/assessments/30'] = () => json(200, closed);
+    renderAt('/exam/30');
+    await heading('Domain 1 exam results', 1);
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    expect(reported).not.toHaveBeenCalled();
   });
 
   it('reports an exam that the server closed while the learner was on another screen, once, when its results are first seen', async () => {
@@ -1029,7 +1142,7 @@ describe('exam', () => {
     await userEvent.click(screen.getByRole('link', { name: 'leave' }));
     await userEvent.click(screen.getByRole('link', { name: 'come back' }));
     await heading('Domain 1 exam results', 1);
-    await new Promise((r) => setTimeout(r, 400));
+    await afterRefreshWait();
     expect(reported).toHaveBeenCalledTimes(1);
     expect(calls('GET /api/dashboard')).toHaveLength(2);
   });
@@ -1250,6 +1363,8 @@ describe('exam', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
     await screen.findByText("Couldn't save one of your answers.");
 
+    // The exam has been on screen for a while: what counts from here on is when the dialog opened.
+    clock.advance(SETTLE_MS);
     // The dialog opens over the page; a second press that lands on "Submit now" does not submit.
     await userEvent.click(button('Submit exam'));
     await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
@@ -1291,6 +1406,38 @@ describe('exam', () => {
     await userEvent.click(button('Try saving again'));
     expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
     expect(writes()).toEqual([SAVE, SUBMIT, SAVE, SUBMIT]);
+  });
+
+  it('Cancel, while a submission waits for answers to be saved, works the moment it appears', async () => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    const clock = holdPressClock();
+    handlers['GET /api/assessments/30'] = () => json(200, exam());
+    handlers[SAVE] = () => {
+      throw new TypeError('Failed to fetch');
+    };
+    renderAt('/exam/30');
+    await settle();
+    clock.advance(SETTLE_MS);
+    fireEvent.click(screen.getByRole('radio', { name: 'Bravo' }));
+    await settle();
+    fireEvent.click(button('Submit exam'));
+    clock.advance(SETTLE_MS);
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+    await settle();
+    expect(submission()).toHaveTextContent('Saving your answers before submitting…');
+
+    // The one way to stop a submission that is about to go: it must not be swallowed.
+    fireEvent.click(button('Cancel'));
+    expect(submission()).toBeEmptyDOMElement();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Bravo' })).toBeEnabled();
+    expect(screen.getByRole('heading', { level: 2, name: 'Question 1 of 5' })).toHaveFocus();
+
+    // The save gets through later: nothing is submitted.
+    handlers[SAVE] = () => json(200, { saved: true });
+    await advance(1_000);
+    await settle();
+    expect(writes()).toEqual([SAVE, SAVE]);
   });
 
   it('keeps the learner in the exam with a retry when the submission cannot be sent', async () => {
@@ -1376,7 +1523,7 @@ describe('exam', () => {
     expect(await heading('Domain 1 exam results', 1)).toHaveFocus();
     expect(calls(SUBMIT)).toHaveLength(1);
     // A pass seen now is celebrated, as an exam.
-    const banner = screen.getByText('Exam passed').closest('[role="status"]') as HTMLElement;
+    const banner = screen.getByRole('group', { name: 'Exam passed' });
     expect(banner).toHaveTextContent('Domain 1 exam');
     expect(banner).toHaveTextContent('+310 XP');
     expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
@@ -1742,8 +1889,35 @@ describe('results', () => {
         <ResultsView {...props} fresh />
       </QueryClientProvider>,
     );
-    expect(screen.getByText('Exam passed').closest('[role="status"]')).toHaveTextContent('+150 XP');
+    expect(screen.getByRole('group', { name: 'Exam passed' })).toHaveTextContent('+150 XP');
     expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toHaveFocus();
+  });
+
+  it('the celebration of a pass stays where it is until the learner dismisses it', () => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ResultsView
+          result={{ scorePct: 100, passed: true, byDomain: {}, byObjective: {}, xp: 150, newBadges: [] }}
+          questions={[]}
+          answers={{}}
+          feedback={{}}
+          kind="objective"
+          title="Objective 1.1 quiz results"
+          passTitle="Objective 1.1"
+          fresh
+        />
+      </QueryClientProvider>,
+    );
+    const title = screen.getByRole('heading', { level: 1, name: 'Objective 1.1 quiz results' });
+    // Going by itself would move everything under it up, unprompted, six seconds after the results appeared.
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    const banner = screen.getByRole('group', { name: 'Quiz passed' });
+    fireEvent.click(within(banner).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByRole('group', { name: 'Quiz passed' })).not.toBeInTheDocument();
+    expect(title).not.toHaveAccessibleDescription();
   });
 
   it('shows a bar per domain when the exam covers more than one, and renders prompts as text', async () => {

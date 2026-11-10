@@ -144,8 +144,8 @@ function ExamRunner({
   const heading = useRef<HTMLHeadingElement>(null);
   const status = useRef<HTMLParagraphElement>(null);
   const headingId = useId();
-  // Each phase of a submission brings its own buttons (Cancel; the three about unsaved answers; Try again),
-  // often where the ones before were. A press that arrives straight after a phase began is ignored.
+  // Each phase of a submission brings its own buttons (the three about unsaved answers; Try again), often
+  // where the ones before were. A press on one of those that arrives straight after a phase began is ignored.
   const guard = usePressGuard(phase);
 
   // The saves tell the page that is open when the server refuses one because the exam is over.
@@ -272,8 +272,9 @@ function ExamRunner({
     void submit();
   }
 
+  // Not held back by the pause: Cancel is the one way to stop a submission that is about to go, and a
+  // press on it that is swallowed lets the exam through.
   function cancel() {
-    if (!guard.settled()) return;
     backToQuestion();
     attempt.current++;
     setPhase(null);

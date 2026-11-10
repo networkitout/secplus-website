@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
@@ -12,7 +12,7 @@ import { RewardsProvider, useRewards } from '../features/rewards/RewardsProvider
 import { createQueryClient } from '../queryClient';
 import { holdPressClock } from '../test/pressClock';
 import { AppShell } from './AppShell';
-import { Celebration } from './Celebration';
+import { AUTO_DISMISS_MS, Celebration } from './Celebration';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBoundary } from './ErrorBoundary';
 import { MasteryBar } from './MasteryBar';
@@ -34,9 +34,10 @@ function renderShell(
   logout: () => Promise<void> = vi.fn(),
   page: ReactNode = <p>page body</p>,
   stats: () => typeof STATS = () => STATS,
+  name = 'Sam',
 ) {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(stats()), { status: 200 })));
-  const auth = { user: user(role), loading: false, login: vi.fn(), logout, refresh: vi.fn() };
+  const auth = { user: { ...user(role), name }, loading: false, login: vi.fn(), logout, refresh: vi.fn() };
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <AuthContext.Provider value={auth}>
@@ -110,6 +111,18 @@ describe('ui', () => {
     // order of reading and of Tab.
     expect(celebration!.compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(celebration!.compareDocumentPosition(screen.getByRole('banner')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
+  it('AppShell lets a long display name wrap inside the header instead of widening the page', async () => {
+    const name = 'Wolfeschlegelsteinhausenbergerdorffvoralternwarengewissenhaftscha'.slice(0, 64);
+    expect(name).toHaveLength(64);
+    renderShell('learner', vi.fn(), <p>page body</p>, () => STATS, name);
+    // The whole name is there, for everyone: it breaks where it has to instead of being cut.
+    const link = await screen.findByRole('link', { name });
+    expect(link).toHaveAttribute('href', '/settings');
+    expect(link).toHaveClass('min-w-0', 'max-w-full', '[overflow-wrap:anywhere]');
+    // The row it is in may become narrower than its content.
+    expect(link.parentElement).toHaveClass('min-w-0');
   });
 
   it('AppShell reports a failed sign-out instead of leaving a rejected promise', async () => {
@@ -367,6 +380,8 @@ describe('ui', () => {
       const clock = holdPressClock();
       const onConfirm = vi.fn();
       render(<Host onConfirm={onConfirm} />);
+      // The page has been on screen for a while: what counts from here on is when the dialog opened.
+      clock.advance(SETTLE_MS);
       // The second click of a double click on the opener lands on whatever the dialog has put there.
       await userEvent.click(opener());
       await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
@@ -442,6 +457,48 @@ describe('ui', () => {
       expect(banner).toHaveTextContent('Exam passed');
       expect(banner).toHaveTextContent('Domain 1 exam');
       expect(banner).not.toHaveTextContent('Quiz passed');
+    });
+
+    it('stays until it is dismissed when it is told not to go by itself', async () => {
+      const onDone = vi.fn();
+      render(<Celebration kind="quiz-pass" title="Objective 1.1" autoDismiss={false} onDone={onDone} />);
+      act(() => { vi.advanceTimersByTime(60_000); });
+      expect(onDone).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+      expect(onDone).toHaveBeenCalledTimes(1);
+    });
+
+    it('a press on Dismiss that arrives with it is ignored; going by itself is not held back', async () => {
+      const clock = holdPressClock();
+      const onDone = vi.fn();
+      render(<Celebration kind="level-up" title="Level 4" onDone={onDone} />);
+      // A press that was on its way to whatever the celebration now lies over.
+      await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+      clock.advance(SETTLE_MS - 1);
+      await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+      expect(onDone).not.toHaveBeenCalled();
+      act(() => { vi.advanceTimersByTime(AUTO_DISMISS_MS); });
+      expect(onDone).toHaveBeenCalledTimes(1);
+
+      clock.advance(1);
+      await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+      expect(onDone).toHaveBeenCalledTimes(2);
+    });
+
+    it('where it is not a live region itself, it is a group named after what happened, and its text has an id to describe something with', () => {
+      render(<Celebration kind="lab-pass" title="Classify the controls" detail="+121 XP" live={false} textId="what-happened" onDone={vi.fn()} />);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      const group = screen.getByRole('group', { name: 'Lab passed' });
+      expect(within(group).getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+      const text = document.getElementById('what-happened');
+      expect(text).toHaveTextContent('Lab passedClassify the controls+121 XP');
+      expect(text).not.toHaveTextContent('Dismiss');
+    });
+
+    it('compact: below the sm breakpoint the detail is left to screen readers and the card is two lines high', () => {
+      render(<Celebration kind="badge" title="First Lesson" detail="Complete your first lesson." compact onDone={vi.fn()} />);
+      expect(screen.getByText('Complete your first lesson.')).toHaveClass('sr-only', 'sm:not-sr-only');
+      expect(screen.getByRole('status')).toHaveClass('p-3', 'sm:p-4');
     });
 
     it('calls onDone by itself after a few seconds', () => {

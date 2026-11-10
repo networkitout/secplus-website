@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -236,7 +236,10 @@ describe('labs', () => {
     expect(score.getByText('You need 80% or more to pass a lab.')).toBeInTheDocument();
     expect(score.getByText('XP earned: 105')).toBeInTheDocument();
     // The banner names the event as a lab, with the lab's title under it.
-    const banner = screen.getByText('Lab passed').closest('[role="status"]') as HTMLElement;
+    const banner = screen.getByRole('group', { name: 'Lab passed' });
+    // It is announced with the heading that takes focus, not by a live region that arrives with its text.
+    expect(screen.getByRole('heading', { level: 2, name: 'Results' })).toHaveAccessibleDescription(/Lab passed\s*Classify the controls\s*\+105 XP/);
+    expect(banner.closest('[role="status"]')).toBeNull();
     expect(within(banner).getByText('Classify the controls')).toBeInTheDocument();
     expect(within(banner).getByText('+105 XP')).toBeInTheDocument();
     expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
@@ -334,6 +337,30 @@ describe('labs', () => {
     await userEvent.click(button('Submit lab'));
     await screen.findByRole('heading', { level: 2, name: 'Results' });
     expect(calls(SUBMIT)).toHaveLength(2);
+  });
+
+  it('lab: a press that is handled after the result came back, and before the page has shown it, does not submit again', async () => {
+    const clock = holdPressClock();
+    const answer = deferred<Response>();
+    handlers[SUBMIT] = () => answer.promise;
+    await answerAll();
+    clock.advance(SETTLE_MS);
+    const submit = button('Submit lab');
+    await userEvent.click(submit);
+    expect(calls(SUBMIT)).toHaveLength(1);
+
+    // Inside one `act` nothing is rendered until it ends: the response is handled, and the button on
+    // screen is still the one that submits, as in the moment before React shows the results.
+    await act(async () => {
+      answer.resolve(json(200, submitted()));
+      await new Promise((r) => setTimeout(r, 20));
+      fireEvent.click(submit);
+      fireEvent.click(submit);
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(calls(SUBMIT)).toHaveLength(1);
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { level: 2, name: 'Results' })).toBeInTheDocument();
   });
 
   it('lab: keeps the answers and offers a retry when the submission cannot be sent', async () => {

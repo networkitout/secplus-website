@@ -27,8 +27,10 @@ function Key({ children }: { children: string }) {
  * on keys pressed inside `scope` (by default the card itself) or on the page around it, never on a key
  * pressed with focus on a control elsewhere.
  *
- * A press or a key that arrives straight after the card appeared, or straight after its answer did, is
- * ignored (see `usePressGuard`): a second tap on "Show answer" would otherwise land on "I knew it".
+ * A press or a key that arrives straight after the answer appeared does not grade (see `usePressGuard`):
+ * a second tap on "Show answer" would otherwise land on "I knew it". Showing the answer is not held back,
+ * not on a card that has only just appeared either: it grades nothing, and a learner who grades one card
+ * and knows the next term at a glance presses Space within half a second.
  */
 export function FlashcardView({
   term,
@@ -58,10 +60,11 @@ export function FlashcardView({
   const revealed = definition !== null;
   const answer = useRef<HTMLParagraphElement>(null);
   const root = useRef<HTMLDivElement>(null);
-  // The buttons and the shortcut keys both come through here, so the pause is the same for both.
+  // The buttons and the shortcut keys both come through here, so the pause is the same for both. It begins
+  // when the answer appears, and holds the grades back.
   const guard = usePressGuard(revealed);
   const reveal = () => {
-    if (!busy && guard.settled()) onReveal();
+    if (!busy) onReveal();
   };
   const grade = (knewIt: boolean) => {
     if (!busy && guard.settled()) onGrade(knewIt);

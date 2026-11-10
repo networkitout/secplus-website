@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -10,7 +10,7 @@ import { formatDay } from '../../lib/dates';
 import { createQueryClient } from '../../queryClient';
 import { holdPressClock } from '../../test/pressClock';
 import { SETTLE_MS } from '../../ui/pressGuard';
-import { RewardsBanner, RewardsContext, RewardsProvider, type RewardsValue } from '../rewards/RewardsProvider';
+import { REFRESH_DELAY_MS, RewardsBanner, RewardsContext, RewardsProvider, type RewardsValue } from '../rewards/RewardsProvider';
 import { ReviewPage } from './ReviewPage';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
@@ -574,7 +574,7 @@ describe('review', () => {
     expect(report).toHaveBeenCalledTimes(1);
   });
 
-  it('with the real rewards provider, a round reads the dashboard once for what it earned, not again when it ends', async () => {
+  it('with the real rewards provider, the end of a round asks for no read of the dashboard of its own', async () => {
     const [first, second] = [flash(1), flash(2)];
     serve([first, second]);
     handlers[post(first)] = () => json(200, moved(2, '2026-11-12', 2));
@@ -609,10 +609,12 @@ describe('review', () => {
     xp = 14;
     await userEvent.click(button('I knew it'));
     await screen.findByRole('heading', { level: 2, name: 'Review complete' });
-    // The badge is celebrated; the two reports, one straight after the other, share one read.
+    // The badge is celebrated. In this test the two reviews follow each other within milliseconds, so
+    // their reports share one read; a learner's reviews are at least half a second apart (the press
+    // guard), and each has its own. What matters here: the end of the round asks for no read of its own.
     expect(await screen.findByText('Three-Day Streak')).toBeInTheDocument();
     await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, REFRESH_DELAY_MS + 100));
     expect(calls('GET /api/dashboard')).toHaveLength(2);
     expect(client.getQueryData<DashboardResponse>(['dashboard'])?.xp).toBe(14);
   });
@@ -904,12 +906,15 @@ describe('review: a press that lands on a button which has just appeared', () =>
     await cardHeading('Card 2 of 2: flashcard');
     expect(bodies(post(first))).toEqual([{ knewIt: true }]);
 
-    // The press that follows at once lands on the next card's "Show answer": it stays hidden.
-    await userEvent.click(button('Show answer'));
-    expect(calls(reveal(second))).toHaveLength(0);
-    clock.advance(SETTLE_MS);
+    // "Show answer" on the new card is open at once: showing an answer grades nothing, and a learner who
+    // knows the term at a glance must not lose the press. What it brings is closed again for a moment.
     await userEvent.click(button('Show answer'));
     expect(await screen.findByText('How a control is implemented.')).toBeInTheDocument();
+    expect(calls(reveal(second))).toHaveLength(1);
+    await userEvent.click(button('I knew it'));
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(button("I didn't"));
+    expect(writes()).toEqual([post(first)]);
   });
 
   it('the shortcut keys keep to the same pause: a key straight after the answer appears does not grade', async () => {
@@ -920,13 +925,10 @@ describe('review: a press that lands on a button which has just appeared', () =>
     renderReview();
     await cardHeading('Card 1 of 2: flashcard');
 
-    // A key that arrives with the card does not show its answer.
-    await userEvent.keyboard(' ');
-    await userEvent.keyboard('{Enter}');
-    expect(calls(reveal(first))).toHaveLength(0);
-    clock.advance(SETTLE_MS);
+    // Space shows the answer of a card straight away, also when the card has only just appeared.
     await userEvent.keyboard(' ');
     await screen.findByText('A measure put in place to reduce risk.');
+    expect(calls(reveal(first))).toHaveLength(1);
 
     await userEvent.keyboard('1');
     await userEvent.keyboard('2');
@@ -938,9 +940,14 @@ describe('review: a press that lands on a button which has just appeared', () =>
     await cardHeading('Card 2 of 2: flashcard');
     expect(bodies(post(first))).toEqual([{ knewIt: false }]);
 
-    // And the key that follows at once does not show the next card's answer.
+    // The key that follows at once shows the next card's answer (nothing is graded by that), and the
+    // grading keys are closed again for a moment after it.
     await userEvent.keyboard('{Enter}');
-    expect(calls(reveal(second))).toHaveLength(0);
+    await screen.findByText('How a control is implemented.');
+    await userEvent.keyboard('1');
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.keyboard('2');
+    expect(writes()).toEqual([post(first)]);
   });
 
   it('Check then an immediate second press does not skip the feedback, and Next then an immediate press does not grade an untouched order question', async () => {
@@ -982,6 +989,34 @@ describe('review: a press that lands on a button which has just appeared', () =>
     await userEvent.click(button('Check'));
     expect(await within(result()).findByText('Request comes first.')).toBeInTheDocument();
     expect(calls(post(second))).toHaveLength(1);
+  });
+
+  it('a press that is handled after the answer came back, and before the card has shown it, does not review the card again', async () => {
+    const clock = holdPressClock();
+    const [first, second] = [questionCard(single), flash(2)];
+    serve([first, second]);
+    const answer = deferred<Response>();
+    handlers[post(first)] = () => answer.promise;
+    renderReview();
+    await cardHeading('Card 1 of 2: question');
+    clock.advance(SETTLE_MS);
+    await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
+    const check = button('Check');
+    await userEvent.click(check);
+    expect(calls(post(first))).toHaveLength(1);
+
+    // Inside one `act` nothing is rendered until it ends: the response is handled, and the button on
+    // screen is still "Check", as in the moment before React shows the feedback.
+    await act(async () => {
+      answer.resolve(json(200, moved(2, '2026-11-12', 2, { feedback: right })));
+      await new Promise((r) => setTimeout(r, 20));
+      fireEvent.click(check);
+      fireEvent.click(check);
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(calls(post(first))).toHaveLength(1);
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(within(result()).getByText('Correct')).toBeInTheDocument();
   });
 
   it('a press straight after a card could not be saved does not skip it, and one straight after the summary appears does not load more', async () => {
