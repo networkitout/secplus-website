@@ -5,10 +5,10 @@ import type { Answer, Feedback } from '../../../../shared/types.js';
 import { requireAuth } from '../../http.js';
 import { AnswerShapeError, answerSchema, feedbackFor, grade, toPublicQuestion } from '../../services/scoring.js';
 import { dueOn, nextBox } from '../../services/leitner.js';
-import { localDate } from '../../services/time.js';
+import { localDate, safeTimeZone } from '../../services/time.js';
 import { XP } from '../../services/xp.js';
-import { awardXp } from '../xp/repo.js';
-import { cardExists, dueCards, findCard, moveCard } from './repo.js';
+import { awardXp, evaluateBadges } from '../xp/repo.js';
+import { cardExists, dueCards, findCard, moveCard, nextDueOn } from './repo.js';
 
 const DUE_LIMIT = 30;
 const questionBody = z.object({ answer: answerSchema }).strict();
@@ -22,7 +22,7 @@ export function reviewRouter(deps: AppDeps): Router {
   router.get('/due', async (req, res) => {
     const user = req.user!;
     const today = localDate(now(), user.timeZone);
-    const due = await dueCards(db, content, user.id, today);
+    const [due, next] = await Promise.all([dueCards(db, content, user.id, today), nextDueOn(db, content, user.id, today)]);
     const cards = due.slice(0, DUE_LIMIT).map((c) => {
       if (c.cardId.startsWith('q:')) {
         const q = content.questions.get(c.cardId.slice(2))!;
@@ -31,7 +31,7 @@ export function reviewRouter(deps: AppDeps): Router {
       const f = content.flashcards.find((x) => x.id === c.cardId.slice(2))!;
       return { cardId: c.cardId, kind: 'flashcard' as const, term: f.term };
     });
-    res.json({ total: due.length, cards });
+    res.json({ total: due.length, cards, nextDueOn: next });
   });
 
   router.get('/flashcard/:cardId', async (req, res) => {
@@ -120,7 +120,17 @@ export function reviewRouter(deps: AppDeps): Router {
     if (correct && (await awardXp(db, { userId: user.id, amount: xpAmount, reason: xpReason, ref: `${cardId}@${today}`, now: t }))) {
       xp = xpAmount;
     }
-    res.json({ box, dueOn: due, ...(feedback && { feedback }), ...(definition !== undefined && { definition }), xp });
+    // After the writes, as for any other answer: a review can complete a streak or the hundredth correct attempt.
+    const newBadges = await evaluateBadges(db, user.id, safeTimeZone(user.timeZone), t);
+    res.json({
+      box,
+      previousBox: card.box,
+      dueOn: due,
+      ...(feedback && { feedback }),
+      ...(definition !== undefined && { definition }),
+      xp,
+      newBadges,
+    });
   });
 
   return router;

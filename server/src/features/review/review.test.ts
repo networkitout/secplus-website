@@ -92,10 +92,10 @@ test('flashcard knewIt=true promotes and awards flashcardKnown XP; knewIt=false 
 
   const known = await agent.post(`/api/review/${enc('f:f-1.1-001')}`).send({ knewIt: true });
   expect(known.status).toBe(200);
-  expect(known.body).toEqual({ box: 3, dueOn: '2026-11-14', definition: 'Definition 1.1', xp: 2 });
+  expect(known.body).toEqual({ box: 3, previousBox: 2, dueOn: '2026-11-14', definition: 'Definition 1.1', xp: 2, newBadges: [] });
 
   const missed = await agent.post(`/api/review/${enc('f:f-1.1-002')}`).send({ knewIt: false });
-  expect(missed.body).toEqual({ box: 1, dueOn: '2026-11-11', definition: 'Definition 1.2', xp: 0 });
+  expect(missed.body).toEqual({ box: 1, previousBox: 3, dueOn: '2026-11-11', definition: 'Definition 1.2', xp: 0, newBadges: [] });
   const [{ n }] = await db.query<{ n: number }>('SELECT COUNT(*) AS n FROM attempts WHERE user_id = ?', [user.id]);
   expect(Number(n)).toBe(0);
 });
@@ -177,4 +177,98 @@ test('addFlashcards does not reset cards the learner already has', async () => {
   await addFlashcards(db, user.id, ['f-1.1-001', 'f-1.1-002'], TODAY);
   expect(await row(db, user.id, 'f:f-1.1-001')).toEqual({ box: 4, due_on: '2026-11-18' });
   expect(await row(db, user.id, 'f:f-1.1-002')).toEqual({ box: 1, due_on: TODAY });
+});
+
+test('due reports nextDueOn: the earliest date after today among this learner\'s cards that still exist, or null', async () => {
+  const { db, user, agent } = await setup();
+  // No cards at all.
+  expect((await agent.get('/api/review/due')).body).toEqual({ total: 0, cards: [], nextDueOn: null });
+
+  // Only future cards: nothing is due, and the earliest of them is the next review.
+  await card(db, user.id, 'q:q-1.1-001', 2, '2026-11-14');
+  await card(db, user.id, 'f:f-1.1-001', 1, '2026-11-12');
+  expect((await agent.get('/api/review/due')).body).toEqual({ total: 0, cards: [], nextDueOn: '2026-11-12' });
+
+  // A card whose content is gone does not count, nor does another learner's card.
+  await card(db, user.id, 'f:f-gone-999', 1, '2026-11-11');
+  await card(db, user.id, 'q:q-gone-999', 1, '2026-11-11');
+  const other = await createUser(db);
+  await card(db, other.id, 'f:f-1.1-002', 1, '2026-11-11');
+  expect((await agent.get('/api/review/due')).body.nextDueOn).toBe('2026-11-12');
+
+  // A card that is due today is in the list; "next" stays the first date after today.
+  await card(db, user.id, 'f:f-1.1-002', 1, TODAY);
+  const res = await agent.get('/api/review/due');
+  expect(res.body.total).toBe(1);
+  expect(res.body.nextDueOn).toBe('2026-11-12');
+});
+
+test('nextDueOn follows the learner time zone', async () => {
+  // 12:00 UTC on 11-10 is already 11-11 in Auckland: a card for 11-11 is due there, not "next".
+  const nz = await setup('Pacific/Auckland');
+  await card(nz.db, nz.user.id, 'f:f-1.1-001', 1, '2026-11-11');
+  await card(nz.db, nz.user.id, 'f:f-1.1-002', 1, '2026-11-13');
+  const res = await nz.agent.get('/api/review/due');
+  expect(res.body.total).toBe(1);
+  expect(res.body.nextDueOn).toBe('2026-11-13');
+});
+
+test('a review response carries previousBox: a right answer in box 5 stays there, a wrong one reports where it fell from', async () => {
+  const { db, user, agent } = await setup();
+  await card(db, user.id, 'q:q-1.1-001', 5, TODAY);
+  await card(db, user.id, 'f:f-1.1-001', 5, TODAY);
+  await card(db, user.id, 'f:f-1.1-002', 1, TODAY);
+  await card(db, user.id, 'f:f-1.2-001', 4, TODAY);
+  const top = await agent.post(`/api/review/${enc('q:q-1.1-001')}`).send(RIGHT);
+  expect(top.body).toMatchObject({ box: 5, previousBox: 5, dueOn: '2026-11-26' });
+  const topCard = await agent.post(`/api/review/${enc('f:f-1.1-001')}`).send({ knewIt: true });
+  expect(topCard.body).toMatchObject({ box: 5, previousBox: 5 });
+  const up = await agent.post(`/api/review/${enc('f:f-1.1-002')}`).send({ knewIt: true });
+  expect(up.body).toMatchObject({ box: 2, previousBox: 1 });
+  const down = await agent.post(`/api/review/${enc('f:f-1.2-001')}`).send({ knewIt: false });
+  expect(down.body).toMatchObject({ box: 1, previousBox: 4 });
+});
+
+test('a review that completes a 3-day streak returns streak-3 once; a second review the same day returns no new badge', async () => {
+  const { db, user, agent } = await setup();
+  for (const daysAgo of [1, 2]) {
+    await db.exec('INSERT INTO xp_events (user_id, amount, reason, ref, created_at) VALUES (?, 5, ?, ?, ?)', [
+      user.id,
+      'first-correct',
+      `earlier-${daysAgo}`,
+      new Date(now.getTime() - daysAgo * 86_400_000),
+    ]);
+  }
+  await card(db, user.id, 'f:f-1.1-001', 1, TODAY);
+  await card(db, user.id, 'f:f-1.1-002', 1, TODAY);
+  await card(db, user.id, 'q:q-1.1-001', 1, TODAY);
+
+  // Not known: no XP today, so the streak still ends yesterday at two days.
+  const missed = await agent.post(`/api/review/${enc('f:f-1.1-001')}`).send({ knewIt: false });
+  expect(missed.body).toMatchObject({ xp: 0, newBadges: [] });
+
+  const first = await agent.post(`/api/review/${enc('f:f-1.1-002')}`).send({ knewIt: true });
+  expect(first.status).toBe(200);
+  expect(first.body).toMatchObject({ xp: 2, newBadges: ['streak-3'] });
+  const held = await db.query<{ badge_id: string; earned_at: Date }>('SELECT badge_id, earned_at FROM badges WHERE user_id = ?', [user.id]);
+  expect(held.map((b) => b.badge_id)).toEqual(['streak-3']);
+  expect(new Date(held[0]!.earned_at).toISOString()).toBe(now.toISOString());
+
+  const second = await agent.post(`/api/review/${enc('q:q-1.1-001')}`).send(RIGHT);
+  expect(second.body).toMatchObject({ xp: 2, newBadges: [] });
+  expect(await db.query('SELECT 1 FROM badges WHERE user_id = ?', [user.id])).toHaveLength(1);
+});
+
+test('the hundredth correct attempt, made in a review, returns hundred-correct; a rejected review evaluates nothing', async () => {
+  const { db, user, agent } = await setup();
+  for (let i = 0; i < 99; i++) {
+    await db.exec("INSERT INTO attempts (user_id, question_id, correct, context, created_at) VALUES (?, 'q-1.1-002', 1, 'quiz', ?)", [user.id, now]);
+  }
+  await card(db, user.id, 'q:q-1.1-001', 1, TODAY);
+  await card(db, user.id, 'q:q-1.1-002', 1, '2026-11-11');
+  // Not due: 409, and no badge is written on the way out.
+  expect((await agent.post(`/api/review/${enc('q:q-1.1-002')}`).send(RIGHT)).status).toBe(409);
+  expect(await db.query('SELECT 1 FROM badges WHERE user_id = ?', [user.id])).toHaveLength(0);
+  const res = await agent.post(`/api/review/${enc('q:q-1.1-001')}`).send(RIGHT);
+  expect(res.body.newBadges).toEqual(['hundred-correct']);
 });
