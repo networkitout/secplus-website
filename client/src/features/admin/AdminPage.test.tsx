@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminUser, User } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { formatInstant } from '../../lib/dates';
+import { holdPressClock } from '../../test/pressClock';
+import { SETTLE_MS } from '../../ui/pressGuard';
 import { AuthContext } from '../auth/AuthProvider';
 import { AdminPage } from './AdminPage';
 
@@ -292,6 +294,34 @@ describe('admin', () => {
     expect(create).not.toHaveAttribute('aria-busy');
     expect(screen.queryByText('Making the invite link…')).not.toBeInTheDocument();
     expect(calls(INVITES)).toHaveLength(1);
+  });
+
+  // The second press of a double click or double tap arrives when the first link is already on screen: the
+  // server answers faster than the two presses follow each other.
+  it('a press that arrives straight after a link appeared does not make a second link over the unread one', async () => {
+    let made = 0;
+    handlers[INVITES] = () => json(200, { url: `/invite/tok-${(made += 1)}`, expiresAt: EXPIRES });
+    renderAdmin();
+    await rowOf('Bo');
+    const clock = holdPressClock();
+    clock.advance(SETTLE_MS);
+    const create = button('Create invite link');
+    await userEvent.click(create);
+    const field = within(await screen.findByRole('region', { name: 'Invite link' })).getByRole('textbox');
+    expect(field).toHaveValue(`${window.location.origin}/invite/tok-1`);
+
+    clock.advance(SETTLE_MS - 1);
+    await userEvent.click(create);
+    await userEvent.click(button('Password reset link for Bo'));
+    expect(calls(INVITES)).toHaveLength(1);
+    expect(screen.getByRole('region', { name: 'Invite link' })).toBeInTheDocument();
+    expect(create).toBeEnabled();
+
+    // After the pause the admin can make the next link on purpose.
+    clock.advance(1);
+    await userEvent.click(create);
+    await waitFor(() => expect(calls(INVITES)).toHaveLength(2));
+    expect(within(await screen.findByRole('region', { name: 'Invite link' })).getByRole('textbox')).toHaveValue(`${window.location.origin}/invite/tok-2`);
   });
 
   it('a reset link that is being made shows on its own button, and other link buttons wait for it', async () => {
