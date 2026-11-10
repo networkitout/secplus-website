@@ -49,7 +49,8 @@ test('tx commits on success', async () => {
 describe('testApp guards', () => {
   const saved = { test: process.env.TEST_DATABASE_URL, main: process.env.DATABASE_URL };
   afterEach(() => {
-    process.env.TEST_DATABASE_URL = saved.test;
+    if (saved.test === undefined) delete process.env.TEST_DATABASE_URL;
+    else process.env.TEST_DATABASE_URL = saved.test;
     if (saved.main === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = saved.main;
   });

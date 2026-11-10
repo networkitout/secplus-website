@@ -13,7 +13,8 @@ try {
   const applied = await migrate(db);
   if (applied.length) console.log(`Applied migrations: ${applied.join(', ')}`);
 } catch (err) {
-  console.error('Database unavailable at startup:', err instanceof Error ? err.message : err);
+  const e = err as { code?: string; message?: string };
+  console.error(`Database unavailable at startup: ${[e.code, e.message].filter(Boolean).join(' ') || String(err)}`);
   process.exit(1);
 }
 

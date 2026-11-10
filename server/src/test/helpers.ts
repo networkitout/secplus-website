@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import type { Express } from 'express';
 import request from 'supertest';
 import { createApp } from '../app.js';
+import { CSRF_HEADER, CSRF_VALUE } from '../http.js';
 import { loadContent, type Content } from '../content/loader.js';
 import { connect, type Db } from '../db/db.js';
 import { migrate } from '../db/migrate.js';
@@ -83,7 +84,7 @@ export async function createUser(
 }
 
 export async function loginAs(app: Express, user: { login: string; password: string }): Promise<TestAgent> {
-  const agent = request.agent(app).set('X-Requested-With', 'XMLHttpRequest');
+  const agent = request.agent(app).set(CSRF_HEADER, CSRF_VALUE);
   const res = await agent.post('/api/auth/login').send({ login: user.login, password: user.password });
   if (res.status !== 200) throw new Error(`loginAs failed for ${user.login}: ${res.status} ${res.text}`);
   return agent;
