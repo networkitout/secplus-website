@@ -845,7 +845,7 @@
     "objective": "1.4",
     "difficulty": 1,
     "type": "single",
-    "prompt": "A smartphone compares each fingerprint scan with its stored fingerprint data, and performs key operations, in an isolated area of its main processor. Even if the phone's operating system is compromised, it cannot read what is inside that area. What is this area called?",
+    "prompt": "A smartphone compares each fingerprint scan with its stored fingerprint data, and performs cryptographic key operations, in an isolated area of its main processor. Even if the phone's operating system is compromised, it cannot read what is inside that area. What is this area called?",
     "options": [
       { "id": "a", "text": "Secure enclave" },
       { "id": "b", "text": "Trusted Platform Module (TPM)" },
@@ -885,14 +885,14 @@
   {
     "id": "q-1.4-041",
     "objective": "1.4",
-    "difficulty": 3,
+    "difficulty": 2,
     "type": "multi",
     "prompt": "A trainee keeps confusing the Trusted Platform Module (TPM) with the hardware security module (HSM). Which statements describe a TPM rather than an HSM? (Choose two.)",
     "options": [
       { "id": "a", "text": "It is dedicated hardware that many servers share over the network" },
-      { "id": "b", "text": "It is a chip on the motherboard, bound to that one device" },
+      { "id": "b", "text": "It is a chip on the motherboard, bound to the one device it is built into" },
       { "id": "c", "text": "It supports measured boot by recording hashes of startup components" },
-      { "id": "d", "text": "It is built for high-volume signing, such as a CA's certificate signing" },
+      { "id": "d", "text": "It is built for high-volume signing, such as a CA signing its customers' certificates" },
       { "id": "e", "text": "It holds copies of keys so that lost keys can be recovered" }
     ],
     "correct": ["b", "c"],
@@ -910,7 +910,7 @@
     "objective": "1.4",
     "difficulty": 2,
     "type": "single",
-    "prompt": "Kestrel Bank revoked a server certificate on Monday after its private key was stolen. Client software that checks revocation only against a list the CA publishes once a week kept accepting the certificate until the next list came out. Which mechanism lets a client ask for the current status of that one certificate on demand?",
+    "prompt": "Kestrel Bank's CA revoked a server certificate on Monday after the bank reported its private key stolen. Client software that checks revocation only against a list the CA publishes once a week kept accepting the certificate until the next list came out. Which mechanism lets a client ask for the current status of that one certificate on demand?",
     "options": [
       { "id": "a", "text": "OCSP" },
       { "id": "b", "text": "A CRL" },
@@ -930,22 +930,30 @@
     "id": "q-1.4-043",
     "objective": "1.4",
     "difficulty": 1,
-    "type": "single",
-    "prompt": "A CA regularly publishes a signed file that contains the serial numbers of the certificates it has revoked. Client software downloads the file from time to time and checks certificates against it. What is this file?",
-    "options": [
-      { "id": "a", "text": "A certificate signing request (CSR)" },
-      { "id": "b", "text": "A wildcard certificate" },
-      { "id": "c", "text": "A stapled OCSP response" },
-      { "id": "d", "text": "A certificate revocation list (CRL)" }
+    "type": "match",
+    "prompt": "Match each certificate term to the description that fits it.",
+    "left": [
+      { "id": "l1", "text": "Certificate revocation list (CRL)" },
+      { "id": "l2", "text": "Online Certificate Status Protocol (OCSP)" },
+      { "id": "l3", "text": "Certificate signing request (CSR)" },
+      { "id": "l4", "text": "Wildcard certificate" },
+      { "id": "l5", "text": "Self-signed certificate" }
     ],
-    "correct": "d",
-    "why": {
-      "a": "A CSR is sent by an applicant to a CA to request a certificate. It lists no revoked certificates.",
-      "b": "A wildcard certificate covers every hostname one level below a domain. It is a certificate, not a list of revoked ones.",
-      "c": "An OCSP response gives the status of one certificate. It is not a file listing every revoked serial number.",
-      "d": "A CRL is the CA's signed, periodically published list of the serial numbers of revoked certificates."
+    "right": [
+      { "id": "r1", "text": "A certificate that covers every hostname one level below a domain" },
+      { "id": "r2", "text": "An applicant's public key and identifying details, sent to a CA to obtain a certificate" },
+      { "id": "r3", "text": "A signed list of the serial numbers of revoked certificates, published by the CA on a schedule" },
+      { "id": "r4", "text": "A certificate signed with its own private key instead of by a CA" },
+      { "id": "r5", "text": "A query that returns the status of one certificate: good, revoked or unknown" }
+    ],
+    "correct": {
+      "l1": "r3",
+      "l2": "r5",
+      "l3": "r2",
+      "l4": "r1",
+      "l5": "r4"
     },
-    "explanation": "A certificate revocation list (CRL) is a signed list of the serial numbers of revoked certificates, which the CA publishes periodically and clients download."
+    "explanation": "CRL: the CA's periodically published list of revoked serial numbers. OCSP: an on-demand status query about one certificate. CSR: the request, carrying the public key, that an applicant sends to a CA. Wildcard: one certificate for all hostnames one level below a domain. Self-signed: signed by its own key, with no CA vouching for it."
   },
   {
     "id": "q-1.4-044",
@@ -1017,11 +1025,11 @@
     "type": "categorize",
     "prompt": "Decide which tool each statement describes.",
     "items": [
-      { "id": "t1", "text": "Forty payment servers send signing requests over the network to shared hardware that the keys never leave" },
+      { "id": "t1", "text": "Build servers send requests to sign software updates to a shared, tamper-resistant device that the signing key never leaves" },
       { "id": "t2", "text": "A laptop releases its disk encryption key only if its startup components match the hashes recorded earlier" },
       { "id": "t3", "text": "One policy rotates every application's encryption keys every 90 days and logs each use of a key" },
       { "id": "t4", "text": "A CA keeps its signing key in a dedicated, tamper-resistant appliance in its data center" },
-      { "id": "t5", "text": "A phone checks fingerprints in an isolated area of its processor that the operating system cannot read" },
+      { "id": "t5", "text": "A laptop's processor runs payment-credential code in an isolated area that the operating system cannot inspect" },
       { "id": "t6", "text": "A key is tied to a chip on one PC's motherboard and cannot be used on any other PC" },
       { "id": "t7", "text": "A cloud provider rents out dedicated, tamper-resistant hardware in which a customer's keys are generated and used" }
     ],

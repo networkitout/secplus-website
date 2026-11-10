@@ -332,8 +332,8 @@
   {
     "id": "f-1.4-056",
     "objective": "1.4",
-    "term": "Forward secrecy (PFS)",
-    "definition": "Also called perfect forward secrecy. Each session uses fresh, temporary keys, so a server private key stolen later cannot decrypt recorded past sessions."
+    "term": "Perfect forward secrecy (PFS)",
+    "definition": "Also called forward secrecy. Each session uses fresh, temporary (ephemeral) keys, so a server private key stolen later cannot decrypt recorded past sessions."
   },
   {
     "id": "f-1.4-057",
