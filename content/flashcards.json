@@ -57,7 +57,7 @@
     "id": "f-1.4-010",
     "objective": "1.4",
     "term": "Key length",
-    "definition": "The number of bits in a key. Longer is stronger within one algorithm; lengths cannot be compared across different algorithm families."
+    "definition": "The number of bits in a key. Longer is stronger within one algorithm; lengths cannot be compared between different algorithms."
   },
   {
     "id": "f-1.4-011",
@@ -75,13 +75,13 @@
     "id": "f-1.4-013",
     "objective": "1.4",
     "term": "DES, 3DES and RC4",
-    "definition": "Older symmetric ciphers that are deprecated or insecure and should be replaced with AES or ChaCha20."
+    "definition": "Data Encryption Standard, Triple DES and Rivest Cipher 4. Older symmetric ciphers that are deprecated or insecure; replace them with AES or ChaCha20."
   },
   {
     "id": "f-1.4-014",
     "objective": "1.4",
     "term": "RSA",
-    "definition": "An asymmetric algorithm used for encryption and digital signatures. Keys of 2048 bits are the minimum in current practice."
+    "definition": "Rivest-Shamir-Adleman, named after its inventors. An asymmetric algorithm used for encryption and digital signatures. Keys of 2048 bits are the minimum in current practice."
   },
   {
     "id": "f-1.4-015",
@@ -93,13 +93,13 @@
     "id": "f-1.4-016",
     "objective": "1.4",
     "term": "SHA-2 and SHA-3",
-    "definition": "The current secure hash algorithm families. SHA-256 is a member of SHA-2."
+    "definition": "Secure Hash Algorithm 2 and 3: the current, secure hash algorithms. SHA-256 is part of SHA-2."
   },
   {
     "id": "f-1.4-017",
     "objective": "1.4",
     "term": "MD5 and SHA-1",
-    "definition": "Older hash algorithms that are broken for collision resistance. Do not use them for signatures or certificates."
+    "definition": "Message Digest 5 and Secure Hash Algorithm 1. Older hashes that are broken for collision resistance; do not use them for signatures or certificates."
   },
   {
     "id": "f-1.4-018",
@@ -129,7 +129,7 @@
     "id": "f-1.4-022",
     "objective": "1.4",
     "term": "Database encryption",
-    "definition": "Encrypts a database's data files, logs and backups on disk. Transparent database encryption does this without changes to applications."
+    "definition": "Encrypts a database's data files, logs and backups on disk. Transparent data encryption (TDE) does this without changes to applications."
   },
   {
     "id": "f-1.4-023",
@@ -147,13 +147,13 @@
     "id": "f-1.4-025",
     "objective": "1.4",
     "term": "TLS",
-    "definition": "Transport Layer Security. Its handshake uses asymmetric cryptography to authenticate the server and agree keys; symmetric session keys then encrypt the data."
+    "definition": "Transport Layer Security. Its handshake uses asymmetric cryptography to authenticate the server and agree on keys; symmetric session keys then encrypt the data."
   },
   {
     "id": "f-1.4-026",
     "objective": "1.4",
     "term": "Session key",
-    "definition": "A temporary symmetric key agreed for one connection, such as a TLS session, and used to encrypt that connection's data."
+    "definition": "A temporary symmetric key set up for one connection, such as a TLS session, and used to encrypt that connection's data."
   },
   {
     "id": "f-1.4-027",
@@ -237,7 +237,7 @@
     "id": "f-1.4-040",
     "objective": "1.4",
     "term": "HMAC",
-    "definition": "A hash calculated with a shared secret key. Provides integrity and authenticity, but not non-repudiation."
+    "definition": "Hash-based message authentication code. A hash calculated with a shared secret key. Provides integrity and authenticity, but not non-repudiation."
   },
   {
     "id": "f-1.4-041",
@@ -285,7 +285,7 @@
     "id": "f-1.4-048",
     "objective": "1.4",
     "term": "Self-signed certificate",
-    "definition": "A certificate signed with its own private key instead of by a CA. It can encrypt, but nothing vouches for the identity, so browsers warn."
+    "definition": "A certificate signed with its own private key instead of by a CA. Unless it is in the trust store, as root CA certificates are, browsers warn about it."
   },
   {
     "id": "f-1.4-049",
@@ -310,5 +310,41 @@
     "objective": "1.4",
     "term": "Online Certificate Status Protocol (OCSP)",
     "definition": "A protocol for asking whether one certificate is good, revoked or unknown, in close to real time."
+  },
+  {
+    "id": "f-1.4-053",
+    "objective": "1.4",
+    "term": "ECDSA",
+    "definition": "Elliptic Curve Digital Signature Algorithm. An asymmetric algorithm that creates and verifies digital signatures using short elliptic curve keys."
+  },
+  {
+    "id": "f-1.4-054",
+    "objective": "1.4",
+    "term": "ECDH",
+    "definition": "Elliptic Curve Diffie-Hellman. A Diffie-Hellman key exchange carried out with elliptic curve keys."
+  },
+  {
+    "id": "f-1.4-055",
+    "objective": "1.4",
+    "term": "PBKDF2",
+    "definition": "Password-Based Key Derivation Function 2. A key-stretching function that repeats a hash many thousands of times to make each password guess expensive."
+  },
+  {
+    "id": "f-1.4-056",
+    "objective": "1.4",
+    "term": "Forward secrecy (PFS)",
+    "definition": "Also called perfect forward secrecy. Each session uses fresh, temporary keys, so a server private key stolen later cannot decrypt recorded past sessions."
+  },
+  {
+    "id": "f-1.4-057",
+    "objective": "1.4",
+    "term": "Transparent data encryption (TDE)",
+    "definition": "Database encryption that encrypts data files, logs and backups on disk automatically. Anyone who can query the running database still sees plaintext."
+  },
+  {
+    "id": "f-1.4-058",
+    "objective": "1.4",
+    "term": "Intermediate CA",
+    "definition": "A CA signed by the root CA that issues certificates to servers. It lets the root key stay offline, and it can be revoked without replacing the root."
   }
 ]

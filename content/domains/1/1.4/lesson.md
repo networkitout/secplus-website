@@ -8,7 +8,7 @@ minutes: 20
 
 **Encryption** turns readable data (plaintext) into unreadable data (ciphertext) using an algorithm and a key. The algorithm is public knowledge. The protection comes from keeping the key secret.
 
-Cryptography questions on the exam are about choosing the right tool for a goal: confidentiality (only the right people can read it), integrity (it has not been changed), authentication (it really came from who it claims) or non-repudiation (the sender cannot later deny sending it).
+Exam questions are about choosing the right tool for a goal: confidentiality (only the right people can read it), integrity (it has not been changed), authentication (it really came from who it claims) or non-repudiation (the sender cannot later deny sending it).
 
 **Symmetric encryption** uses one shared key to encrypt and to decrypt. It is fast, so it does the heavy work: disks, databases, backups and network traffic. Its weakness is the key. Both sides need the same secret, and you cannot simply send it across a network you do not trust yet.
 
@@ -36,26 +36,26 @@ Diffie-Hellman is a key exchange algorithm only. It does not encrypt data, and o
 
 ## Algorithms and key length
 
-You do not need the mathematics. You do need to know which family each common algorithm belongs to and which ones are retired.
+You do not need the mathematics, only which family each common algorithm belongs to and which ones are retired.
 
 | Family | Algorithm | What to know |
 | --- | --- | --- |
-| Symmetric | AES | Block cipher with 128-, 192- or 256-bit keys. The current standard. |
+| Symmetric | AES (Advanced Encryption Standard) | Block cipher with 128-, 192- or 256-bit keys. The current standard. |
 | Symmetric | ChaCha20 | Stream cipher. A modern alternative to AES. |
-| Symmetric | DES, 3DES, RC4 | Deprecated or insecure. Replace them. |
-| Asymmetric | RSA | Encryption and digital signatures. 2048-bit keys are the minimum in current practice. |
-| Asymmetric | ECC (ECDSA for signatures, ECDH for key exchange) | Elliptic curve cryptography. Much shorter keys for comparable strength. |
+| Symmetric | DES (Data Encryption Standard), 3DES (Triple DES), RC4 (Rivest Cipher 4) | Deprecated or insecure. Replace them. |
+| Asymmetric | RSA (Rivest-Shamir-Adleman, its inventors) | Encryption and digital signatures. 2048-bit keys are the minimum in current practice. |
+| Asymmetric | ECC (elliptic curve cryptography): ECDSA (Elliptic Curve Digital Signature Algorithm) for signatures, ECDH (Elliptic Curve Diffie-Hellman) for key exchange | Much shorter keys than RSA for comparable strength. |
 | Asymmetric | Diffie-Hellman | Key exchange only, not encryption. |
-| Hash | SHA-2 family (such as SHA-256), SHA-3 | Current choices. |
-| Hash | MD5, SHA-1 | Broken for collision resistance: attackers can produce two inputs with the same hash. Do not use them for signatures or certificates. |
+| Hash | SHA-2 (Secure Hash Algorithm 2, which includes SHA-256), SHA-3 | Current choices. |
+| Hash | MD5 (Message Digest 5), SHA-1 | Broken for collision resistance: attackers can produce two inputs with the same hash. Do not use them for signatures or certificates. |
 
-A **block cipher** encrypts data in fixed-size blocks. A **stream cipher** encrypts it as a continuous stream. Hash functions are not encryption at all; they are covered in a later section, together with the password functions bcrypt, PBKDF2, scrypt and Argon2.
+A **block cipher** encrypts data in fixed-size blocks. A **stream cipher** encrypts it one bit or byte at a time. Hash functions are not encryption at all; a later section covers them.
 
-**Key length** is the number of bits in a key. Within one algorithm, a longer key means more possible keys and more work for an attacker who tries them all, at the cost of a little more processing. AES-256 is stronger than AES-128, and RSA-4096 is stronger than RSA-2048.
+**Key length** is the number of bits in a key. Within one algorithm, a longer key means more possible keys and more work for an attacker, but also more processing. AES-256 is stronger than AES-128. RSA-4096 is stronger than RSA-2048, and noticeably slower.
 
-Key lengths can only be compared **within the same algorithm family**. RSA and Diffie-Hellman are attacked with mathematics rather than by trying every key, so they need much longer keys than a symmetric cipher for the same strength. ECC needs far shorter keys than RSA: a 256-bit ECC key is roughly comparable to a 3072-bit RSA key.
+Key lengths can only be compared **within the same algorithm**. RSA and Diffie-Hellman are attacked with mathematics rather than by trying every key, so they need much longer keys than a symmetric cipher for the same strength. ECC needs far shorter keys than RSA: a 256-bit ECC key is roughly comparable to a 3072-bit RSA key.
 
-> **Common trap:** "The bigger number wins" is wrong across families. A 2048-bit RSA key is not stronger than a 256-bit AES key, and a 256-bit ECC key is not weaker than a 2048-bit RSA key.
+> **Common trap:** "The bigger number wins" is wrong across different algorithms, even two from the same family. A 2048-bit RSA key is not stronger than a 256-bit AES key, and a 256-bit ECC key is not weaker than a 2048-bit RSA key.
 
 :::check q-1.4-003
 
@@ -69,14 +69,14 @@ Stored data (data at rest) can be encrypted at different levels. The level decid
 | **Partition** | One partition (section) of a drive; other partitions are left unencrypted | Protecting a data partition without encrypting the rest | Anything outside that partition is readable |
 | **Volume** | One logical drive, which may be a single partition, span several disks, or be a container file that is mounted as a drive | An encrypted drive that can be mounted only when needed | Once mounted, its contents are available to the system |
 | **File** | Individual files or folders, often with a key tied to one user account | Keeping a file from other users of the same computer | Only the chosen files are covered |
-| **Database** | The database's data files, logs and backups. Transparent database encryption does this without changes to applications | Stolen database files, disks or backups | Anyone who can query the running database sees plaintext |
+| **Database** | The database's data files, logs and backups. Transparent data encryption (TDE) does this without changes to applications | Stolen database files, disks or backups | Anyone who can query the running database sees plaintext |
 | **Record** | Individual records (rows), or sensitive fields within them, each encrypted with a key the application controls | Hiding chosen data even from database administrators | More key management and slower queries |
 
-A laptop with full-disk encryption that is left in a taxi while switched off is a lost asset, not a data breach. The same laptop gives no protection against malware that runs while its user is logged in, because the operating system decrypts data for every running process.
+A switched-off laptop with full-disk encryption that is left in a taxi is a lost asset, not a data breach. The same laptop is not protected against malware that runs while its user is logged in, because the operating system decrypts data for every running process.
 
-The levels are layers, not rivals. A hospital might use full-disk encryption on a database server, transparent database encryption for the patient database, and record-level encryption for the fields that hold national ID numbers.
+The levels are layers, not rivals. A hospital might use full-disk encryption on a database server, TDE for the patient database, and record-level encryption for the fields that hold national ID numbers.
 
-All of these protect stored data. Data that moves across a network needs transport encryption, which has its own section below.
+All of these protect stored data. Data moving across a network needs transport encryption, covered in a later section.
 
 > **Exam tip:** Match the level to the threat. Stolen, powered-off device: full-disk. Other users of the same computer: file. Stolen database backups: database. Data that even an administrator must not read: record.
 
@@ -92,17 +92,17 @@ A **hash function** turns any input into a short, fixed-length value called a ha
 
 That makes hashing the tool for **integrity**. Download a firmware image, hash it, and compare the result with the hash the vendor published. If they match, the file is unchanged. Hashing gives no confidentiality: there is nothing to decrypt.
 
-A **collision** is two different inputs with the same hash. MD5 and SHA-1 are broken because attackers can create collisions on purpose.
+Two different inputs with the same hash are a **collision**, the weakness that broke MD5 and SHA-1.
 
 Systems store a hash of each password instead of the password itself. Plain hashing has two weaknesses. Two users with the same password have the same hash. And an attacker can use a **rainbow table**, a precomputed table of hashes for millions of likely passwords, and simply look up each stolen hash.
 
 **Salting** fixes both. A salt is a unique random value that is added to each password before hashing. It is stored next to the hash and is not secret. Identical passwords now produce different hashes, and a precomputed table is useless because it was not built with those salts.
 
-**Key stretching** makes every guess slow. The password is run through a function that is deliberately expensive, for example thousands of rounds of hashing. A login still takes a fraction of a second, but an attacker who needs billions of guesses is slowed enormously. The key-stretching functions to know are bcrypt, PBKDF2, scrypt and Argon2.
+**Key stretching** makes every guess slow. The password is run through a function that is deliberately expensive, for example thousands of rounds of hashing. A login still takes a fraction of a second, but an attacker who needs billions of guesses is slowed enormously. The key-stretching functions to know are bcrypt, PBKDF2 (Password-Based Key Derivation Function 2), scrypt and Argon2.
 
 :::diagram hashing-salting
 
-One more relative: an **HMAC** is a hash calculated with a shared secret key. A plain hash proves nothing if an attacker can change the message and then recompute the hash. An HMAC can only be produced by someone who holds the key, so it gives integrity and authenticity.
+One more relative: an **HMAC** (hash-based message authentication code) is a hash calculated with a shared secret key. A plain hash proves nothing if an attacker can change the message and then recompute the hash. An HMAC can only be produced by someone who holds the key, so it gives integrity and authenticity.
 
 :::check q-1.4-010
 
@@ -126,19 +126,19 @@ If the check passes, the message has not changed (integrity), it came from the h
 
 A **blockchain** applies the same ideas to record keeping. It is a distributed, append-only ledger: a record of transactions that is copied across many participants, where entries are added and never edited. Transactions are grouped into blocks, and each block contains the hash of the previous block. Change an old block and its hash changes, which breaks the link to every block after it. Tampering is therefore evident to everyone holding a copy.
 
-An **open public ledger** is a ledger that anyone can read and verify, not only its members. Public blockchains, such as those behind cryptocurrencies, are the usual example. An open public ledger provides transparency and integrity. It does not provide confidentiality, so it is no place for secrets.
+An **open public ledger** is a ledger that anyone can read and verify, not only its members. Public blockchains, such as those behind cryptocurrencies, are the usual example. An open public ledger provides transparency and integrity, not confidentiality, so it is no place for secrets.
 
 :::check q-1.4-015
 
 ## Obfuscation: steganography, tokenization and data masking
 
-**Obfuscation** means making data hard to find or hard to understand. The objectives list three techniques.
+**Obfuscation** means making data hard to find or hard to understand.
 
 **Steganography** hides the existence of data inside another file, such as an image, an audio clip or a video. For example, a message can be stored in tiny changes to the color values of pixels, which the eye cannot see. Attackers use it to smuggle data out of a network. It is not encryption: anyone who knows where to look can extract the data.
 
 **Tokenization** replaces a sensitive value with a random stand-in called a token. The real value is kept in a separate, heavily protected token vault, which holds the mapping between tokens and real values. A token has no mathematical relationship to the original, so there is no key that can reverse it. Stores use tokens so that their own systems never hold card numbers.
 
-**Data masking** hides part or all of a value from the person viewing it. A receipt that shows a card number as asterisks followed by the last four digits is masked. Masking is also used to make realistic test data that exposes no real customers.
+**Data masking** hides part or all of a value from the person viewing it. A receipt that shows a card number as asterisks followed by the last four digits is masked. Masked copies of real data are also used for testing.
 
 These techniques, encryption and hashing are easy to confuse. The difference is in how, and whether, the original can be recovered.
 
@@ -154,11 +154,13 @@ These techniques, encryption and hashing are easy to confuse. The difference is 
 
 ## Certificates and public key infrastructure
 
-Asymmetric encryption leaves one question open: how do you know that a public key really belongs to your bank? A **certificate** answers it. A certificate binds a public key to an identity, such as a hostname, and is digitally signed by a **certificate authority (CA)** that has checked the identity. **Public key infrastructure (PKI)** is the whole system of CAs, certificates, keys and processes used to issue, use and revoke certificates.
+How do you know that a public key really belongs to your bank? A **certificate** binds a public key to an identity, such as a hostname, and is digitally signed by a **certificate authority (CA)** that has checked the identity. **Public key infrastructure (PKI)** is the whole system of CAs, certificates, keys and processes used to issue, use and revoke certificates.
 
-CAs form a chain. At the top is the root CA, whose certificate is preinstalled in operating systems and browsers. It is the **root of trust**: the starting point that is trusted without further proof, and the reason everything beneath it is trusted. The root's private key is kept offline. The root signs intermediate CAs, and the intermediates issue the certificates that servers use. A client validates a certificate by walking the chain upward, checking each signature until it reaches a root it already trusts.
+CAs form a chain. At the top is the root CA, whose certificate is preinstalled in the trust store of operating systems and browsers. It is the **root of trust**: the starting point that is trusted without further proof, and the reason everything beneath it is trusted. The root signs intermediate CAs, and the intermediates issue the certificates that servers use. This design lets the root's private key stay offline, and a compromised intermediate can be revoked without replacing the root on every device. A client validates a certificate by walking the chain upward, checking each signature until it reaches a root it already trusts.
 
-A **third-party** certificate is issued by a public CA that browsers already trust. Use one for anything the public will reach. A **self-signed** certificate is signed with its own private key, so no CA vouches for it. It can still encrypt, but it proves no identity, and browsers warn about it. Self-signed certificates suit labs and internal devices. An organization can also run its own internal CA, whose certificates are trusted only by devices that have had its root certificate installed, such as company-managed computers.
+:::diagram pki-trust-chain
+
+A **third-party** certificate is issued by a public CA that browsers already trust. Use one for anything the public will reach. A **self-signed** certificate is signed with its own private key, so no CA vouches for it. A root CA's certificate is self-signed too; it is trusted only because it is preinstalled in the trust store. A self-signed certificate that is not in the trust store can still encrypt, but it proves no identity, and browsers warn about it. Such certificates suit labs and internal devices. An organization can also run its own internal CA, whose certificates are trusted only by devices that have had its root certificate installed, such as company-managed computers.
 
 Getting a certificate starts with **certificate signing request (CSR) generation**:
 
@@ -173,7 +175,7 @@ The private key never leaves the applicant. The CA never sees it.
 
 A **wildcard** certificate covers every hostname one level below a domain. A certificate for `*.example.com` covers `www.example.com` and `mail.example.com`. It does not cover `a.b.example.com`, which is two levels down. It also does not cover the bare `example.com`, unless that name is listed in the certificate as well.
 
-Certificates sometimes have to be cancelled before they expire, for instance when a private key is stolen. Clients can learn about revocation in two ways.
+A certificate may have to be revoked before it expires, for instance when its private key is stolen. Clients learn about revocation in two ways.
 
 | | Certificate revocation list (CRL) | Online Certificate Status Protocol (OCSP) |
 | --- | --- | --- |
@@ -183,49 +185,47 @@ Certificates sometimes have to be cancelled before they expire, for instance whe
 
 With OCSP stapling, the web server fetches its own OCSP response and attaches it to the handshake, which saves the client a separate query.
 
-:::diagram pki-trust-chain
-
 :::check q-1.4-023
 
 ## Transport encryption and the TLS handshake
 
-**Transport encryption**, also called communication encryption, protects data while it moves across a network (data in transit). Transport Layer Security (TLS) protects web traffic as HTTPS, as well as email and many other protocols. Virtual private network (VPN) tunnels and SSH sessions are other examples. Transport encryption stops eavesdropping and tampering on the path. It does nothing for the data once it has arrived and been stored.
+**Transport encryption**, also called communication encryption, protects data while it moves across a network (data in transit). Transport Layer Security (TLS) protects web traffic as HTTPS, as well as email and many other protocols. Virtual private network (VPN) tunnels and Secure Shell (SSH) sessions are other examples. Transport encryption stops eavesdropping and tampering on the path. It does nothing for the data once it has arrived and been stored.
 
-The TLS handshake uses nearly everything in this lesson. In TLS 1.2 it runs like this:
+In TLS 1.2 the handshake runs like this:
 
-1. **Hello.** The client lists the TLS versions and cipher suites (sets of algorithms) it supports. The server chooses from the list.
+1. **Hello.** The client offers its TLS version and cipher suites (sets of algorithms). The server chooses from what was offered.
 2. **Certificate.** The server sends its certificate. The client validates it against a trusted root.
-3. **Key exchange.** The two sides agree a secret, usually with a form of Diffie-Hellman. The server signs its part with the private key that matches its certificate, which proves it is the certificate's real owner.
+3. **Key exchange.** The two sides agree on a secret, usually with a form of Diffie-Hellman. The server signs its part with the private key that matches its certificate, which proves it is the certificate's real owner.
 4. **Session keys.** Both sides derive the same symmetric session keys from that secret.
 5. **Encrypted data.** Everything after that is encrypted with the session keys, using a symmetric cipher such as AES or ChaCha20.
 
-This is the hybrid model in action. Asymmetric cryptography authenticates the server and agrees the keys. Symmetric session keys encrypt the data.
+:::diagram tls-handshake
+
+This is the hybrid model in action. Asymmetric cryptography authenticates the server and agrees on the keys. Symmetric session keys encrypt the data.
 
 The versions differ in ways worth knowing:
 
 - TLS 1.2 also allows an older RSA key exchange, in which the client encrypts a secret with the server's public key.
-- TLS 1.3 removed that option. Its key exchange uses Diffie-Hellman with fresh, temporary keys for each session. It also sends the key exchange values inside the hello messages, so the handshake needs fewer round trips, and it dropped weak ciphers such as RC4 and 3DES.
-- SSL, TLS 1.0 and TLS 1.1 are deprecated and should be disabled.
-
-:::diagram tls-handshake
+- TLS 1.3 removed that option. Its key exchange uses Diffie-Hellman with fresh, temporary keys for each session, so a server key stolen later cannot decrypt recorded sessions. This is forward secrecy, also called perfect forward secrecy (PFS). TLS 1.3 also sends the key exchange values inside the hello messages, which saves a round trip, and it dropped weak ciphers such as RC4 and 3DES.
+- SSL (Secure Sockets Layer, the predecessor of TLS), TLS 1.0 and TLS 1.1 are deprecated and should be disabled.
 
 :::check q-1.4-030
 
 ## Protecting the keys: tools and key escrow
 
-Every technique above fails if the keys are stolen or lost. Four tools in the objectives exist to protect keys.
+Every technique above fails if the keys are stolen or lost. Four tools protect keys.
 
 | Tool | What it is | Typical use |
 | --- | --- | --- |
 | **Trusted Platform Module (TPM)** | A chip on the motherboard, bound to that one device | Storing the device's disk encryption key. It also supports measured boot: it records hashes of the startup components, so the key can be withheld if the startup has been tampered with |
-| **Hardware security module (HSM)** | A dedicated, tamper-resistant device or cloud service that generates, stores and uses keys, which never leave it | A CA's signing keys, payment processing, and other high-volume work shared by many servers |
+| **Hardware security module (HSM)** | A dedicated, tamper-resistant device or cloud service, usually reached over the network, that generates, stores and uses keys, which never leave it | A CA's signing keys, payment processing, and other high-volume work shared by many servers |
 | **Key management system** | A central service that manages keys through their lifecycle: creation, rotation and revocation | Keeping track of many keys across many applications, with access rules and logging |
 | **Secure enclave** | An isolated, protected processing area inside a processor or device, separate from the main operating system | Handling fingerprint data and keys on a phone, which stay protected even if the operating system is compromised |
 
-The pair most often confused is the TPM and the HSM. A TPM belongs to one computer and protects that computer's keys. An HSM is a separate device or service that protects keys for many systems, at scale.
+The pair most often confused: a TPM belongs to one computer and protects that computer's keys, while an HSM is separate hardware that protects keys for many systems.
 
-**Key escrow** deals with the opposite risk: losing a key. A trusted third party holds a copy of the keys so that encrypted data can be recovered if a key is lost or its owner leaves the organization. The trade-off is that the escrow is one more place where keys exist, so access to it must be tightly controlled.
+**Key escrow** deals with the opposite risk: losing a key. A trusted third party holds a copy of the keys so that encrypted data can be recovered if a key is lost or its owner leaves the organization. The escrow is one more place where keys exist, so access to it must be tightly controlled.
 
-> **Exam tip:** Decide whether the scenario is about protecting a key or recovering one. One device's keys: TPM. Keys for many systems, in tamper-resistant hardware: HSM. Managing the lifecycle of keys centrally: key management system. An isolated area inside a processor: secure enclave. Getting data back after a key is lost: key escrow.
+> **Exam tip:** One device's keys: TPM. Keys for many systems, in tamper-resistant hardware: HSM. Central management of the key lifecycle: key management system. An isolated area inside a processor: secure enclave. Recovering data after a key is lost: key escrow.
 
 :::check q-1.4-034
