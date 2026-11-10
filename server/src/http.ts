@@ -7,7 +7,16 @@ import { hashToken, newToken } from './features/auth/tokens.js';
 export const CSRF_HEADER = 'x-requested-with';
 export const CSRF_VALUE = 'secplus';
 
-export const SESSION_COOKIE = 'sid';
+/**
+ * The session cookie's name. With `Secure` it carries the `__Host-` prefix: a browser then accepts it only
+ * from this host, over a secure connection, with `Path=/` and no `Domain`, so a sibling subdomain cannot
+ * plant a session cookie. The prefix needs `Secure`, so plain-http development keeps the bare name. Only
+ * the name of the current mode is ever read, set or cleared.
+ */
+export function sessionCookieName(secure: boolean): string {
+  return secure ? '__Host-sid' : 'sid';
+}
+
 export const SESSION_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TOUCH_INTERVAL_MS = 60_000;
@@ -66,9 +75,10 @@ export function requireCsrfHeader(req: Request, res: Response, next: NextFunctio
 export function readSessionCookie(req: Request): string | undefined {
   const header = req.headers.cookie;
   if (!header) return undefined;
+  const name = sessionCookieName(depsOf(req).secureCookies);
   for (const part of header.split(';')) {
     const i = part.indexOf('=');
-    if (i > 0 && part.slice(0, i).trim() === SESSION_COOKIE) {
+    if (i > 0 && part.slice(0, i).trim() === name) {
       try {
         return decodeURIComponent(part.slice(i + 1).trim());
       } catch {
@@ -85,16 +95,16 @@ function cookieOptions(deps: AppDeps, expires: Date) {
 
 export function clearSessionCookie(req: Request, res: Response): void {
   const deps = depsOf(req);
-  res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: 'lax', secure: deps.secureCookies, path: '/' });
+  res.clearCookie(sessionCookieName(deps.secureCookies), { httpOnly: true, sameSite: 'lax', secure: deps.secureCookies, path: '/' });
 }
 
-/** Creates a session row for the user and sets the `sid` cookie. */
+/** Creates a session row for the user and sets the session cookie. */
 export async function startSession(req: Request, res: Response, userId: number): Promise<void> {
   const deps = depsOf(req);
   const { token, hash } = newToken();
   const expires = new Date(deps.now().getTime() + SESSION_DAYS * DAY_MS);
   await deps.db.exec('INSERT INTO sessions (id_hash, user_id, expires_at) VALUES (?, ?, ?)', [hash, userId, expires]);
-  res.cookie(SESSION_COOKIE, token, cookieOptions(deps, expires));
+  res.cookie(sessionCookieName(deps.secureCookies), token, cookieOptions(deps, expires));
 }
 
 export const requireAuth: RequestHandler = async (req, res, next) => {
@@ -129,7 +139,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
       const expires = new Date(now.getTime() + SESSION_DAYS * DAY_MS);
       await deps.db.exec('UPDATE users SET last_active_at = ? WHERE id = ?', [now, row.id]);
       await deps.db.exec('UPDATE sessions SET expires_at = ? WHERE id_hash = ?', [expires, idHash]);
-      res.cookie(SESSION_COOKIE, sid, cookieOptions(deps, expires));
+      res.cookie(sessionCookieName(deps.secureCookies), sid, cookieOptions(deps, expires));
     }
     req.user = { id: row.id, login: row.login, name: row.name, role: row.role, timeZone: row.time_zone };
     next();

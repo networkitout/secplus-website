@@ -8,6 +8,8 @@ const DAY_MS = 86_400_000;
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
 function formatterFor(tz: string): Intl.DateTimeFormat | undefined {
+  // Names only: `Intl` also takes UTC offsets such as "+05:00", which are not time zones a learner lives in.
+  if (!/^[A-Za-z]/.test(tz)) return undefined;
   const key = tz.toLowerCase();
   let formatter = formatters.get(key);
   if (!formatter) {
@@ -21,8 +23,14 @@ function formatterFor(tz: string): Intl.DateTimeFormat | undefined {
   return formatter;
 }
 
+/** The one time-zone rule: an IANA zone name that `Intl` supports (not a raw UTC offset). */
+export function isTimeZoneName(tz: unknown): tz is string {
+  return typeof tz === 'string' && formatterFor(tz) !== undefined;
+}
+
+/** The zone itself when it is a valid name, else `UTC`. */
 export function safeTimeZone(tz: string | null | undefined): string {
-  return tz && formatterFor(tz) ? tz : 'UTC';
+  return isTimeZoneName(tz) ? tz : 'UTC';
 }
 
 export function localDate(at: Date, tz: string): string {

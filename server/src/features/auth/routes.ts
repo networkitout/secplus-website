@@ -10,22 +10,23 @@ import {
   startSession,
   validate,
 } from '../../http.js';
-import { findInvite, loadAccountUser, LOGIN_PATTERN, MIN_PASSWORD_LENGTH } from './repo.js';
+import { safeTimeZone } from '../../services/time.js';
+import { findInvite, loadAccountUser, LOGIN_PATTERN, MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, passwordFits } from './repo.js';
 import { hashToken } from './tokens.js';
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILURES = 5;
 const INVITE_KEEP_MS = 30 * 24 * 60 * 60 * 1000; // expired invites keep answering 410 for a month
 
-const MAX_PASSWORD_BYTES = 72; // bcrypt ignores everything after 72 bytes
-const within72 = (v: string) => Buffer.byteLength(v, 'utf8') <= MAX_PASSWORD_BYTES;
+const tooLong = `Password must be at most ${MAX_PASSWORD_BYTES} bytes`;
 const password = z
   .string()
   .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
-  .refine(within72, `Password must be at most ${MAX_PASSWORD_BYTES} bytes`);
+  .refine(passwordFits, tooLong);
 const token = z.string().min(1).max(200);
 
-const loginBody = z.object({ login: z.string().max(64), password: z.string().max(MAX_PASSWORD_BYTES) });
+// The same limit, in the same unit (bytes), as where a password is set: nothing longer can be a password.
+const loginBody = z.object({ login: z.string().max(64), password: z.string().refine(passwordFits, tooLong) });
 const acceptBody = z.object({
   token,
   login: z
@@ -39,16 +40,6 @@ const acceptBody = z.object({
 });
 const resetBody = z.object({ token, password });
 
-function validTimeZone(tz: string | undefined): string {
-  if (!tz) return 'UTC';
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: tz });
-    return tz;
-  } catch {
-    return 'UTC';
-  }
-}
-
 type UserRow = { id: number; login: string; name: string; role: 'learner' | 'admin'; time_zone: string; password_hash: string };
 
 export function authRouter(deps: AppDeps): Router {
@@ -60,10 +51,12 @@ export function authRouter(deps: AppDeps): Router {
   const failures = new Map<string, { count: number; firstAt: number }>();
 
   // Per-IP limiters use express-rate-limit's real clock (accepted exception to the deps.now() rule).
+  // Only failures count: many learners may share one address, and each successful request gives its slot back.
   const makeLimiter = () =>
     rateLimit({
       windowMs: WINDOW_MS,
       limit: 10,
+      skipSuccessfulRequests: true,
       standardHeaders: true,
       legacyHeaders: false,
       handler: (_req, res) => {
@@ -172,7 +165,7 @@ export function authRouter(deps: AppDeps): Router {
         if (taken.length) return { status: 409, error: 'That login is already taken' };
         const created = await tx.exec(
           "INSERT INTO users (login, name, password_hash, role, time_zone, active, created_at) VALUES (?, ?, ?, 'learner', ?, 1, ?)",
-          [login, name, passwordHash, validTimeZone(timeZone), t],
+          [login, name, passwordHash, safeTimeZone(timeZone), t],
         );
         await tx.exec('UPDATE invites SET used_at = ?, user_id = ? WHERE id = ?', [t, created.insertId, invite.id]);
         return { userId: created.insertId };
@@ -210,7 +203,8 @@ export function authRouter(deps: AppDeps): Router {
       const target = await tx.query('SELECT id FROM users WHERE id = ? AND active = 1', [invite.user_id]);
       if (!target.length) return { status: 404, error: 'Reset link not found' };
       await tx.exec('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, invite.user_id]);
-      await tx.exec('UPDATE invites SET used_at = ? WHERE id = ?', [t, invite.id]);
+      // This link and any other reset link still open for the user: an older one must not change the password again.
+      await tx.exec("UPDATE invites SET used_at = ? WHERE user_id = ? AND purpose = 'reset' AND used_at IS NULL", [t, invite.user_id]);
       await tx.exec('DELETE FROM sessions WHERE user_id = ?', [invite.user_id]);
       return { ok: true };
     });

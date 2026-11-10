@@ -151,6 +151,55 @@ describe('production settings', () => {
     expect(cookie).toContain('SameSite=Lax');
   });
 
+  test('with secureCookies on, the session cookie is __Host-sid: Path=/, no Domain; it is read and cleared under that name only', async () => {
+    const { app, db } = await testApp({ now: () => T0, secureCookies: true });
+    const u = await createUser(db, { login: 'tess' });
+    const res = await post(app, '/api/auth/login', { login: 'tess', password: u.password });
+    const set = res.headers['set-cookie'] as unknown as string[];
+    expect(set).toHaveLength(1);
+    expect(set[0]).toMatch(/^__Host-sid=[^;]+; Path=\/; Expires=[^;]+; HttpOnly; Secure; SameSite=Lax$/);
+    expect(set[0]).not.toMatch(/Domain=/i);
+    const value = set[0]!.split(';')[0]!.slice('__Host-sid='.length);
+
+    const me = (cookie: string) => request(app).get('/api/auth/me').set('Cookie', cookie);
+    expect((await me(`__Host-sid=${value}`)).status).toBe(200);
+    // A plain `sid` cookie is one a sibling subdomain could have planted: it is not a session here.
+    expect((await me(`sid=${value}`)).status).toBe(401);
+
+    // Logging out with only a planted `sid` ends nobody's session.
+    await request(app).post('/api/auth/logout').set(CSRF_HEADER, CSRF_VALUE).set('Cookie', `sid=${value}`);
+    expect(await db.query('SELECT 1 FROM sessions')).toHaveLength(1);
+    const out = await request(app).post('/api/auth/logout').set(CSRF_HEADER, CSRF_VALUE).set('Cookie', `__Host-sid=${value}`);
+    expect(out.status).toBe(200);
+    expect((out.headers['set-cookie'] as unknown as string[])[0]).toMatch(/^__Host-sid=; Path=\/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax$/);
+    expect(await db.query('SELECT 1 FROM sessions')).toHaveLength(0);
+    expect((await me(`__Host-sid=${value}`)).status).toBe(401);
+  });
+
+  test('without secureCookies the cookie stays sid, and a __Host-sid cookie is not read', async () => {
+    const { app, db } = await setup();
+    const u = await createUser(db, { login: 'uma' });
+    const res = await post(app, '/api/auth/login', { login: 'uma', password: u.password });
+    const set = (res.headers['set-cookie'] as unknown as string[])[0]!;
+    expect(set).toMatch(/^sid=/);
+    const value = set.split(';')[0]!.slice('sid='.length);
+    expect((await request(app).get('/api/auth/me').set('Cookie', `sid=${value}`)).status).toBe(200);
+    expect((await request(app).get('/api/auth/me').set('Cookie', `__Host-sid=${value}`)).status).toBe(401);
+    const out = await request(app).post('/api/auth/logout').set(CSRF_HEADER, CSRF_VALUE).set('Cookie', `sid=${value}`);
+    expect((out.headers['set-cookie'] as unknown as string[])[0]).toMatch(/^sid=; Path=\/; Expires=Thu, 01 Jan 1970/);
+  });
+
+  test('a session that is touched re-issues its cookie under the same name', async () => {
+    const { app, db, setNow } = await testApp({ now: () => T0, secureCookies: true });
+    const u = await createUser(db, { login: 'vic' });
+    const res = await post(app, '/api/auth/login', { login: 'vic', password: u.password });
+    const value = (res.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!.slice('__Host-sid='.length);
+    setNow(new Date(T0.getTime() + 5 * MIN));
+    const me = await request(app).get('/api/auth/me').set('Cookie', `__Host-sid=${value}`);
+    expect(me.status).toBe(200);
+    expect((me.headers['set-cookie'] as unknown as string[])[0]).toMatch(new RegExp(`^__Host-sid=${value}; Path=/; .*Secure`));
+  });
+
   test('with trust proxy 1, clients behind the proxy are rate-limited separately by X-Forwarded-For', async () => {
     const { app } = await testApp({ now: () => T0, trustProxy: 1 });
     for (let i = 0; i < 10; i++) expect((await failedLogin(app, i, '203.0.113.7')).status).toBe(401);
@@ -158,6 +207,32 @@ describe('production settings', () => {
     expect((await failedLogin(app, 11, '198.51.100.9')).status).toBe(401); // another visitor is not locked out
     // Only the last hop is trusted: an address the client put in front of the proxy's own entry is ignored.
     expect((await failedLogin(app, 12, '192.0.2.1, 203.0.113.7')).status).toBe(429);
+  });
+
+  test('successful sign-ins do not count towards the per-address limit; failures still do', async () => {
+    const { app, db } = await setup();
+    // A classroom behind one address: more than ten learners sign in within the window.
+    for (let i = 0; i < 12; i++) {
+      const u = await createUser(db, { login: `learner${i}` });
+      expect((await post(app, '/api/auth/login', { login: u.login, password: u.password })).status).toBe(200);
+    }
+    for (let i = 0; i < 10; i++) expect((await post(app, '/api/auth/login', { login: `nobody${i}`, password: 'wrong-wrong-wrong' })).status).toBe(401);
+    expect((await post(app, '/api/auth/login', { login: 'nobody10', password: 'wrong-wrong-wrong' })).status).toBe(429);
+    // At the limit even a correct password waits for the window.
+    expect((await post(app, '/api/auth/login', { login: 'learner0', password: 'correct-horse-battery' })).status).toBe(429);
+  });
+
+  test('accepted invites and resets do not count towards the per-address limit', async () => {
+    const { app, db } = await setup();
+    const admin = await createUser(db, { login: 'boss', role: 'admin' });
+    for (let i = 0; i < 12; i++) {
+      const token = await createInvite(db, { purpose: 'invite', createdBy: admin.id, now: T0 });
+      const res = await post(app, '/api/auth/accept-invite', { token, login: `new${i}`, name: 'N', password: 'a-long-password-1' });
+      expect(res.status).toBe(200);
+    }
+    const u = await createUser(db, { login: 'forgetful' });
+    const token = await createInvite(db, { purpose: 'reset', userId: u.id, createdBy: admin.id, now: T0 });
+    expect((await post(app, '/api/auth/reset', { token, password: 'brand-new-password' })).status).toBe(200);
   });
 
   test('with trust proxy 0, X-Forwarded-For is ignored and every request shares the connection address', async () => {
@@ -233,6 +308,15 @@ describe('invites', () => {
     expect(rows[0].time_zone).toBe('UTC');
   });
 
+  test('accept-invite takes only a named time zone: a UTC offset stores UTC', async () => {
+    const { app, db, token } = await adminAndInvite();
+    const res = await post(app, '/api/auth/accept-invite', body(token, { timeZone: '+05:00' }));
+    expect(res.status).toBe(200);
+    expect(res.body.user.timeZone).toBe('UTC');
+    const rows = await db.query('SELECT time_zone FROM users WHERE login = ?', ['newbie']);
+    expect(rows[0].time_zone).toBe('UTC');
+  });
+
   test("reset changes the password, marks the token used, and deletes all of that user's sessions", async () => {
     const { app, db, admin } = await adminAndInvite();
     const u = await createUser(db, { login: 'resetme', name: 'Reset Me' });
@@ -249,6 +333,23 @@ describe('invites', () => {
     expect((await post(app, '/api/auth/login', { login: 'resetme', password: 'brand-new-password' })).status).toBe(200);
     expect((await post(app, '/api/auth/reset', { token, password: 'another-new-password' })).status).toBe(410);
     expect((await post(app, '/api/auth/reset', { token: 'y'.repeat(43), password: 'another-new-password' })).status).toBe(404);
+  });
+
+  test("a reset also ends the user's other unused reset links, and nobody else's links", async () => {
+    const { app, db, admin, token: invite } = await adminAndInvite();
+    const u = await createUser(db, { login: 'twolinks' });
+    const other = await createUser(db, { login: 'bystander' });
+    const first = await createInvite(db, { purpose: 'reset', userId: u.id, createdBy: admin.id, now: T0 });
+    const second = await createInvite(db, { purpose: 'reset', userId: u.id, createdBy: admin.id, now: T0 });
+    const theirs = await createInvite(db, { purpose: 'reset', userId: other.id, createdBy: admin.id, now: T0 });
+    expect((await post(app, '/api/auth/reset', { token: second, password: 'brand-new-password' })).status).toBe(200);
+    // The link that was not used is dead too: whoever holds it cannot change the password again.
+    expect((await request(app).get(`/api/auth/invite/${first}`)).status).toBe(410);
+    expect((await post(app, '/api/auth/reset', { token: first, password: 'another-new-password' })).status).toBe(410);
+    expect((await post(app, '/api/auth/login', { login: 'twolinks', password: 'brand-new-password' })).status).toBe(200);
+    // Another user's reset link and an open invite are untouched.
+    expect((await request(app).get(`/api/auth/invite/${theirs}`)).status).toBe(200);
+    expect((await request(app).get(`/api/auth/invite/${invite}`)).status).toBe(200);
   });
 
   test('a reset token cannot be used on accept-invite and vice versa (404)', async () => {
@@ -319,6 +420,17 @@ describe('hardening', () => {
     expect((await post(app, '/api/auth/reset', { token: 't', password: long })).status).toBe(400);
   });
 
+  test('login measures the password in bytes, as setting one does: 72 bytes is tried, 73 is a 400', async () => {
+    const { app, db } = await setup();
+    const exactly72 = 'é'.repeat(36); // 36 characters, 72 bytes
+    const u = await createUser(db, { login: 'wide', password: exactly72 });
+    expect((await post(app, '/api/auth/login', { login: u.login, password: exactly72 })).status).toBe(200);
+    expect((await post(app, '/api/auth/login', { login: u.login, password: 'p'.repeat(72) })).status).toBe(401);
+    // 40 characters but 80 bytes: no password this long can have been set, so it is not a credential at all.
+    expect((await post(app, '/api/auth/login', { login: u.login, password: 'é'.repeat(40) })).status).toBe(400);
+    expect((await post(app, '/api/auth/login', { login: u.login, password: 'p'.repeat(73) })).status).toBe(400);
+  });
+
   test('reset returns 404 for an inactive user and leaves the token unused', async () => {
     const { app, db } = await setup();
     const admin = await createUser(db, { login: 'boss', role: 'admin' });
@@ -351,6 +463,14 @@ describe('ensureAdmin', () => {
     } finally {
       warn.mockRestore();
     }
+    // Over 72 bytes: login would refuse it, so the admin could never sign in.
+    await expect(ensureAdmin(db, { adminLogin: 'root', adminPassword: 'p'.repeat(73) }, T0, 4)).rejects.toThrow(
+      'ADMIN_PASSWORD must be at most 72 bytes',
+    );
+    await expect(ensureAdmin(db, { adminLogin: 'root', adminPassword: 'é'.repeat(40) }, T0, 4)).rejects.toThrow(
+      'ADMIN_PASSWORD must be at most 72 bytes',
+    );
+    expect(await db.query('SELECT 1 FROM users')).toHaveLength(0);
     await createUser(db, { login: 'existing', role: 'admin' });
     await ensureAdmin(db, { adminLogin: 'root', adminPassword: 'short' }, T0);
     await ensureAdmin(db, { adminLogin: 'root', adminPassword: 'twelve-chars-ok' }, T0);

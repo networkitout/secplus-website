@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest';
-import { addDays, localDate, safeTimeZone, streak, weekStartUtc } from './time.js';
+import { addDays, isTimeZoneName, localDate, safeTimeZone, streak, weekStartUtc } from './time.js';
 
 test('safeTimeZone', () => {
   expect(safeTimeZone('America/Chicago')).toBe('America/Chicago');
@@ -58,4 +58,19 @@ test('an unknown zone is never cached and dates fall back to UTC', () => {
   expect(localDate(at, 'Mars/Olympus')).toBe('2026-11-11');
   expect(localDate(at, 'Mars/Olympus')).toBe(localDate(at, 'UTC'));
   expect(safeTimeZone('Mars/Olympus')).toBe('UTC');
+});
+
+test('isTimeZoneName accepts the zone names Intl knows and nothing else; UTC offsets are not names', () => {
+  for (const ok of ['UTC', 'America/Chicago', 'Europe/Paris', 'Asia/Kolkata', 'Etc/GMT+5', 'america/chicago']) {
+    expect(isTimeZoneName(ok), ok).toBe(true);
+  }
+  for (const bad of ['+05:00', '-08:00', '+0530', '-03', 'Mars/Olympus', '', ' UTC', '<script>', null, undefined, 5, {}]) {
+    expect(isTimeZoneName(bad), String(bad)).toBe(false);
+  }
+});
+
+test('a UTC offset is not a stored zone: safeTimeZone gives UTC and localDate uses UTC', () => {
+  expect(safeTimeZone('+05:00')).toBe('UTC');
+  expect(safeTimeZone('-08:00')).toBe('UTC');
+  expect(localDate(new Date('2026-11-10T23:30:00Z'), '+05:00')).toBe('2026-11-10');
 });
