@@ -18,7 +18,8 @@ const BADGES = [
 
 const dashboard = (over: Partial<DashboardResponse> = {}): DashboardResponse => ({
   xp: 390, level: 2, nextLevelXp: 400, streak: 1, reviewsDue: 0, domains: [], weakest: [], mockHistory: [],
-  readiness: { ready: false, missing: [] }, studyPlan: null, badges: BADGES, ...over,
+  readiness: { ready: false, missing: [] }, studyPlan: null, badges: BADGES,
+  openMock: null, mockSpec: { questions: 11, minutes: 11, partial: true }, ...over,
 });
 
 const DASH = 'GET /api/dashboard';

@@ -27,6 +27,7 @@ beforeEach(() => {
         readiness: { ready: false, missing: [] }, studyPlan: null, badges: [],
       }),
     'GET /api/admin/users': () => json(200, { users: [] }),
+    'GET /api/path': () => json(200, { domains: [] }),
   };
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${url}`;

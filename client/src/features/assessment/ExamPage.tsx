@@ -1,21 +1,42 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import type { Answer } from '../../../../shared/types';
-import { api, ApiError } from '../../api/client';
-import { createSaveQueue, guardUnload } from '../../api/saveQueue';
-import type { AnswerSaveResponse, AssessmentResult, AssessmentView, SubmitResponse } from '../../api/types';
+import { api } from '../../api/client';
+import type { AssessmentResult, AssessmentView, SubmitResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { SaveIndicator } from '../../ui/SaveIndicator';
 import { QuestionView } from '../questions/QuestionView';
+import { answerState } from './answerState';
+import { closeExamSaves, examSaves } from './examSaves';
 import { ExamTimer } from './ExamTimer';
 import { LoadState, pathLink } from './LoadState';
 import { FlagIcon, QuestionNavigator } from './QuestionNavigator';
 import { ResultsView } from './ResultsView';
-import { useServerClockOffset } from './serverClock';
 import { SubmitDialog } from './SubmitDialog';
 import { useAssessment } from './useAssessment';
 
 const examName = (view: AssessmentView) => (view.kind === 'mock' ? 'Practice exam' : `Domain ${view.scope} exam`);
+
+/** When the time is up, how long the saves still under way, one retry of a rejected one included, may hold up the submission. */
+const LAST_SAVES_MS = 3000;
+/** A submission that has had no answer for this long is given up; submitting again is safe (the server repeats the result). */
+const SUBMIT_TIMEOUT_MS = 20_000;
+/** Without the server's time: how often the server is asked whether the exam is over, once the device clock says so. */
+const RECHECK_MS = 15_000;
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('No answer in time')), ms);
+    promise.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}
+
+/** "1", "1 and 2", "1, 2 and 5". */
+const listed = (numbers: number[]) =>
+  numbers.length < 2 ? numbers.join('') : `${numbers.slice(0, -1).join(', ')} and ${numbers[numbers.length - 1]}`;
 
 export function ExamPage() {
   const { id = '' } = useParams();
@@ -23,22 +44,25 @@ export function ExamPage() {
 }
 
 function Exam({ id }: { id: string }) {
-  const { query, reload, finishedHere } = useAssessment(id);
-  const offsetMs = useServerClockOffset();
-  const view = query.data;
+  const queryClient = useQueryClient();
+  const { query, view, clockOffsetMs, reload, finishedHere } = useAssessment(id);
+  // A finalized exam has nothing left to save.
+  const finalizedId = view?.result ? view.id : undefined;
+  useEffect(() => {
+    if (finalizedId !== undefined) closeExamSaves(queryClient, finalizedId);
+  }, [queryClient, finalizedId]);
+
   if (!view) return <LoadState query={query} noun="exam" />;
   if (view.kind === 'objective') return <Navigate to={`/quiz/${view.id}`} replace />;
   if (view.result) return <ExamResults view={view} result={view.result} fresh={finishedHere} />;
-  // The countdown needs the server's clock; it is read alongside the exam.
-  if (offsetMs === undefined) return <LoadState query={query} noun="exam" />;
-  return <ExamRunner view={view} offsetMs={offsetMs} reload={reload} />;
+  return <ExamRunner view={view} offsetMs={clockOffsetMs} reload={reload} />;
 }
 
 function ExamResults({ view, result, fresh }: { view: AssessmentView; result: AssessmentResult; fresh: boolean }) {
   return (
     <ResultsView
       title={`${examName(view)} results`}
-      passTitle={`${examName(view)} passed`}
+      passTitle={examName(view)}
       kind={view.kind}
       partial={view.partial}
       result={result}
@@ -59,44 +83,80 @@ function ExamResults({ view, result, fresh }: { view: AssessmentView; result: As
 }
 
 /**
- * Where a submission stands. `saving`: waiting for the answers still on their way. `unsaved`: an answer was
- * rejected, and the learner decides. `sending`: the submission is with the server. `failed`: it did not get
- * there. `closed`: the server has finalized the exam already and the results are being read;
- * `closed-failed`: they could not be read.
+ * Where a submission stands. `saving`: waiting for the answers still on their way. `unsaved`: the server
+ * does not have every answer, and the learner decides. `sending`: the submission is with the server.
+ * `failed`: it did not get there. `reading`: the exam is finalized and the results are being read;
+ * `unread`: they could not be read.
  */
-type Phase = 'saving' | 'unsaved' | 'sending' | 'failed' | 'closed' | 'closed-failed' | null;
+type Phase = 'saving' | 'unsaved' | 'sending' | 'failed' | 'reading' | 'unread' | null;
 
-function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs: number; reload(): Promise<AssessmentView> }) {
+function ExamRunner({
+  view,
+  offsetMs,
+  reload,
+}: {
+  view: AssessmentView;
+  /** How far the server's clock is ahead of this device's; null when the server's time is not known. */
+  offsetMs: number | null;
+  reload(): Promise<AssessmentView>;
+}) {
   const { questions } = view;
   const total = questions.length;
-  const url = `assessments/${view.id}`;
+  const queryClient = useQueryClient();
+  // One set of saves per exam, shared by every visit to this page (see examSaves).
+  const [saves] = useState(() => examSaves(queryClient, view.id));
+  const { queue } = saves;
 
-  const [answers, setAnswers] = useState(view.answers);
-  const [flags, setFlags] = useState<ReadonlySet<string>>(() => new Set(view.flags));
-  const [index, setIndex] = useState(() => Math.max(0, questions.findIndex((q) => !view.answers[q.id])));
+  // What the server has, with what this device has not managed to save yet laid over it: a learner who
+  // comes back while a save is retrying sees their own latest answers and flags.
+  const [answers, setAnswers] = useState(() => {
+    const local = { ...view.answers };
+    for (const body of saves.unconfirmed.values()) if (body.answer) local[body.questionId] = body.answer;
+    return local;
+  });
+  const [flags, setFlags] = useState<ReadonlySet<string>>(() => {
+    const local = new Set(view.flags);
+    for (const body of saves.unconfirmed.values()) {
+      if (body.flagged === true) local.add(body.questionId);
+      if (body.flagged === false) local.delete(body.questionId);
+    }
+    return local;
+  });
+  const states = Object.fromEntries(questions.map((q) => [q.id, answerState(q, answers[q.id])]));
+  const [index, setIndex] = useState(() => Math.max(0, questions.findIndex((q) => states[q.id] !== 'answered')));
   const [confirming, setConfirming] = useState(false);
   const [expired, setExpired] = useState(false);
   const [phase, setPhase] = useState<Phase>(null);
+  // How the exam ended, once it has: submitted from here, or closed by the server.
+  const [ended, setEnded] = useState<'submitted' | 'closed' | null>(null);
+  // The numbers of the questions whose answers the server does not have, when the learner is asked about them.
+  const [lost, setLost] = useState<number[]>([]);
+  // Without the server's time: the device clock has run out, and the server is being asked instead.
+  const [deviceClockOut, setDeviceClockOut] = useState(false);
 
-  // A queue of this exam's own: its state is this exam's state (shown beside the timer), and a save that
-  // was rejected is known here, where the learner can be asked what to do about it.
-  const [queue] = useState(() => createSaveQueue());
-  // The newest save per key that the server has not confirmed. After a flush these are the rejected ones.
-  const unconfirmed = useRef(new Map<string, object>());
   // Each submission attempt has a number; an attempt that has been overtaken or cancelled stops.
   const attempt = useRef(0);
   const posting = useRef(false);
-  const closing = useRef(false);
+  const reading = useRef(false);
   const timeUp = useRef(false);
 
   const heading = useRef<HTMLHeadingElement>(null);
+  const status = useRef<HTMLParagraphElement>(null);
   const headingId = useId();
 
-  // Warn before the page is closed while a save is on its way; the guard stays until the queue is empty.
+  // The saves tell the page that is open when the server refuses one because the exam is over.
   useEffect(() => {
-    const remove = guardUnload(queue);
-    return () => void queue.flush().then(remove);
-  }, [queue]);
+    saves.onClosed = () => void readResults('closed');
+  });
+  // This page holds the saves while it is mounted. When no page holds them and nothing is left to save,
+  // they are forgotten; otherwise they wait for the learner to come back.
+  useEffect(() => {
+    saves.acquire();
+    return () => {
+      saves.onClosed = null;
+      saves.release();
+    };
+  }, [saves]);
 
   // On a new question, focus goes to its heading.
   const shown = useRef(index);
@@ -106,61 +166,94 @@ function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs
     heading.current?.focus();
   }, [index]);
 
-  /** The server has finalized the exam (its deadline passed, or it was submitted elsewhere): read the results. */
-  async function closed() {
-    if (closing.current) return;
-    closing.current = true;
-    attempt.current++;
+  // When the time is up the inputs are switched off, which would drop focus from one of them: it goes to
+  // the line that says what is happening.
+  useEffect(() => {
+    if (expired) status.current?.focus();
+  }, [expired]);
+
+  // Without the server's time the exam is never ended on the device clock's word. Once that clock has
+  // run out, the server is asked now and then: it closes the exam at its own deadline.
+  useEffect(() => {
+    if (!deviceClockOut || offsetMs !== null) return;
+    const timer = setInterval(() => void reload().catch(() => {}), RECHECK_MS);
+    return () => clearInterval(timer);
+  }, [deviceClockOut, offsetMs, reload]);
+
+  /** A button that is about to disappear was pressed: keep keyboard focus in the exam. */
+  const backToQuestion = () => heading.current?.focus();
+
+  /** The exam is finalized on the server: read it again, which puts the results on screen. */
+  async function readResults(how: 'submitted' | 'closed') {
+    if (reading.current) return;
+    reading.current = true;
+    attempt.current++; // a submission that was still waiting stops here
     setConfirming(false);
-    setPhase('closed');
+    setEnded(how);
+    setPhase('reading');
     try {
-      const fresh = await reload(); // the page now shows the results
-      if (!fresh.result) setPhase('closed-failed');
+      const fresh = await reload();
+      if (!fresh.result) setPhase('unread');
     } catch {
-      setPhase('closed-failed');
+      setPhase('unread');
     } finally {
-      closing.current = false;
+      reading.current = false;
     }
   }
 
-  function save(key: string, body: object) {
-    unconfirmed.current.set(key, body);
-    queue.enqueue(key, async () => {
-      try {
-        await api.put<AnswerSaveResponse>(`${url}/answers`, body);
-      } catch (err) {
-        if (!(err instanceof ApiError && err.status === 409)) throw err;
-        // Nothing more can be saved, so this is not a save to retry or to report as lost.
-        void closed();
-      }
-      if (unconfirmed.current.get(key) === body) unconfirmed.current.delete(key);
-    });
-  }
+  /** The numbers of the questions whose answer the server has not confirmed. */
+  const unsavedAnswers = () => questions.flatMap((q, i) => (saves.unconfirmed.get(q.id)?.answer ? [i + 1] : []));
 
   async function submit({ anyway = false } = {}) {
-    if (posting.current || closing.current) return;
+    if (posting.current || reading.current) return;
     const mine = ++attempt.current;
     setPhase('saving');
-    await queue.flush();
-    if (attempt.current !== mine) return;
-    // `flush` also resolves when a save was rejected. The learner is asked, unless the time is up.
-    if (queue.state() === 'failed' && !anyway && !timeUp.current) {
-      setPhase('unsaved');
-      return;
+    if (timeUp.current) {
+      // No time to wait or to ask: what is still on its way, and one more try for what was rejected, may
+      // hold the submission up for a few seconds at most. The server scores what it has by then.
+      let waitedEnough = false;
+      const lastSaves = async () => {
+        await queue.flush();
+        if (waitedEnough || unsavedAnswers().length === 0) return;
+        saves.retry();
+        await queue.flush();
+      };
+      await Promise.race([lastSaves(), wait(LAST_SAVES_MS)]);
+      waitedEnough = true;
+      if (attempt.current !== mine) return;
+    } else {
+      await queue.flush();
+      if (attempt.current !== mine) return;
+      // `flush` also resolves when a save was rejected, and the indicator's Dismiss button hides that. What
+      // counts is whether the server has every answer the learner sees as given.
+      if (unsavedAnswers().length > 0 && !anyway) {
+        setLost(unsavedAnswers());
+        setPhase('unsaved');
+        return;
+      }
     }
     posting.current = true;
     setPhase('sending');
     try {
-      await api.post<SubmitResponse>(`${url}/submit`);
-      await reload(); // the page now shows the results
+      await withTimeout(api.post<SubmitResponse>(`assessments/${view.id}/submit`), SUBMIT_TIMEOUT_MS);
     } catch {
       if (attempt.current === mine) setPhase('failed');
+      return;
     } finally {
       posting.current = false;
     }
+    if (attempt.current === mine) await readResults('submitted');
   }
 
   function expire() {
+    if (offsetMs === null) {
+      // Only the device clock says so, and it may be wrong.
+      if (!deviceClockOut) {
+        setDeviceClockOut(true);
+        void reload().catch(() => {});
+      }
+      return;
+    }
     if (timeUp.current) return;
     timeUp.current = true;
     setExpired(true);
@@ -169,30 +262,27 @@ function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs
   }
 
   function saveAgain() {
-    for (const [key, body] of [...unconfirmed.current]) save(key, body);
+    backToQuestion();
+    saves.retry();
     void submit();
   }
 
-  function submitAnyway() {
-    queue.dismiss();
-    void submit({ anyway: true });
-  }
-
   function cancel() {
+    backToQuestion();
     attempt.current++;
     setPhase(null);
   }
 
   const question = questions[index];
-  const waiting = phase === 'saving' || phase === 'sending' || phase === 'closed';
-  const locked = expired || waiting || phase === 'closed-failed';
-  const answered = new Set(questions.filter((q) => answers[q.id]).map((q) => q.id));
+  const waiting = phase === 'saving' || phase === 'sending' || phase === 'reading';
+  const locked = expired || waiting || phase === 'unread';
+  const answeredCount = questions.filter((q) => states[q.id] === 'answered').length;
   const flagged = question !== undefined && flags.has(question.id);
 
   function answer(questionId: string, a: Answer) {
     if (locked) return;
     setAnswers((prev) => ({ ...prev, [questionId]: a }));
-    save(questionId, { questionId, answer: a });
+    saves.save(questionId, { questionId, answer: a });
   }
 
   function toggleFlag(questionId: string) {
@@ -204,8 +294,17 @@ function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs
       else next.delete(questionId);
       return next;
     });
-    save(`flag:${questionId}`, { questionId, flagged: on });
+    saves.save(`flag:${questionId}`, { questionId, flagged: on });
   }
+
+  const progress =
+    phase === 'saving'
+      ? expired ? 'Time is up. Saving your answers…' : 'Saving your answers before submitting…'
+      : phase === 'sending'
+        ? expired ? 'Time is up. Submitting your exam…' : 'Submitting your exam…'
+        : phase === 'reading'
+          ? ended === 'submitted' ? 'Your exam was submitted. Loading your results…' : 'This exam has ended. Loading your results…'
+          : expired ? 'Time is up.' : '';
 
   return (
     <div className="space-y-5">
@@ -224,11 +323,9 @@ function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs
       </div>
 
       {/* Always in the page, so that what it says is announced when it appears. */}
-      <div className={waiting ? 'flex flex-wrap items-center gap-3 text-sm' : 'sr-only'}>
-        <p role="status" aria-label="Submission">
-          {phase === 'saving' && (expired ? 'Time is up. Saving your answers…' : 'Saving your answers before submitting…')}
-          {phase === 'sending' && (expired ? 'Time is up. Submitting your exam…' : 'Submitting your exam…')}
-          {phase === 'closed' && 'This exam has ended. Loading your results…'}
+      <div className={progress ? 'flex flex-wrap items-center gap-3 text-sm' : 'sr-only'}>
+        <p ref={status} role="status" aria-label="Submission" tabIndex={-1}>
+          {progress}
         </p>
         {phase === 'saving' && !expired && (
           <Button variant="secondary" onClick={cancel}>
@@ -236,30 +333,54 @@ function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs
           </Button>
         )}
       </div>
+      {/* In the two boxes below only the message is the alert: the buttons beside it are not read out with it. */}
       {phase === 'unsaved' && (
-        <div role="alert" className="space-y-3 rounded-lg border border-bad bg-surface p-4 text-sm">
-          <p>One of your answers could not be saved. If you submit now, it will not count.</p>
+        <div className="space-y-3 rounded-lg border border-bad bg-surface p-4 text-sm">
+          <p role="alert">
+            {lost.length === 1
+              ? `Your answer to question ${lost[0]} could not be saved. If you submit now, your latest answer to it will not count.`
+              : `Your answers to questions ${listed(lost)} could not be saved. If you submit now, your latest answers to them will not count.`}
+          </p>
           <div className="flex flex-wrap gap-3">
             <Button onClick={saveAgain}>Try saving again</Button>
-            <Button variant="secondary" onClick={submitAnyway}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                backToQuestion();
+                void submit({ anyway: true });
+              }}
+            >
               Submit anyway
             </Button>
-            <Button variant="secondary" onClick={() => setPhase(null)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                backToQuestion();
+                setPhase(null);
+              }}
+            >
               Keep working
             </Button>
           </div>
         </div>
       )}
-      {(phase === 'failed' || phase === 'closed-failed') && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-bad bg-surface p-4 text-sm">
-          <p>
-            {phase === 'closed-failed'
-              ? "This exam has ended. Couldn't load your results."
+      {(phase === 'failed' || phase === 'unread') && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-bad bg-surface p-4 text-sm">
+          <p role="alert">
+            {phase === 'unread'
+              ? `${ended === 'submitted' ? 'Your exam was submitted.' : 'This exam has ended.'} Couldn't load the results.`
               : expired
-                ? "Time is up. Couldn't submit your exam. The answers that were saved will be scored either way."
+                ? "Couldn't submit your exam. The answers that were saved will be scored either way."
                 : "Couldn't submit your exam. Your saved answers are safe, and you can keep working."}
           </p>
-          <Button variant="secondary" onClick={() => void (phase === 'closed-failed' ? closed() : submit())}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              backToQuestion();
+              // Once the exam is finalized there is nothing to submit again, only results to read.
+              void (phase === 'unread' ? readResults(ended ?? 'closed') : submit());
+            }}
+          >
             Try again
           </Button>
         </div>
@@ -294,6 +415,13 @@ function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs
             {question.type === 'order' && !answers[question.id] && (
               <p className="text-sm text-muted">Not answered yet. Move an item to record your order.</p>
             )}
+            {states[question.id] === 'partial' && (
+              <p className="text-sm text-muted">
+                {question.type === 'match'
+                  ? 'Partly answered. It counts as unanswered until every item has a match.'
+                  : 'Partly answered. It counts as unanswered until every item is placed.'}
+              </p>
+            )}
             <div role="group" aria-label="Exam questions" className="flex flex-wrap justify-between gap-3 border-t border-border pt-4">
               {index > 0 ? (
                 <Button variant="secondary" onClick={() => setIndex(index - 1)}>
@@ -309,7 +437,7 @@ function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs
               )}
             </div>
           </section>
-          <QuestionNavigator questions={questions} current={index} answered={answered} flagged={flags} onSelect={setIndex} />
+          <QuestionNavigator questions={questions} current={index} states={states} flagged={flags} onSelect={setIndex} />
         </div>
       ) : (
         <p>This exam has no questions.</p>
@@ -317,7 +445,8 @@ function ExamRunner({ view, offsetMs, reload }: { view: AssessmentView; offsetMs
 
       {confirming && (
         <SubmitDialog
-          unanswered={total - answered.size}
+          unanswered={total - answeredCount}
+          partial={questions.filter((q) => states[q.id] === 'partial').length}
           flagged={questions.filter((q) => flags.has(q.id)).length}
           onCancel={() => setConfirming(false)}
           onConfirm={() => {

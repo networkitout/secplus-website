@@ -8,6 +8,8 @@ import { Button } from '../../ui/Button';
 import { Celebration } from '../../ui/Celebration';
 import { Mark } from '../questions/FeedbackPanel';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
+import { wholePercent } from './percent';
+import { Scenario } from './Scenario';
 
 const PASS_PCT = 80;
 const EYEBROW = 'font-mono text-sm uppercase tracking-wide text-accent';
@@ -50,70 +52,6 @@ export function LabPage() {
   );
 }
 
-/**
- * The scenario stays in view while the steps are worked through: beside them on a wide screen, across the
- * top on a narrow one, where it scrolls within a limited height and can be folded away.
- */
-function Scenario({ text }: { text: string }) {
-  const [open, setOpen] = useState(true);
-  const [scrolls, setScrolls] = useState(false);
-  const box = useRef<HTMLElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const headingId = useId();
-  const panelId = useId();
-
-  useEffect(() => {
-    const el = box.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const root = document.documentElement;
-    const measure = () => {
-      // Across the top it covers what scrolls under it, so anything brought into view (a focused
-      // control, for one) must stop below it. Beside the steps it covers nothing.
-      const acrossTop = getComputedStyle(el).top === '0px';
-      root.style.scrollPaddingTop = acrossTop ? `${el.offsetHeight + 8}px` : '';
-      // Text that scrolls within the box must be reachable by keyboard.
-      setScrolls(panel.current !== null && panel.current.scrollHeight > panel.current.clientHeight + 1);
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => {
-      observer.disconnect();
-      root.style.scrollPaddingTop = '';
-    };
-  }, []);
-
-  return (
-    <section
-      ref={box}
-      aria-labelledby={headingId}
-      className="sticky top-0 z-10 -mx-4 border-b border-border bg-bg px-4 py-3 lg:top-4 lg:mx-0 lg:rounded-lg lg:border lg:bg-surface lg:p-5"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h2 id={headingId} className={EYEBROW}>
-          Scenario
-        </h2>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => setOpen(!open)}
-          className="rounded-md border border-border px-3 py-1.5 text-sm hover:border-accent lg:hidden"
-        >
-          {open ? 'Hide scenario' : 'Show scenario'}
-        </button>
-      </div>
-      <div
-        id={panelId}
-        ref={panel}
-        {...(scrolls && { tabIndex: 0, role: 'group', 'aria-label': 'Scenario text' })}
-        className={`mt-2 max-h-[30vh] overflow-y-auto rounded-sm lg:max-h-[calc(100vh-7rem)] ${open ? '' : 'hidden lg:block'}`}
-      >
-        <p className="whitespace-pre-line">{text}</p>
-      </div>
-    </section>
-  );
-}
-
 const ignore = () => {};
 
 function Step({
@@ -143,7 +81,7 @@ function Step({
             {feedback.correct
               ? 'Correct'
               : feedback.fraction > 0
-                ? `Partly correct (${Math.round(feedback.fraction * 100)}%)`
+                ? `Partly correct (${wholePercent(feedback.fraction * 100)}%)`
                 : 'Incorrect'}
           </Mark>
         )}
@@ -264,8 +202,8 @@ function LabRunner({ lab }: { lab: LabView }) {
               {celebrating && (
                 <div ref={celebrationBox}>
                   <Celebration
-                    kind="quiz-pass"
-                    title={`Lab passed: ${lab.title}`}
+                    kind="lab-pass"
+                    title={lab.title}
                     detail={result.xp > 0 ? `+${result.xp} XP` : undefined}
                     onDone={dismissCelebration}
                   />
@@ -273,8 +211,7 @@ function LabRunner({ lab }: { lab: LabView }) {
               )}
               <section aria-label="Score" className="space-y-2">
                 <div className="flex flex-wrap items-baseline gap-x-4">
-                  {/* Never rounded up to a pass mark that was missed. */}
-                  <p className="font-mono text-4xl font-semibold">{`${Math.floor(result.scorePct)}%`}</p>
+                  <p className="font-mono text-4xl font-semibold">{`${wholePercent(result.scorePct)}%`}</p>
                   <p className={`text-2xl font-semibold ${result.passed ? 'text-ok' : 'text-warn'}`}>
                     <span aria-hidden="true">{result.passed ? '✓ ' : '○ '}</span>
                     <span>{result.passed ? 'Passed' : 'Not passed'}</span>

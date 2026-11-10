@@ -1,21 +1,20 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { QueryClientProvider, useQuery, type QueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Answer, Feedback, PublicQuestion } from '../../../../shared/types';
 import { api } from '../../api/client';
-import type { AssessmentResult, AssessmentView, MockHistoryEntry, PathDomain, PathResponse } from '../../api/types';
+import type { AssessmentResult, AssessmentView, DashboardMocks, MockHistoryEntry, PathDomain, PathResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
 import { ExamLobbyPage } from './ExamLobbyPage';
+import { examSaves } from './examSaves';
 import { ExamPage } from './ExamPage';
 import { QuizPage } from './QuizPage';
 import { ResultsView } from './ResultsView';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
-/** The health check the exam page reads the server's clock from (the HTTP `Date` header, whole seconds). */
-const health = (serverNow = Date.now()) =>
-  new Response('{"ok":true}', { status: 200, headers: { Date: new Date(serverNow).toUTCString() } });
 
 const OPTIONS = [
   { id: 'a', text: 'Alpha' },
@@ -40,6 +39,30 @@ const order: PublicQuestion = {
   ],
 };
 
+const multi: PublicQuestion = {
+  id: 'q-1.2-060', objective: '1.2', difficulty: 2, type: 'multi',
+  prompt: 'Which of these are physical controls? (Choose two.)',
+  options: [
+    { id: 'a', text: 'Bollards' },
+    { id: 'b', text: 'Access policy' },
+    { id: 'c', text: 'Door lock' },
+    { id: 'd', text: 'Log review' },
+  ],
+};
+
+const match: PublicQuestion = {
+  id: 'q-1.2-070', objective: '1.2', difficulty: 2, type: 'match',
+  prompt: 'Match each goal to its control.',
+  left: [
+    { id: 'l1', text: 'Confidentiality' },
+    { id: 'l2', text: 'Integrity' },
+  ],
+  right: [
+    { id: 'r1', text: 'Encryption' },
+    { id: 'r2', text: 'Hashing' },
+  ],
+};
+
 const pick = (choice: string): Answer => ({ type: 'single', choice });
 
 const marked = (q: PublicQuestion, correct: boolean): Feedback =>
@@ -54,7 +77,7 @@ const marked = (q: PublicQuestion, correct: boolean): Feedback =>
 const quiz = (count = 2, over: Partial<AssessmentView> = {}): AssessmentView => ({
   id: 12, kind: 'objective', scope: '1.1', partial: false,
   questions: Array.from({ length: count }, (_, i) => single(i + 1)),
-  answers: {}, flags: [], feedback: {}, deadlineAt: null, submittedAt: null,
+  answers: {}, flags: [], feedback: {}, deadlineAt: null, submittedAt: null, serverNow: new Date().toISOString(),
   ...over,
 });
 
@@ -65,7 +88,7 @@ const exam = (over: Partial<AssessmentView> = {}): AssessmentView => ({
   id: 30, kind: 'domain', scope: '1', partial: false,
   questions: examQuestions,
   answers: {}, flags: [], feedback: {},
-  deadlineAt: new Date(Date.now() + 25 * 60_000).toISOString(), submittedAt: null,
+  deadlineAt: new Date(Date.now() + 25 * 60_000).toISOString(), submittedAt: null, serverNow: new Date().toISOString(),
   ...over,
 });
 
@@ -99,14 +122,18 @@ function finished(open: AssessmentView, right: number, over: Partial<AssessmentR
 }
 
 const domain = (id: number, hasContent: boolean): PathDomain => ({
-  id, title: `Domain ${id} title`, weight: 20, unlocked: id === 1, examPassed: false, hasContent,
+  id, title: `Domain ${id} title`, weight: 20, unlocked: id === 1, examPassed: false, hasContent, openExam: null,
   objectives: [1, 2].map((n) => ({
     id: `${id}.${n}`, title: `Objective ${id}.${n} title`, published: hasContent, lessonDone: false, quizPassed: false, mastery: 0,
   })),
 });
 const path = (withContent: number[] = [1]): PathResponse => ({ domains: [1, 2, 3, 4, 5].map((id) => domain(id, withContent.includes(id))) });
 
-const dashboard = (mockHistory: MockHistoryEntry[] = []) => ({ xp: 120, level: 1, nextLevelXp: 500, streak: 2, mockHistory });
+const PARTIAL_MOCK = { questions: 11, minutes: 11, partial: true };
+const FULL_MOCK = { questions: 90, minutes: 90, partial: false };
+const dashboard = (mockHistory: MockHistoryEntry[] = [], over: Partial<DashboardMocks> = {}) => ({
+  xp: 120, level: 1, nextLevelXp: 500, streak: 2, mockHistory, openMock: null, mockSpec: PARTIAL_MOCK, ...over,
+});
 
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 let handlers: Record<string, Handler>;
@@ -123,7 +150,6 @@ const SUBMIT = 'POST /api/assessments/30/submit';
 
 beforeEach(() => {
   handlers = {
-    'GET /api/health': () => health(),
     'GET /api/path': () => json(200, path()),
     'GET /api/dashboard': () => json(200, dashboard()),
   };
@@ -146,17 +172,30 @@ function Observers() {
   return null;
 }
 
-function renderAt(url: string) {
+/** The screens under a key: "remount" takes the page on screen away and mounts a new one in the same update. */
+function Screens() {
+  const [mounts, setMounts] = useState(0);
+  return (
+    <>
+      <button onClick={() => setMounts(mounts + 1)}>remount</button>
+      <Routes key={mounts}>
+        <Route path="/" element={<p>path screen</p>} />
+        <Route path="/quiz/:id" element={<QuizPage />} />
+        <Route path="/exam" element={<ExamLobbyPage />} />
+        <Route path="/exam/:id" element={<ExamPage />} />
+      </Routes>
+    </>
+  );
+}
+
+function renderAt(url: string, client: QueryClient = createQueryClient()) {
   return render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <Observers />
       <MemoryRouter initialEntries={[url]}>
-        <Routes>
-          <Route path="/" element={<p>path screen</p>} />
-          <Route path="/quiz/:id" element={<QuizPage />} />
-          <Route path="/exam" element={<ExamLobbyPage />} />
-          <Route path="/exam/:id" element={<ExamPage />} />
-        </Routes>
+        <Link to="/">leave</Link>
+        <Link to={url}>come back</Link>
+        <Screens />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -192,6 +231,9 @@ const nav = () => screen.getByRole('navigation', { name: 'Question navigator' })
 const navButtons = () => within(nav()).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
 const flagToggle = () => screen.getByRole('button', { name: 'Flag for review' });
 const dialog = () => screen.getByRole('dialog', { name: 'Submit exam?' });
+const button = (name: string) => screen.getByRole('button', { name });
+const submission = () => screen.getByRole('status', { name: 'Submission' });
+const assessmentReads = (id: number) => calls(`GET /api/assessments/${id}`).length;
 const reviewItems = () => within(screen.getByRole('list', { name: 'Questions' })).getAllByRole('button');
 
 describe('quiz', () => {
@@ -298,6 +340,32 @@ describe('quiz', () => {
     await userEvent.click(within(banner).getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
     expect(title).toHaveFocus();
+  });
+
+  it('celebrates a pass that reaches the page while it is reading the quiz again, before that read has been handled', async () => {
+    const client = createQueryClient();
+    const open = quiz(1, { answers: { 'q-1.1-001': pick('a') }, feedback: { 'q-1.1-001': marked(single(1), true) } });
+    const done = finished(open, 1, { passed: true, xp: 100 });
+    handlers['GET /api/assessments/12'] = () => json(200, open);
+    handlers['POST /api/assessments/12/submit'] = () => json(200, { result: done.result });
+    renderAt('/quiz/12', client);
+    await heading('Question 1 of 1');
+
+    const read = deferred<Response>();
+    handlers['GET /api/assessments/12'] = () => read.promise;
+    await userEvent.click(button('See results'));
+    await waitFor(() => expect(assessmentReads(12)).toBe(2));
+    // The result is on screen before the read that was asked for has come back: whichever of the two the
+    // page learns of first, the quiz was finished in this visit.
+    act(() => {
+      client.setQueryData(['assessment', '12'], { view: done, clockOffsetMs: 0 });
+    });
+    expect(await heading('Objective 1.1 quiz results', 1)).toHaveFocus();
+    expect(screen.getByText('Quiz passed')).toBeInTheDocument();
+
+    read.resolve(json(200, done));
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    expect(screen.getByText('Quiz passed')).toBeInTheDocument();
   });
 
   it('a double click on Check sends one answer and does not skip the feedback', async () => {
@@ -502,9 +570,7 @@ describe('exam', () => {
     // This device's clock is three hours behind the server's: only the server's time may count.
     vi.setSystemTime(new Date('2026-11-10T09:00:00.000Z'));
     const serverNow = Date.parse('2026-11-10T12:00:00.000Z');
-    handlers['GET /api/health'] = () => health(serverNow);
-    // The Date header carries whole seconds; the client takes the middle of that second as the server's time.
-    const open = exam({ deadlineAt: new Date(serverNow + 500 + 6 * 60_000).toISOString() });
+    const open = exam({ serverNow: new Date(serverNow).toISOString(), deadlineAt: new Date(serverNow + 6 * 60_000).toISOString() });
     const done = finished(open, 1, {}, 4);
     handlers['GET /api/assessments/30'] = () => json(200, open);
     renderAt('/exam/30');
@@ -513,11 +579,14 @@ describe('exam', () => {
     const clock = screen.getByRole('timer', { name: 'Time left' });
     expect(clock).toHaveTextContent('06:00');
     expect(clock).toHaveClass('font-mono');
+    expect(screen.queryByText('approximate')).not.toBeInTheDocument();
     // The ticking clock is not announced; a separate polite region carries the two warnings.
     expect(clock.closest('[aria-live], [role="status"], [role="alert"]')).toBeNull();
     const alerts = screen.getByRole('status', { name: 'Time alerts' });
     const announced: string[] = [];
-    const observer = new MutationObserver(() => announced.push(alerts.textContent ?? ''));
+    const observer = new MutationObserver(() => {
+      if (alerts.textContent) announced.push(alerts.textContent);
+    });
     observer.observe(alerts, { childList: true, characterData: true, subtree: true });
 
     await advance(59_000);
@@ -532,10 +601,13 @@ describe('exam', () => {
     // Not by colour alone.
     expect(screen.getByText('Low time')).toBeInTheDocument();
     expect(alerts).toHaveTextContent('5 minutes remaining');
+    // The warning does not stay in the live region to be read again minutes later.
+    await advance(5_000);
+    expect(alerts).toBeEmptyDOMElement();
 
-    await advance(4 * 60_000 - 1_000);
+    await advance(4 * 60_000 - 6_000);
     expect(clock).toHaveTextContent('01:01');
-    expect(alerts).toHaveTextContent('5 minutes remaining');
+    expect(alerts).toBeEmptyDOMElement();
     await advance(1_000);
     expect(clock).toHaveTextContent('01:00');
     expect(alerts).toHaveTextContent('1 minute remaining');
@@ -544,12 +616,17 @@ describe('exam', () => {
     const save = deferred<Response>();
     handlers[SAVE] = () => save.promise;
     handlers[SUBMIT] = () => json(200, { result: done.result });
-    fireEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    const alpha = screen.getByRole('radio', { name: 'Alpha' });
+    fireEvent.click(alpha);
+    alpha.focus();
     await advance(60_000);
 
     expect(clock).toHaveTextContent('00:00');
     expect(screen.getByText('Time is up')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Alpha' })).toBeDisabled();
+    expect(alpha).toBeDisabled();
+    // The focused control was switched off: focus goes to the line that says why.
+    expect(submission()).toHaveTextContent('Time is up. Saving your answers…');
+    expect(submission()).toHaveFocus();
     expect(calls(SAVE)).toHaveLength(1);
     expect(calls(SUBMIT)).toHaveLength(0);
 
@@ -560,7 +637,97 @@ describe('exam', () => {
     expect(writes()).toEqual([SAVE, SUBMIT]);
     expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
     expect(announced).toEqual(['5 minutes remaining', '1 minute remaining']);
+    // The server's time came with the exam itself: nothing else was asked for it.
+    expect(calls('GET /api/health')).toHaveLength(0);
     observer.disconnect();
+  });
+
+  it.each([
+    ['three hours fast', 3 * 3_600_000],
+    ['three hours slow', -3 * 3_600_000],
+    ['forty seconds fast', 40_000],
+  ])('shows the time left on the server\'s clock when the device clock is %s, and submits when the server\'s time is up', async (_name, skew) => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    const serverNow = Date.parse('2026-11-10T12:00:00.000Z');
+    vi.setSystemTime(new Date(serverNow + skew));
+    const open = exam({ serverNow: new Date(serverNow).toISOString(), deadlineAt: new Date(serverNow + 90_000).toISOString() });
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 0).result });
+    renderAt('/exam/30');
+    await settle();
+    expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent('01:30');
+
+    await advance(89_000);
+    expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent('00:01');
+    expect(calls(SUBMIT)).toHaveLength(0);
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 0));
+    await advance(1_000);
+    await settle();
+    expect(calls(SUBMIT)).toHaveLength(1);
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['not a date', 'soon'],
+  ])('never submits on the device clock alone: with the server\'s time %s the countdown is approximate and at zero the server is asked', async (_name, serverNow) => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
+    // By this device's clock two seconds are left; nothing says that the clock is right.
+    const open = { ...exam({ deadlineAt: new Date(Date.now() + 2_000).toISOString() }), serverNow } as AssessmentView;
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SAVE] = () => json(200, { saved: true });
+    renderAt('/exam/30');
+    await settle();
+    expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent('00:02');
+    expect(screen.getByText('approximate')).toBeInTheDocument();
+    expect(assessmentReads(30)).toBe(1);
+
+    await advance(2_000);
+    await settle();
+    // Not submitted and not locked: the server, which keeps the real time, was asked instead.
+    expect(writes()).toEqual([]);
+    expect(assessmentReads(30)).toBe(2);
+    expect(screen.queryByText('Time is up')).not.toBeInTheDocument();
+    expect(screen.getByText('Checking the time…')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await settle();
+    expect(screen.getByRole('radio', { name: 'Alpha' })).toBeChecked();
+    expect(writes()).toEqual([SAVE]);
+
+    // The server closes the exam at its own deadline; the next look finds the results.
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1, {}, 4));
+    await advance(15_000);
+    await settle();
+    expect(assessmentReads(30)).toBe(3);
+    expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
+    expect(writes()).toEqual([SAVE]);
+  });
+
+  it('announces a mark that a slow tick jumped past, in words that are true, and one that was passed before the page opened', async () => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
+    const open = exam({ serverNow: new Date().toISOString(), deadlineAt: new Date(Date.now() + 310_000).toISOString() });
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    const first = renderAt('/exam/30');
+    await settle();
+    const alerts = () => screen.getByRole('status', { name: 'Time alerts' });
+    expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent('05:10');
+    expect(alerts()).toBeEmptyDOMElement();
+
+    // The tab was asleep: the next tick comes 70 seconds late, at 4:00.
+    vi.setSystemTime(new Date(Date.now() + 69_000));
+    await advance(1_000);
+    expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent('04:00');
+    expect(alerts()).toHaveTextContent('Less than 5 minutes remaining');
+    await advance(5_000);
+    expect(alerts()).toBeEmptyDOMElement();
+    first.unmount();
+
+    // Opened with 30 seconds left: one warning, for the mark that matters.
+    handlers['GET /api/assessments/30'] = () => json(200, exam({ serverNow: new Date().toISOString(), deadlineAt: new Date(Date.now() + 30_000).toISOString() }));
+    renderAt('/exam/30');
+    await settle();
+    expect(alerts()).toHaveTextContent('Less than 1 minute remaining');
   });
 
   it('exam: submit dialog states "3 unanswered, 1 flagged" and submits only on confirm', async () => {
@@ -662,14 +829,25 @@ describe('exam', () => {
     expect(writes()).toEqual([SAVE]);
   });
 
-  it('shows the results straight away when the exam was finalized while the page was closed', async () => {
+  it('shows the results straight away when the exam was finalized while the page was closed, and refreshes the totals once', async () => {
     handlers['GET /api/assessments/30'] = () => json(200, finished(exam(), 4, { passed: true, xp: 340 }));
     renderAt('/exam/30');
     await heading('Domain 1 exam results', 1);
     expect(screen.getByText('Passed')).toBeInTheDocument();
     expect(screen.queryByRole('timer')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Submit exam' })).not.toBeInTheDocument();
+    // Not finished just now, so not celebrated; but the XP it earned is news to the header and the path.
+    expect(screen.queryByText('Exam passed')).not.toBeInTheDocument();
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    await waitFor(() => expect(calls('GET /api/path')).toHaveLength(2));
     expect(writes()).toEqual([]);
+
+    // Looking at the same result again changes nothing, so nothing is refreshed.
+    await userEvent.click(screen.getByRole('link', { name: 'leave' }));
+    await userEvent.click(screen.getByRole('link', { name: 'come back' }));
+    await heading('Domain 1 exam results', 1);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(calls('GET /api/dashboard')).toHaveLength(2);
   });
 
   it('an order question the learner never touched stays unanswered until it is changed', async () => {
@@ -698,26 +876,161 @@ describe('exam', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
     expect(await screen.findByText("Couldn't save one of your answers.")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Submit exam' }));
+    await userEvent.click(button('Submit exam'));
     await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('One of your answers could not be saved.');
+    expect(alert).toHaveTextContent('Your answer to question 1 could not be saved. If you submit now, your latest answer to it will not count.');
+    // The message is announced as an alert; the buttons are beside it, not part of the announcement.
+    expect(within(alert).queryByRole('button')).not.toBeInTheDocument();
     expect(calls(SUBMIT)).toHaveLength(0);
 
-    await userEvent.click(within(alert).getByRole('button', { name: 'Keep working' }));
+    await userEvent.click(button('Keep working'));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Alpha' })).toBeEnabled();
+    // The pressed button is gone: focus is on the question, not lost.
+    expect(screen.getByRole('heading', { level: 2, name: 'Question 1 of 5' })).toHaveFocus();
 
     // Saving again works this time, and the exam is then submitted.
-    await userEvent.click(screen.getByRole('button', { name: 'Submit exam' }));
+    await userEvent.click(button('Submit exam'));
     await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+    await screen.findByRole('alert');
     handlers[SAVE] = () => json(200, { saved: true });
     handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1));
-    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Try saving again' }));
+    await userEvent.click(button('Try saving again'));
 
     expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
     expect(writes()).toEqual([SAVE, SAVE, SUBMIT]);
     expect(bodies(SAVE)[1]).toEqual({ questionId: 'q-1.1-001', answer: pick('a') });
+  });
+
+  it('dismissing the save warning does not let a rejected answer be left out silently', async () => {
+    const open = exam();
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SAVE] = () => json(500, { error: 'Server error' });
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 2).result });
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await userEvent.click(button('Next'));
+    await heading('Question 2 of 5');
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await screen.findByText("Couldn't save one of your answers.");
+
+    // The indicator's own Dismiss button: the warning goes, the answers are still not on the server.
+    await userEvent.click(button('Dismiss'));
+    expect(screen.queryByText("Couldn't save one of your answers.")).not.toBeInTheDocument();
+    expect(navButtons().slice(0, 2)).toEqual(['Question 1, answered', 'Question 2, answered']);
+
+    await userEvent.click(button('Submit exam'));
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your answers to questions 1 and 2 could not be saved. If you submit now, your latest answers to them will not count.');
+    expect(calls(SUBMIT)).toHaveLength(0);
+
+    handlers[SAVE] = () => json(200, { saved: true });
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 2));
+    await userEvent.click(button('Try saving again'));
+    expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
+    expect(writes()).toEqual([SAVE, SAVE, SAVE, SAVE, SUBMIT]);
+    expect(bodies(SAVE).slice(2)).toEqual([
+      { questionId: 'q-1.1-001', answer: pick('a') },
+      { questionId: 'q-1.1-002', answer: pick('a') },
+    ]);
+  });
+
+  it('when the time is up, tries once more to save a rejected answer, for a few seconds at most, then submits', async () => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
+    const open = exam({ serverNow: new Date().toISOString(), deadlineAt: new Date(Date.now() + 10_000).toISOString() });
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SAVE] = () => json(500, { error: 'Server error' });
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 0).result });
+    renderAt('/exam/30');
+    await settle();
+    fireEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await settle();
+    expect(screen.getByText("Couldn't save one of your answers.")).toBeInTheDocument();
+    expect(calls(SAVE)).toHaveLength(1);
+
+    // This time the save neither works nor fails: it hangs.
+    const hung = deferred<Response>();
+    handlers[SAVE] = () => hung.promise;
+    await advance(10_000);
+    await settle();
+    expect(calls(SAVE)).toHaveLength(2);
+    expect(bodies(SAVE)[1]).toEqual({ questionId: 'q-1.1-001', answer: pick('a') });
+    expect(calls(SUBMIT)).toHaveLength(0);
+
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 0));
+    await advance(3_000);
+    await settle();
+    expect(writes()).toEqual([SAVE, SAVE, SUBMIT]);
+    expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
+    hung.resolve(json(409, { error: 'This assessment is already submitted' }));
+    await settle();
+  });
+
+  it('when the time is up, a save that gets no answer holds the submission up for a few seconds at most', async () => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
+    const open = exam({ serverNow: new Date().toISOString(), deadlineAt: new Date(Date.now() + 10_000).toISOString() });
+    const hung = deferred<Response>();
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SAVE] = () => hung.promise;
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 0).result });
+    renderAt('/exam/30');
+    await settle();
+    fireEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await settle();
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
+
+    await advance(10_000);
+    await settle();
+    expect(submission()).toHaveTextContent('Time is up. Saving your answers…');
+    expect(calls(SUBMIT)).toHaveLength(0);
+    await advance(2_000);
+    expect(calls(SUBMIT)).toHaveLength(0);
+
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 0));
+    await advance(1_000);
+    await settle();
+    expect(writes()).toEqual([SAVE, SUBMIT]);
+    expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
+    hung.resolve(json(409, { error: 'This assessment is already submitted' }));
+    await settle();
+  });
+
+  it('an exam page that is taken away and mounted again at once keeps saving through the same queue', async () => {
+    const first = deferred<Response>();
+    handlers['GET /api/assessments/30'] = () => json(200, exam());
+    handlers[SAVE] = () => first.promise;
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    expect(await screen.findByText('Saving…')).toBeInTheDocument();
+
+    await userEvent.click(button('remount'));
+    // The new page has the answer that is still on its way, and shows the same queue at work.
+    await userEvent.click(within(nav()).getByRole('button', { name: 'Question 1, answered' }));
+    expect(screen.getByRole('radio', { name: 'Alpha' })).toBeChecked();
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
+
+    // A newer answer waits behind the one in flight, in the same queue, and both reach the server in order.
+    await userEvent.click(screen.getByRole('radio', { name: 'Bravo' }));
+    expect(calls(SAVE)).toHaveLength(1);
+    handlers[SAVE] = () => json(200, { saved: true });
+    first.resolve(json(200, { saved: true }));
+    await waitFor(() => expect(screen.queryByText('Saving…')).not.toBeInTheDocument());
+    expect(bodies(SAVE)).toEqual([
+      { questionId: 'q-1.1-001', answer: pick('a') },
+      { questionId: 'q-1.1-001', answer: pick('b') },
+    ]);
+
+    // And it goes on saving after that.
+    await userEvent.click(button('Next'));
+    await heading('Question 2 of 5');
+    await userEvent.click(screen.getByRole('radio', { name: 'Charlie' }));
+    await waitFor(() => expect(bodies(SAVE)).toHaveLength(3));
+    expect(bodies(SAVE)[2]).toEqual({ questionId: 'q-1.1-002', answer: pick('c') });
   });
 
   it('"Submit anyway" submits without the answer that could not be saved', async () => {
@@ -729,11 +1042,12 @@ describe('exam', () => {
     await heading('Question 1 of 5');
     await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
     await screen.findByText("Couldn't save one of your answers.");
-    await userEvent.click(screen.getByRole('button', { name: 'Submit exam' }));
+    await userEvent.click(button('Submit exam'));
     await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+    await screen.findByRole('alert');
 
     handlers['GET /api/assessments/30'] = () => json(200, finished(open, 0));
-    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Submit anyway' }));
+    await userEvent.click(button('Submit anyway'));
     expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
     expect(writes()).toEqual([SAVE, SUBMIT]);
   });
@@ -748,29 +1062,89 @@ describe('exam', () => {
     renderAt('/exam/30');
     await heading('Question 2 of 5');
     await userEvent.click(screen.getByRole('radio', { name: 'Charlie' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Submit exam' }));
+    await userEvent.click(button('Submit exam'));
     await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent("Couldn't submit your exam.");
+    expect(within(alert).queryByRole('button')).not.toBeInTheDocument();
     // Still on the same question, with the answer in place and open to change.
     expect(screen.getByRole('heading', { level: 2, name: 'Question 2 of 5' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Charlie' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Charlie' })).toBeEnabled();
     expect(calls(SUBMIT)).toHaveLength(1);
 
-    handlers[SUBMIT] = () => json(200, { result: finished(open, 1).result });
+    const answered = deferred<Response>();
+    handlers[SUBMIT] = () => answered.promise;
+    await userEvent.click(button('Try again'));
+    // The pressed button is gone; focus is on the question rather than nowhere.
+    expect(screen.getByRole('heading', { level: 2, name: 'Question 2 of 5' })).toHaveFocus();
     handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1));
-    await userEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+    answered.resolve(json(200, { result: finished(open, 1).result }));
     expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
     expect(calls(SUBMIT)).toHaveLength(2);
+  });
+
+  it('gives up on a submission that gets no answer after 20 seconds, and offers a retry', async () => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
+    const open = exam({ answers: { [q1.id]: pick('a') } });
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SUBMIT] = () => new Promise<Response>(() => {});
+    renderAt('/exam/30');
+    await settle();
+    fireEvent.click(button('Submit exam'));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+    await settle();
+    expect(submission()).toHaveTextContent('Submitting your exam…');
+    for (const radio of screen.getAllByRole('radio')) expect(radio).toBeDisabled();
+
+    await advance(19_000);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await advance(1_000);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't submit your exam.");
+    for (const radio of screen.getAllByRole('radio')) expect(radio).toBeEnabled();
+
+    // Submitting is safe to repeat: the server answers a second submit with the same result.
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 1).result });
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1));
+    fireEvent.click(button('Try again'));
+    await settle();
+    expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
+    expect(calls(SUBMIT)).toHaveLength(2);
+  });
+
+  it('says that the exam was submitted when only the results could not be read, and then only reads again', async () => {
+    const open = exam({ answers: { [q1.id]: pick('a') } });
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SUBMIT] = () => json(200, { result: finished(open, 1, { passed: true, xp: 310 }).result });
+    renderAt('/exam/30');
+    await heading('Question 2 of 5');
+    handlers['GET /api/assessments/30'] = () => json(500, { error: 'Server error' });
+    await userEvent.click(button('Submit exam'));
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Your exam was submitted. Couldn't load the results.");
+    expect(screen.queryByText(/Couldn't submit/)).not.toBeInTheDocument();
+    for (const radio of screen.getAllByRole('radio')) expect(radio).toBeDisabled();
+    // Nothing is left to submit: Submit does not open the dialog again.
+    await userEvent.click(button('Submit exam'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1, { passed: true, xp: 310 }));
+    await userEvent.click(button('Try again'));
+    expect(await heading('Domain 1 exam results', 1)).toHaveFocus();
+    expect(calls(SUBMIT)).toHaveLength(1);
+    // A pass seen now is celebrated, as an exam.
+    const banner = screen.getByText('Exam passed').closest('[role="status"]') as HTMLElement;
+    expect(banner).toHaveTextContent('Domain 1 exam');
+    expect(banner).toHaveTextContent('+310 XP');
+    expect(screen.queryByText('Quiz passed')).not.toBeInTheDocument();
   });
 
   it('when the time runs out and the server cannot be reached, says so and offers a retry', async () => {
     vi.useFakeTimers({ toFake: [...FAKED] });
     vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
-    // 1:02 is left (the server's time is taken as the middle of the second in its Date header).
-    const open = exam({ deadlineAt: new Date(Date.now() + 500 + 62_000).toISOString(), answers: { [q1.id]: pick('a') } });
+    const open = exam({ serverNow: new Date().toISOString(), deadlineAt: new Date(Date.now() + 62_000).toISOString(), answers: { [q1.id]: pick('a') } });
     handlers['GET /api/assessments/30'] = () => json(200, open);
     handlers[SUBMIT] = () => {
       throw new TypeError('Failed to fetch');
@@ -778,43 +1152,156 @@ describe('exam', () => {
     renderAt('/exam/30');
     await settle();
     expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent('01:02');
-    // Opened with less than five minutes left: the clock warns, but the five-minute mark is not announced
-    // as if it had just been reached.
+    // Opened with less than five minutes left: said once, in words that are true.
     expect(screen.getByText('Low time')).toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'Time alerts' })).toBeEmptyDOMElement();
+    expect(screen.getByRole('status', { name: 'Time alerts' })).toHaveTextContent('Less than 5 minutes remaining');
     await advance(2_000);
     expect(screen.getByRole('status', { name: 'Time alerts' })).toHaveTextContent('1 minute remaining');
 
     await advance(60_000);
     await settle();
-    const alert = screen.getByRole('alert');
-    expect(alert).toHaveTextContent("Time is up. Couldn't submit your exam. The answers that were saved will be scored either way.");
+    expect(submission()).toHaveTextContent('Time is up.');
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't submit your exam. The answers that were saved will be scored either way.");
     expect(calls(SUBMIT)).toHaveLength(1);
     // The exam stays on screen, closed to changes; a press on Submit does not open the dialog.
     expect(screen.getByRole('heading', { level: 2, name: 'Question 2 of 5' })).toBeInTheDocument();
     for (const radio of screen.getAllByRole('radio')) expect(radio).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Submit exam' }));
+    fireEvent.click(button('Submit exam'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     handlers[SUBMIT] = () => json(200, { result: finished(open, 1, {}, 4).result });
     handlers['GET /api/assessments/30'] = () => json(200, finished(open, 1, {}, 4));
-    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+    fireEvent.click(button('Try again'));
     await settle();
     expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toBeInTheDocument();
     expect(calls(SUBMIT)).toHaveLength(2);
   });
 
-  it('counts down on this device\'s clock when the server\'s time cannot be read', async () => {
+  it('several saves that the server refuses because the exam is over lead to one look at the results', async () => {
+    const open = exam();
+    const first = deferred<Response>();
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SAVE] = () => first.promise;
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(1));
+    // Three saves: one on its way, two waiting behind it.
+    await userEvent.click(screen.getByRole('radio', { name: 'Alpha' }));
+    await userEvent.click(flagToggle());
+    await userEvent.click(button('Next'));
+    await heading('Question 2 of 5');
+    await userEvent.click(screen.getByRole('radio', { name: 'Bravo' }));
+
+    handlers[SAVE] = () => json(409, { error: 'This assessment is already submitted' });
+    handlers['GET /api/assessments/30'] = () => json(200, finished(open, 0, {}, 5));
+    first.resolve(json(409, { error: 'This assessment is already submitted' }));
+
+    expect(await heading('Domain 1 exam results', 1)).toBeInTheDocument();
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+    await new Promise((r) => setTimeout(r, 30));
+    // One re-read of the exam, one refresh of the totals, and no save sent after the server said no.
+    expect(assessmentReads(30)).toBe(2);
+    expect(calls('GET /api/dashboard')).toHaveLength(2);
+    expect(calls(SAVE)).toHaveLength(1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('leaving and coming back while a save is retrying keeps one queue: the newest answer is shown and is the one saved', async () => {
     vi.useFakeTimers({ toFake: [...FAKED] });
-    handlers['GET /api/health'] = () => {
+    handlers['GET /api/assessments/30'] = () => json(200, exam());
+    handlers[SAVE] = () => {
       throw new TypeError('Failed to fetch');
     };
-    handlers['GET /api/assessments/30'] = () => json(200, exam({ deadlineAt: new Date(Date.now() + 25 * 60_000).toISOString() }));
     renderAt('/exam/30');
     await settle();
-    expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent('25:00');
+    fireEvent.click(screen.getByRole('radio', { name: 'Bravo' }));
+    fireEvent.click(flagToggle());
+    await settle();
+    expect(screen.getByText('Not saved yet. Retrying…')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'leave' }));
+    await settle();
+    expect(screen.getByText('path screen')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'come back' }));
+    await settle();
+
+    // The server has no answer yet; the page shows what the learner chose, and that it is still unsaved.
+    expect(navButtons()[0]).toBe('Question 1, answered, flagged');
+    expect(screen.getByRole('heading', { level: 2, name: 'Question 2 of 5' })).toBeInTheDocument();
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Question 1, answered, flagged' }));
+    expect(screen.getByRole('radio', { name: 'Bravo' })).toBeChecked();
+    expect(flagToggle()).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Not saved yet. Retrying…')).toBeInTheDocument();
+    expect(calls(SAVE)).toHaveLength(1);
+
+    // A newer answer replaces the one that was waiting for its retry; the old one is never sent again.
+    fireEvent.click(screen.getByRole('radio', { name: 'Charlie' }));
+    handlers[SAVE] = () => json(200, { saved: true });
     await advance(1_000);
-    expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent('24:59');
+    await settle();
+    expect(bodies(SAVE)).toEqual([
+      { questionId: 'q-1.1-001', answer: pick('b') },
+      { questionId: 'q-1.1-001', answer: pick('c') },
+      { questionId: 'q-1.1-001', flagged: true },
+    ]);
+    expect(screen.queryByText('Not saved yet. Retrying…')).not.toBeInTheDocument();
+    await advance(20_000);
+    expect(calls(SAVE)).toHaveLength(3);
+  });
+
+  it('a question counts as answered only when its answer is complete', async () => {
+    const open = exam({ questions: [multi, match, q1] });
+    handlers['GET /api/assessments/30'] = () => json(200, open);
+    handlers[SAVE] = () => json(200, { saved: true });
+    renderAt('/exam/30');
+    await heading('Question 1 of 3');
+
+    // A box ticked and unticked again: an answer is stored, but nothing is chosen.
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Bollards' }));
+    expect(navButtons()[0]).toBe('Question 1, answered');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Bollards' }));
+    expect(navButtons()[0]).toBe('Question 1, unanswered');
+    await waitFor(() => expect(bodies(SAVE)).toHaveLength(2));
+    expect(bodies(SAVE)[1]).toEqual({ questionId: 'q-1.2-060', answer: { type: 'multi', choices: [] } });
+
+    // One of two matches made.
+    await userEvent.click(button('Next'));
+    await heading('Question 2 of 3');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Match for Confidentiality' }), 'Encryption');
+    expect(navButtons()).toEqual(['Question 1, unanswered', 'Question 2, partly answered', 'Question 3, unanswered']);
+    expect(within(nav()).getByText('0 of 3 answered, 0 flagged')).toBeInTheDocument();
+    expect(screen.getByText('Partly answered. It counts as unanswered until every item has a match.')).toBeInTheDocument();
+
+    await userEvent.click(button('Submit exam'));
+    expect(dialog()).toHaveAccessibleDescription(/3 unanswered, 0 flagged\. 1 of the unanswered is partly answered\./);
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Keep working' }));
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Match for Integrity' }), 'Hashing');
+    expect(navButtons()[1]).toBe('Question 2, answered');
+    expect(screen.queryByText('Partly answered. It counts as unanswered until every item has a match.')).not.toBeInTheDocument();
+    await userEvent.click(button('Submit exam'));
+    expect(dialog()).toHaveAccessibleDescription(/2 unanswered, 0 flagged\./);
+    expect(dialog()).not.toHaveAccessibleDescription(/partly/);
+  });
+
+  it('after a reload a partly answered question is still partly answered, and the exam opens on the first question that is not complete', async () => {
+    handlers['GET /api/assessments/30'] = () =>
+      json(200, exam({ questions: [q1, match, multi], answers: { [q1.id]: pick('a'), [match.id]: { type: 'match', pairs: { l1: 'r1' } }, [multi.id]: { type: 'multi', choices: [] } } }));
+    renderAt('/exam/30');
+    await heading('Question 2 of 3');
+    expect(navButtons()).toEqual(['Question 1, answered', 'Question 2, partly answered', 'Question 3, unanswered']);
+  });
+
+  it('a click on the dialog text does not disable Escape', async () => {
+    handlers['GET /api/assessments/30'] = () => json(200, exam());
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    await userEvent.click(button('Submit exam'));
+    await userEvent.click(within(dialog()).getByText('5 unanswered, 0 flagged.'));
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(button('Submit exam')).toHaveFocus();
+    expect(writes()).toEqual([]);
   });
 
   it('warns before the page is closed only while a save is on its way', async () => {
@@ -852,6 +1339,63 @@ describe('exam', () => {
     handlers['GET /api/assessments/30'] = () => json(status, { error: 'Assessment not found' });
     renderAt('/exam/30');
     expect(await screen.findByRole('alert')).toHaveTextContent(text);
+  });
+});
+
+describe('the saves of an exam', () => {
+  const body = (n: number) => ({ questionId: `q-1.1-00${n}`, answer: pick('a') });
+  const leaving = () => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+
+  it('are still sent for a page that found them before the last page\'s save finished and took hold of them after', async () => {
+    const client = createQueryClient();
+    const first = deferred<Response>();
+    handlers[SAVE] = () => first.promise;
+    const before = examSaves(client, 30);
+    before.acquire();
+    before.save('q-1.1-001', body(1));
+    before.release(); // that page goes while its save is on its way
+
+    const after = examSaves(client, 30); // the next page renders: it finds the same saves
+    expect(after).toBe(before);
+    first.resolve(json(200, { saved: true })); // the save lands: nobody holds the saves, nothing is left to send
+    await after.queue.flush();
+    await new Promise((r) => setTimeout(r, 0));
+
+    after.acquire(); // only now do the next page's effects run
+    const second = deferred<Response>();
+    handlers[SAVE] = () => second.promise;
+    after.save('q-1.1-002', body(2));
+    await waitFor(() => expect(bodies(SAVE)).toEqual([body(1), body(2)]));
+    // They are the exam's saves again: found by the next lookup, and guarding the page while one is on its way.
+    expect(examSaves(client, 30)).toBe(after);
+    expect(leaving()).toBe(true);
+    second.resolve(json(200, { saved: true }));
+    await after.queue.flush();
+    expect(leaving()).toBe(false);
+    after.release();
+  });
+
+  it('are let go once nobody holds them and nothing is left to send, and not before', async () => {
+    const client = createQueryClient();
+    const pending = deferred<Response>();
+    handlers[SAVE] = () => pending.promise;
+    const saves = examSaves(client, 30);
+    saves.acquire();
+    saves.acquire(); // a second holder, as when one page replaces another
+    saves.save('q-1.1-001', body(1));
+    saves.release();
+    pending.resolve(json(200, { saved: true }));
+    await saves.queue.flush();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(examSaves(client, 30)).toBe(saves);
+
+    saves.release();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(examSaves(client, 30)).not.toBe(saves);
   });
 });
 
@@ -940,6 +1484,27 @@ describe('results', () => {
     expect(Number(arc.getAttribute('stroke-dashoffset'))).toBeCloseTo(Number(arc.getAttribute('stroke-dasharray')));
   });
 
+  it('celebrates a pass as soon as it is told that the result is fresh, not only when it is told at once', () => {
+    const props = {
+      result: { scorePct: 100, passed: true, byDomain: {}, byObjective: {}, xp: 150, newBadges: [] },
+      questions: [], answers: {}, feedback: {}, kind: 'domain' as const, title: 'Domain 1 exam results', passTitle: 'Domain 1 exam',
+    };
+    const client = createQueryClient();
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <ResultsView {...props} />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByText('Exam passed')).not.toBeInTheDocument();
+    rerender(
+      <QueryClientProvider client={client}>
+        <ResultsView {...props} fresh />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText('Exam passed').closest('[role="status"]')).toHaveTextContent('+150 XP');
+    expect(screen.getByRole('heading', { level: 1, name: 'Domain 1 exam results' })).toHaveFocus();
+  });
+
   it('shows a bar per domain when the exam covers more than one, and renders prompts as text', async () => {
     const other = { ...single(9, '2.1'), prompt: '<img src=x onerror=alert(1)>' };
     const open = { ...mock(), partial: false, questions: [q1, q4, other] };
@@ -963,30 +1528,34 @@ describe('exam lobby', () => {
   const notice = () => screen.queryByText(/^Partial practice exam/);
 
   it('lobby shows the partial-exam notice when the last assessment or API marks partial', async () => {
-    // The API says that only Domain 1 has content.
+    // The API says that an exam started now is partial, and that only Domain 1 has content.
     const first = renderAt('/exam');
     expect(await screen.findByText('Partial practice exam — covers Domain 1 only')).toBeInTheDocument();
+    // Its real length, not the full exam's.
+    expect(screen.getByText(/^This exam has 11 questions in 11 minutes/)).toBeInTheDocument();
     first.unmount();
 
     handlers['GET /api/path'] = () => json(200, path([1, 2, 4]));
+    handlers['GET /api/dashboard'] = () => json(200, dashboard([], { mockSpec: { questions: 56, minutes: 56, partial: true } }));
     const second = renderAt('/exam');
     expect(await screen.findByText('Partial practice exam — covers Domains 1, 2 and 4 only')).toBeInTheDocument();
+    expect(screen.getByText(/^This exam has 56 questions in 56 minutes/)).toBeInTheDocument();
     second.unmount();
 
-    // The path cannot be read: the last practice exam still says that exams are partial.
+    // The path cannot be read: the exam is still known to be partial, only not which domains it covers.
     handlers['GET /api/path'] = () => json(500, { error: 'Server error' });
-    handlers['GET /api/dashboard'] = () => json(200, dashboard([entry(1), entry(2, { partial: true })]));
     const third = renderAt('/exam');
     expect(await screen.findByText('Partial practice exam — it does not cover all five domains yet')).toBeInTheDocument();
     third.unmount();
 
     // Every domain has content now: the next exam is a full one, whatever the earlier ones were.
     handlers['GET /api/path'] = () => json(200, path([1, 2, 3, 4, 5]));
+    handlers['GET /api/dashboard'] = () => json(200, dashboard([entry(1), entry(2, { partial: true })], { mockSpec: FULL_MOCK }));
     renderAt('/exam');
     const history = within(await screen.findByRole('list', { name: 'Your practice exams' }));
     expect(history.getAllByRole('listitem')[0]).toHaveTextContent('Partial');
     expect(notice()).not.toBeInTheDocument();
-    expect(await screen.findByText(/^90 questions in 90 minutes/)).toBeInTheDocument();
+    expect(screen.getByText(/^90 questions in 90 minutes/)).toBeInTheDocument();
   });
 
   it('explains the rules, starts one exam on a double click and opens it', async () => {
@@ -997,19 +1566,37 @@ describe('exam lobby', () => {
 
     expect(await heading('Practice exam', 1)).toBeInTheDocument();
     const rules = within(screen.getByRole('list', { name: 'Exam rules' }));
-    expect(rules.getByText(/one minute per question/i)).toBeInTheDocument();
+    expect(await rules.findByText(/one minute per question/i)).toBeInTheDocument();
     expect(rules.getByText(/No feedback until the end/)).toBeInTheDocument();
     expect(rules.getByText(/You need 750 to pass/)).toBeInTheDocument();
     expect(rules.getByText(/CompTIA does not publish its scaling/)).toBeInTheDocument();
     expect(await screen.findByText('No practice exams yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resume practice exam' })).not.toBeInTheDocument();
 
-    await userEvent.dblClick(screen.getByRole('button', { name: 'Start practice exam' }));
+    await userEvent.dblClick(button('Start practice exam'));
     expect(bodies('POST /api/assessments')).toEqual([{ kind: 'mock' }]);
-    // 201 for a new exam, 200 for one that was already open: either way the exam with that id is opened.
-    started.resolve(json(200, { id: 30 }));
+    started.resolve(json(201, { id: 30 }));
     await heading('Question 1 of 5');
     expect(screen.getByRole('heading', { level: 1, name: 'Practice exam' })).toBeInTheDocument();
     expect(calls('POST /api/assessments')).toHaveLength(1);
+    // An exam is now in progress: the lobby's data is read again, so that it says "Resume" next time.
+    await waitFor(() => expect(calls('GET /api/dashboard')).toHaveLength(2));
+  });
+
+  it('offers "Resume practice exam" with the time left for an exam in progress, and opens it without starting another', async () => {
+    const deadlineAt = new Date(Date.now() + 41.5 * 60_000).toISOString();
+    handlers['GET /api/dashboard'] = () => json(200, dashboard([], { openMock: { id: 77, deadlineAt }, mockSpec: FULL_MOCK }));
+    handlers['GET /api/assessments/77'] = () => json(200, exam({ id: 77, kind: 'mock', scope: null, deadlineAt }));
+    renderAt('/exam');
+
+    const resume = await screen.findByRole('button', { name: 'Resume practice exam' });
+    expect(screen.getByText('You have a practice exam in progress, with about 42 minutes left. Its clock is running.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start practice exam' })).not.toBeInTheDocument();
+
+    await userEvent.click(resume);
+    await heading('Question 1 of 5');
+    expect(screen.getByRole('timer', { name: 'Time left' })).toHaveTextContent(/^41:\d\d$/);
+    expect(writes()).toEqual([]);
   });
 
   it('lists earlier practice exams, newest first, each with its score, outcome and a link to its review', async () => {
@@ -1029,14 +1616,34 @@ describe('exam lobby', () => {
     expect(rows[2]).toHaveTextContent('Partial');
   });
 
+  it('never claims more time for an exam in progress than the exam has, however wrong the device clock is', async () => {
+    // By this device's clock the deadline is three hours away; a mock exam here lasts 11 minutes.
+    handlers['GET /api/dashboard'] = () =>
+      json(200, dashboard([], { openMock: { id: 77, deadlineAt: new Date(Date.now() + 3 * 3_600_000).toISOString() } }));
+    const first = renderAt('/exam');
+    await screen.findByRole('button', { name: 'Resume practice exam' });
+    expect(screen.getByText('You have a practice exam in progress, with about 11 minutes left. Its clock is running.')).toBeInTheDocument();
+    first.unmount();
+
+    // And by a clock that is ahead, the deadline has passed although the server still has the exam open.
+    handlers['GET /api/dashboard'] = () =>
+      json(200, dashboard([], { openMock: { id: 77, deadlineAt: new Date(Date.now() - 60_000).toISOString() } }));
+    renderAt('/exam');
+    await screen.findByRole('button', { name: 'Resume practice exam' });
+    expect(screen.getByText('You have a practice exam in progress. Its clock is running.')).toBeInTheDocument();
+  });
+
   it('offers no exam while nothing is published, and says so when one cannot be started', async () => {
     handlers['GET /api/path'] = () => json(200, path([]));
+    handlers['GET /api/dashboard'] = () => json(200, dashboard([], { mockSpec: { questions: 0, minutes: 0, partial: true } }));
     const first = renderAt('/exam');
     expect(await screen.findByText(/Practice exams open once the first lessons are published/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Start practice exam' })).not.toBeInTheDocument();
+    expect(notice()).not.toBeInTheDocument();
     first.unmount();
 
     handlers['GET /api/path'] = () => json(200, path());
+    handlers['GET /api/dashboard'] = () => json(200, dashboard());
     handlers['POST /api/assessments'] = () => json(503, { error: 'Service unavailable' });
     renderAt('/exam');
     const start = await screen.findByRole('button', { name: 'Start practice exam' });

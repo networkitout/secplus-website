@@ -1,11 +1,13 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes, useParams } from 'react-router';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+import { Link, MemoryRouter, Route, Routes, useParams } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Feedback, LessonProgressView, LessonView, PublicQuestion } from '../../../../shared/types';
 import type { LessonResponse } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
+import { PathPage } from '../path/PathPage';
+import { InlineCheck } from './InlineCheck';
 import { LessonPage } from './LessonPage';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
@@ -83,20 +85,46 @@ beforeEach(() => {
     return h(url, init);
   });
   vi.stubGlobal('fetch', fetchMock);
+
+  // The player ignores presses for a moment after the screen changes (so that the second click of a
+  // double click cannot act on the next screen). `read()` lets that moment pass without waiting.
+  const now = performance.now.bind(performance);
+  readingTime = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => now() + readingTime);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+let readingTime = 0;
+const read = () => {
+  readingTime += 5000;
+};
+
+/** A response that the test releases when it chooses. */
+function deferred(status: number, body: unknown) {
+  let release!: () => void;
+  const response = new Promise<Response>((resolve) => {
+    release = () => resolve(json(status, body));
+  });
+  return { response, release };
+}
 
 function Stub({ name }: { name: string }) {
   const { id } = useParams();
   return <p>{`${name} ${id ?? ''}`}</p>;
 }
 
-function renderLesson() {
+function renderLesson(client: QueryClient = createQueryClient(), start = '/lesson/1.1') {
   return render(
-    <QueryClientProvider client={createQueryClient()}>
-      <MemoryRouter initialEntries={['/lesson/1.1']}>
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[start]}>
+        <Link to="/elsewhere">Elsewhere</Link>
+        <Link to="/lesson/1.2">Other lesson</Link>
         <Routes>
           <Route path="/" element={<Stub name="path screen" />} />
+          <Route path="/elsewhere" element={<Stub name="another screen" />} />
           <Route path="/lesson/:objective" element={<LessonPage />} />
           <Route path="/quiz/:id" element={<Stub name="quiz screen" />} />
         </Routes>
@@ -105,9 +133,14 @@ function renderLesson() {
   );
 }
 
-const bodies = (key: string) =>
-  fetchMock.mock.calls.filter(([u, i]) => `${i?.method ?? 'GET'} ${u}` === key).map(([, i]) => JSON.parse(String(i.body)));
-const sectionHeading = (name: string) => screen.findByRole('heading', { level: 2, name });
+const requests = (key: string) => fetchMock.mock.calls.filter(([u, i]) => `${i?.method ?? 'GET'} ${u}` === key);
+const bodies = (key: string) => requests(key).map(([, i]) => JSON.parse(String(i.body)));
+/** Finds the heading of the section on screen, then lets the learner "read" it (see `read`). */
+const sectionHeading = async (name: string) => {
+  const heading = await screen.findByRole('heading', { level: 2, name });
+  read();
+  return heading;
+};
 // A diagram inside the section has a Next button of its own; the lesson's is in the "Lesson sections" group.
 const next = () => within(screen.getByRole('group', { name: 'Lesson sections' })).getByRole('button', { name: 'Next' });
 const progress = () => screen.getByRole('progressbar', { name: 'Lesson progress' });
@@ -190,7 +223,8 @@ describe('lesson', () => {
     expect(done).toHaveFocus();
     expect(bodies('POST /api/lessons/1.1/progress')).toEqual([{ sectionId: 's3' }]);
     const celebration = screen.getByText('Lesson complete').closest('[role="status"]') as HTMLElement;
-    expect(celebration).toHaveTextContent('+50 XP');
+    expect(celebration).toHaveTextContent('Lesson completeSecurity controls+50 XP');
+    expect(celebration).not.toHaveTextContent('Streak');
     expect(within(celebration).getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
     expect(progress()).toHaveAttribute('aria-valuenow', '3');
 
@@ -375,5 +409,408 @@ describe('lesson', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(text);
     await userEvent.click(screen.getByRole('link', { name: 'Back to the study path' }));
     expect(screen.getByText(/path screen/)).toBeInTheDocument();
+  });
+});
+
+describe('lesson: pressing a control twice', () => {
+  it('a double click on Next with an immediate response lands on the next section and posts once', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1']));
+    handlers['POST /api/lessons/1.1/progress'] = (_url, init) =>
+      json(200, saved(JSON.parse(String(init!.body)).sectionId === 's2' ? ['s1', 's2'] : ['s1', 's2', 's3'], 50));
+    renderLesson();
+    await sectionHeading('The CIA triad');
+
+    await userEvent.dblClick(next());
+
+    // The second click arrives when the last section is already showing; it must not finish the lesson.
+    expect(await screen.findByRole('heading', { level: 2, name: 'Summary' })).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByRole('heading', { level: 2, name: 'Summary' })).toBeInTheDocument();
+    expect(bodies('POST /api/lessons/1.1/progress')).toEqual([{ sectionId: 's2' }]);
+  });
+
+  it('a double click on Next in a section that is already done moves one section, not two', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2', 's3']));
+    renderLesson();
+    await sectionHeading("You've finished this lesson");
+    await userEvent.click(screen.getByRole('button', { name: 'Read the lesson again' }));
+    await sectionHeading('Control categories');
+
+    await userEvent.dblClick(next());
+    expect(await screen.findByRole('heading', { level: 2, name: 'The CIA triad' })).toBeInTheDocument();
+    expect(screen.getByText('Section 2 of 3')).toBeInTheDocument();
+
+    // Once the learner has had time to see the section, Next works again.
+    read();
+    await userEvent.click(next());
+    expect(await screen.findByRole('heading', { level: 2, name: 'Summary' })).toBeInTheDocument();
+  });
+
+  it('a press that lands on the end screen straight after "Finish lesson" does not start the quiz', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2']));
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1', 's2', 's3'], 50));
+    handlers['POST /api/assessments'] = () => json(201, { id: 12 });
+    renderLesson();
+    await sectionHeading('Summary');
+    await userEvent.click(screen.getByRole('button', { name: 'Finish lesson' }));
+    await screen.findByRole('heading', { level: 2, name: "You've finished this lesson" });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Take the quiz' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Read the lesson again' }));
+    expect(requests('POST /api/assessments')).toHaveLength(0);
+    expect(screen.getByRole('heading', { level: 2, name: "You've finished this lesson" })).toBeInTheDocument();
+
+    read();
+    await userEvent.click(screen.getByRole('button', { name: 'Take the quiz' }));
+    expect(await screen.findByText('quiz screen 12')).toBeInTheDocument();
+  });
+
+  it('two presses on Next while the save is still on its way post once, and say that it is saving', async () => {
+    const save = deferred(200, saved(['s1', 's2']));
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1']));
+    handlers['POST /api/lessons/1.1/progress'] = () => save.response;
+    renderLesson();
+    await sectionHeading('The CIA triad');
+    const button = next();
+
+    await userEvent.click(button);
+    await userEvent.click(button);
+    button.focus();
+    await userEvent.keyboard('{Enter}{Enter}');
+    expect(requests('POST /api/lessons/1.1/progress')).toHaveLength(1);
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button).toBeEnabled();
+    expect(screen.getByText('Saving your progress…')).toHaveAttribute('role', 'status');
+
+    save.release();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Summary' })).toBeInTheDocument();
+    expect(requests('POST /api/lessons/1.1/progress')).toHaveLength(1);
+    expect(screen.queryByText('Saving your progress…')).not.toBeInTheDocument();
+  });
+
+  it('Previous is ignored while a save is on its way, so the learner ends up where Next was pressed from', async () => {
+    const save = deferred(200, saved(['s1', 's2']));
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1']));
+    handlers['POST /api/lessons/1.1/progress'] = () => save.response;
+    renderLesson();
+    await sectionHeading('The CIA triad');
+
+    await userEvent.click(next());
+    await userEvent.click(screen.getByRole('button', { name: 'Previous' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'The CIA triad' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Control categories' })).not.toBeInTheDocument();
+
+    save.release();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Summary' })).toBeInTheDocument();
+    expect(screen.getByText('Section 3 of 3')).toBeInTheDocument();
+  });
+
+  it('two presses on "Check answer" while the answer is on its way post once', async () => {
+    const marked = deferred(200, { feedback: right, xp: 10, newBadges: [] });
+    handlers['POST /api/answers'] = () => marked.response;
+    renderLesson();
+    await sectionHeading('Control categories');
+    await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
+    const button = screen.getByRole('button', { name: 'Check answer' });
+
+    await userEvent.dblClick(button);
+    button.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(requests('POST /api/answers')).toHaveLength(1);
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Checking your answer…')).toHaveAttribute('role', 'status');
+
+    marked.release();
+    expect(await within(screen.getByRole('status', { name: 'Result' })).findByText('Correct')).toBeInTheDocument();
+    expect(requests('POST /api/answers')).toHaveLength(1);
+  });
+
+  it('two presses on "Take the quiz" while it is being created post once', async () => {
+    const created = deferred(201, { id: 12 });
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2', 's3']));
+    handlers['POST /api/assessments'] = () => created.response;
+    renderLesson();
+    await sectionHeading("You've finished this lesson");
+    const button = screen.getByRole('button', { name: 'Take the quiz' });
+
+    await userEvent.dblClick(button);
+    button.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(requests('POST /api/assessments')).toHaveLength(1);
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Starting the quiz…')).toHaveAttribute('role', 'status');
+
+    created.release();
+    expect(await screen.findByText('quiz screen 12')).toBeInTheDocument();
+    expect(requests('POST /api/assessments')).toHaveLength(1);
+  });
+
+  it('does not open the quiz when the learner has gone elsewhere before it was created', async () => {
+    const created = deferred(201, { id: 12 });
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2', 's3']));
+    handlers['POST /api/assessments'] = () => created.response;
+    renderLesson();
+    await sectionHeading("You've finished this lesson");
+    await userEvent.click(screen.getByRole('button', { name: 'Take the quiz' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Elsewhere' }));
+    expect(await screen.findByText(/another screen/)).toBeInTheDocument();
+
+    created.release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByText(/another screen/)).toBeInTheDocument();
+    expect(screen.queryByText(/quiz screen/)).not.toBeInTheDocument();
+  });
+});
+
+describe('lesson: review findings', () => {
+  it.each([
+    [400, 'Unknown section'],
+    [404, 'Objective not found'],
+    [403, 'Pass the previous domain exam to unlock this domain'],
+  ])('asks for a reload, not a retry, when saving progress fails with a %i', async (status, error) => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1']));
+    handlers['POST /api/lessons/1.1/progress'] = () => json(status, { error });
+    renderLesson();
+    await sectionHeading('The CIA triad');
+    await userEvent.click(next());
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't save your progress. This lesson may have changed since you opened it: reload the page to continue.");
+    expect(within(alert).queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'The CIA triad' })).toBeInTheDocument();
+  });
+
+  it('asks for a reload, not a retry, when an answer is rejected', async () => {
+    handlers['POST /api/answers'] = () => json(404, { error: 'Question not found' });
+    renderLesson();
+    await sectionHeading('Control categories');
+    await answerCheck('Technical');
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't check your answer. This lesson may have changed since you opened it: reload the page and try again.");
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+  });
+
+  it('refreshes the study path when a section is saved, so the map is up to date on return', async () => {
+    const path = {
+      domains: [{
+        id: 1, title: 'General Security Concepts', weight: 12, unlocked: true, examPassed: false, hasContent: true,
+        objectives: [{ id: '1.1', title: 'Security controls', published: true, lessonDone: false, quizPassed: false, mastery: 0 }],
+      }],
+    };
+    handlers['GET /api/path'] = () => json(200, path);
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1', 's2']));
+    handlers['POST /api/lessons/1.1/progress'] = () => {
+      path.domains[0]!.objectives[0]!.lessonDone = true;
+      return json(200, saved(['s1', 's2', 's3'], 50));
+    };
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={<PathPage />} />
+            <Route path="/lesson/:objective" element={<LessonPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await userEvent.click(await screen.findByRole('link', { name: '1.1 Security controls' }));
+    await sectionHeading('Summary');
+    expect(requests('GET /api/path')).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Finish lesson' }));
+    await sectionHeading("You've finished this lesson");
+    await waitFor(() => expect(requests('GET /api/path')).toHaveLength(2));
+
+    // Back on the map the new state is there at once: no moment with "Lesson not done".
+    await userEvent.click(screen.getByRole('link', { name: 'Back to the study path' }));
+    expect(screen.getByText('Lesson done')).toBeInTheDocument();
+    expect(screen.queryByText('Lesson not done')).not.toBeInTheDocument();
+  });
+
+  it('counts only sections that the lesson still has in the progress bar', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, { lesson: lesson(), progress: { sectionsDone: ['s1', 'old-2', 'old-3', 'old-4'], completedAt: null } });
+    renderLesson();
+    await sectionHeading('The CIA triad');
+    expect(progress()).toHaveAttribute('aria-valuenow', '1');
+    expect(progress()).toHaveAttribute('aria-valuemax', '3');
+    expect(progress()).toHaveAttribute('aria-valuetext', '1 of 3 sections complete');
+  });
+
+  it('marks the header totals for a refresh when XP is earned, and not when nothing is earned', async () => {
+    const client = createQueryClient();
+    client.setQueryData(['dashboard'], { xp: 0, level: 1, nextLevelXp: 100, streak: 0 });
+    handlers['POST /api/answers'] = () => json(200, { feedback: wrong, xp: 0, newBadges: [] });
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1']));
+    renderLesson(client);
+    await sectionHeading('Control categories');
+    await answerCheck('Physical');
+    await waitFor(() => expect(next()).toBeEnabled());
+    await userEvent.click(next());
+    await sectionHeading('The CIA triad');
+    expect(client.getQueryState(['dashboard'])!.isInvalidated).toBe(false);
+
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, { ...saved(['s1', 's2']), xp: 0, newBadges: ['first-lesson'] });
+    await userEvent.click(next());
+    await sectionHeading('Summary');
+    expect(client.getQueryState(['dashboard'])!.isInvalidated).toBe(true);
+  });
+
+  it('marks the header totals for a refresh when an answer earns XP', async () => {
+    const client = createQueryClient();
+    client.setQueryData(['dashboard'], { xp: 0, level: 1, nextLevelXp: 100, streak: 0 });
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: [] });
+    renderLesson(client);
+    await sectionHeading('Control categories');
+    await answerCheck('Technical');
+    await waitFor(() => expect(client.getQueryState(['dashboard'])!.isInvalidated).toBe(true));
+  });
+
+  it('shows the other lesson when the objective in the address changes', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(200, response(['s1']));
+    handlers['GET /api/lessons/1.2'] = () =>
+      json(200, {
+        lesson: { objective: '1.2', title: 'Fundamental concepts', minutes: 9, sections: [{ id: 's1', title: 'Why it matters', blocks: [{ kind: 'html', html: '<p>Other text.</p>' }] }] },
+        progress: { sectionsDone: [], completedAt: null },
+      });
+    handlers['POST /api/lessons/1.2/progress'] = () => json(200, { sectionsDone: ['s1'], completedAt: '2026-11-10T10:00:00.000Z', xp: 50, newBadges: [] });
+    renderLesson();
+    await sectionHeading('The CIA triad');
+
+    await userEvent.click(screen.getByRole('link', { name: 'Other lesson' }));
+    await sectionHeading('Why it matters');
+    expect(screen.getByRole('heading', { level: 1, name: 'Fundamental concepts' })).toBeInTheDocument();
+    expect(screen.getByText('Section 1 of 1')).toBeInTheDocument();
+    expect(progress()).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.queryByText('Three goals.')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Finish lesson' }));
+    await sectionHeading("You've finished this lesson");
+    expect(bodies('POST /api/lessons/1.2/progress')).toEqual([{ sectionId: 's1' }]);
+  });
+
+  it('offers "Try again" when the lesson cannot be loaded, says that it is loading, and recovers', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(500, { error: 'Internal error' });
+    renderLesson();
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load this lesson.");
+
+    const again = deferred(200, response());
+    handlers['GET /api/lessons/1.1'] = () => again.response;
+    const button = screen.getByRole('button', { name: 'Try again' });
+    await userEvent.click(button);
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading lesson…')).toHaveAttribute('role', 'status');
+
+    again.release();
+    await sectionHeading('Control categories');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('makes a block that scrolls sideways reachable by keyboard, and leaves other blocks alone', async () => {
+    const wide = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.querySelector('table') || this.tagName === 'PRE' ? 900 : 300;
+    });
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+    const sections = lesson().sections;
+    sections[0]!.blocks = [
+      { kind: 'html', html: '<p>Plain text.</p>' },
+      { kind: 'html', html: '<table><tbody><tr><td>A wide table</td></tr></tbody></table>' },
+      { kind: 'html', html: '<pre><code>a very long line of code</code></pre>' },
+    ];
+    handlers['GET /api/lessons/1.1'] = () => json(200, response([], { sections }));
+    renderLesson();
+    await sectionHeading('Control categories');
+
+    const table = screen.getByRole('region', { name: 'Wide content: scroll sideways to see all of it' });
+    expect(table).toHaveAttribute('tabindex', '0');
+    expect(within(table).getByText('A wide table')).toBeInTheDocument();
+    const code = screen.getByRole('region', { name: 'Code: scroll sideways to see all of it' });
+    expect(code.tagName).toBe('PRE');
+    expect(code).toHaveAttribute('tabindex', '0');
+    expect(screen.getByText('Plain text.').closest('[tabindex]')).toBeNull();
+    wide.mockRestore();
+  });
+});
+
+describe('lesson: second review round', () => {
+  it('a marked check never sends its answer again, even before the page has stored the result', async () => {
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: [] });
+    const onAnswered = vi.fn();
+    // The parent here never passes `result` back, which holds the check in the moment between the
+    // response and the page's next render: the button is still there.
+    render(<InlineCheck question={single} onAnswered={onAnswered} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
+    const button = screen.getByRole('button', { name: 'Check answer' });
+    await userEvent.click(button);
+    await waitFor(() => expect(onAnswered).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(button);
+    await userEvent.dblClick(button);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(requests('POST /api/answers')).toHaveLength(1);
+    expect(onAnswered).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed check can be sent again', async () => {
+    handlers['POST /api/answers'] = () => json(503, { error: 'Service unavailable' });
+    render(<InlineCheck question={single} onAnswered={vi.fn()} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Technical' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(requests('POST /api/answers')).toHaveLength(2));
+  });
+
+  it('a marked check only marks the study path as out of date; a saved section fetches it again', async () => {
+    const client = createQueryClient();
+    handlers['GET /api/path'] = () => json(200, { domains: [] });
+    await client.fetchQuery({ queryKey: ['path'], queryFn: () => fetch('/api/path').then((r) => r.json()) });
+    expect(requests('GET /api/path')).toHaveLength(1);
+    handlers['POST /api/answers'] = () => json(200, { feedback: right, xp: 10, newBadges: [] });
+    handlers['POST /api/lessons/1.1/progress'] = () => json(200, saved(['s1']));
+    renderLesson(client);
+    await sectionHeading('Control categories');
+
+    await answerCheck('Technical');
+    await waitFor(() => expect(client.getQueryState(['path'])!.isInvalidated).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(requests('GET /api/path')).toHaveLength(1);
+
+    await userEvent.click(next());
+    await sectionHeading('The CIA triad');
+    await waitFor(() => expect(requests('GET /api/path')).toHaveLength(2));
+  });
+
+  it('forgets a retry that was under way when the address changes to another lesson', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(500, { error: 'Internal error' });
+    renderLesson();
+    await screen.findByRole('alert');
+    handlers['GET /api/lessons/1.1'] = () => new Promise<Response>(() => {});
+    handlers['GET /api/lessons/1.2'] = () => new Promise<Response>(() => {});
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.getByRole('button', { name: 'Try again' })).toHaveAttribute('aria-busy', 'true');
+
+    await userEvent.click(screen.getByRole('link', { name: 'Other lesson' }));
+    // The other lesson is simply loading: no "Try again" left over from the first one.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent('Loading lesson…');
+    expect(requests('GET /api/lessons/1.2')).toHaveLength(1);
+  });
+
+  it('puts focus on the lesson title when "Try again" has loaded the lesson', async () => {
+    handlers['GET /api/lessons/1.1'] = () => json(500, { error: 'Internal error' });
+    renderLesson();
+    await screen.findByRole('alert');
+    handlers['GET /api/lessons/1.1'] = () => json(200, response());
+    const button = screen.getByRole('button', { name: 'Try again' });
+    button.focus();
+    await userEvent.keyboard('{Enter}');
+
+    await sectionHeading('Control categories');
+    // The button that had focus is gone; focus must not fall back to the top of the page.
+    expect(screen.getByRole('heading', { level: 1, name: 'Security controls' })).toHaveFocus();
+  });
+
+  it('leaves focus alone when a lesson loads normally', async () => {
+    renderLesson();
+    await sectionHeading('Control categories');
+    expect(document.body).toHaveFocus();
   });
 });

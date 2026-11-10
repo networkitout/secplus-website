@@ -42,6 +42,15 @@ export async function dueCards(db: Db, content: Content, userId: number, today: 
     .map((r) => ({ cardId: r.card_id, box: Number(r.box), dueOn: r.due_on }));
 }
 
+/** The earliest date after `today` on which a card whose content still exists falls due; null when there is none. */
+export async function nextDueOn(db: Db, content: Content, userId: number, today: string): Promise<string | null> {
+  const rows = await db.query<{ card_id: string; due_on: string }>(
+    'SELECT card_id, due_on FROM review_cards WHERE user_id = ? AND due_on > ? ORDER BY due_on, card_id',
+    [userId, today],
+  );
+  return rows.find((r) => cardExists(content, r.card_id))?.due_on ?? null;
+}
+
 export async function dueCount(db: Db, content: Content, userId: number, today: string): Promise<number> {
   return (await dueCards(db, content, userId, today)).length;
 }

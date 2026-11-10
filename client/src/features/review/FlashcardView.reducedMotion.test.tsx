@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { FlashcardView } from './FlashcardView';
 
+const MOTION_NOTICE = 'You have Reduced Motion enabled on your device. Animations may not appear as expected.';
+
 // Motion reads the reduced-motion preference once per module instance, so this case has its own file.
 beforeAll(() => {
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -12,10 +14,12 @@ beforeAll(() => {
     addEventListener: () => {},
     removeEventListener: () => {},
   }));
-  // In development Motion logs a notice when the device prefers reduced motion; here that is expected.
+  // Motion logs exactly one notice in development when the device prefers reduced motion (`useReducedMotion`
+  // and every motion element report it through one `warnOnce`). It cannot be switched off, and here it is the
+  // expected state, so that one message is let through silently; any other warning still reaches the console.
   const warn = console.warn;
   vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
-    if (!String(args[0]).includes('Reduced Motion')) warn(...args);
+    if (!String(args[0]).startsWith(MOTION_NOTICE)) warn(...args);
   });
 });
 afterAll(() => {

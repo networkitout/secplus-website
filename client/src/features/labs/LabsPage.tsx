@@ -5,6 +5,7 @@ import { api } from '../../api/client';
 import type { LabsResponse, LabSummary, PathDomain, PathResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
+import { wholePercent } from './percent';
 
 const LINK = 'rounded-sm underline decoration-border underline-offset-4 hover:decoration-accent';
 
@@ -77,8 +78,7 @@ function LabCard({ lab, domain }: { lab: LabSummary; domain?: PathDomain }) {
         <p className="font-mono text-sm text-muted">{`${lab.objectives.length === 1 ? 'Objective' : 'Objectives'} ${lab.objectives.join(', ')}`}</p>
         {lab.bestScore !== null ? (
           <p className="flex flex-wrap items-baseline gap-x-3">
-            {/* Never rounded up to a pass mark that was missed. */}
-            <span className="font-mono text-sm">{`Best score: ${Math.floor(lab.bestScore)}%`}</span>
+            <span className="font-mono text-sm">{`Best score: ${wholePercent(lab.bestScore)}%`}</span>
             <State ok={lab.passed}>{lab.passed ? 'Passed' : 'Not passed yet'}</State>
           </p>
         ) : (

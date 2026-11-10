@@ -49,6 +49,8 @@ const fresh = (over: Partial<DashboardResponse> = {}): DashboardResponse => ({
   readiness: { ready: false, missing: MISSING_NEW },
   studyPlan: null,
   badges: BADGES,
+  openMock: null,
+  mockSpec: { questions: 11, minutes: 11, partial: true },
   ...over,
 });
 

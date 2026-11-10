@@ -1,0 +1,86 @@
+import { useRef, useState, type MouseEvent } from 'react';
+import type { Answer } from '../../../../shared/types';
+import { api, isUnavailable } from '../../api/client';
+import type { ReviewCard, ReviewResponse } from '../../api/types';
+import { formatDay } from '../../lib/dates';
+import { Button } from '../../ui/Button';
+import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
+import { BOXES, cardUrl, type CardProps } from './parts';
+import { problemOf, ProblemNote, type Problem } from './ProblemNote';
+
+function boxNote(res: ReviewResponse): string {
+  const where = res.box > 1 ? `Now in box ${res.box} of ${BOXES}.` : 'Back to box 1.';
+  return `${where} Due again ${formatDay(res.dueOn)}.`;
+}
+
+/** A question card of the round: Check, the server's marking, then on to the next card. */
+export function QuestionCard({
+  card,
+  last,
+  onReviewed,
+  onNext,
+  onSkip,
+}: CardProps<Extract<ReviewCard, { kind: 'question' }>> & { last: boolean }) {
+  const { question } = card;
+  const [value, setValue] = useState<Answer | null>(null);
+  const [marked, setMarked] = useState<{ answer: Answer; res: ReviewResponse } | null>(null);
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const [busy, setBusy] = useState(false);
+  const sending = useRef(false);
+  const container = useRef<HTMLDivElement>(null);
+
+  async function check(e: MouseEvent) {
+    // The second click of a double click on the button before this one can land here.
+    if (e.detail > 1) return;
+    const answer = value ?? initialAnswer(question);
+    if (sending.current || !answer || marked) return;
+    sending.current = true;
+    setBusy(true);
+    try {
+      const res = await api.post<ReviewResponse>(cardUrl(card), { answer });
+      setProblem(null);
+      setMarked({ answer, res });
+      onReviewed(card, res);
+      // Check gives way to Next: keep keyboard focus by the question and its result.
+      if (container.current?.contains(document.activeElement)) container.current.focus();
+    } catch (err) {
+      setProblem(
+        problemOf(err, isUnavailable(err) ? "Couldn't send your answer. It has not been marked yet." : "Couldn't check your answer."),
+      );
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  }
+
+  function next(e: MouseEvent) {
+    // The second click of a double click on Check can land here, once the button has changed.
+    if (e.detail > 1) return;
+    onNext();
+  }
+
+  return (
+    <div ref={container} tabIndex={-1} role="group" aria-label="Question card" className="space-y-4 rounded-sm">
+      <QuestionView
+        question={question}
+        value={marked ? marked.answer : value}
+        onChange={setValue}
+        feedback={marked?.res.feedback}
+        disabled={busy || marked !== null}
+      />
+      {marked && <p className="text-sm text-muted">{boxNote(marked.res)}</p>}
+      {problem && <ProblemNote problem={problem} onSkip={onSkip} />}
+      <div className="flex justify-end">
+        {marked ? (
+          <Button onClick={next}>{last ? 'Finish' : 'Next'}</Button>
+        ) : (
+          (!problem || problem.canRetry) && (
+            <Button disabled={!isComplete(question, value)} onClick={(e) => void check(e)}>
+              {problem ? 'Try again' : 'Check'}
+            </Button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}

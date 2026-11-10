@@ -46,6 +46,8 @@ export interface PathDomain {
   examPassed: boolean;
   /** False while none of the domain's objectives is published. */
   hasContent: boolean;
+  /** The learner's domain exam that is in progress (not submitted, deadline not passed), if any. */
+  openExam: OpenAssessment | null;
   objectives: PathObjective[];
 }
 
@@ -79,10 +81,19 @@ export interface AssessmentStarted {
 
 export type AssessmentKind = 'objective' | 'domain' | 'mock';
 
+/** A timed exam that can still be resumed. */
+export interface OpenAssessment {
+  id: number;
+  deadlineAt: string;
+}
+
 /** Correct and total question counts, keyed by domain id (`"1"`) or objective id (`"1.2"`). */
 export type Tally = Record<string, { correct: number; total: number }>;
 
-/** The outcome of a finalized assessment. `scaledScore` (100 to 900) exists for mock exams only. */
+/**
+ * The outcome of a finalized assessment. `scaledScore` (100 to 900) exists for mock exams only. `xp` is
+ * everything the assessment earned: the XP of its answers plus any pass bonus.
+ */
 export interface AssessmentResult {
   /** 0 to 100, with up to two decimals. */
   scorePct: number;
@@ -111,6 +122,8 @@ export interface AssessmentView {
   feedback: Record<string, Feedback>;
   deadlineAt: string | null;
   submittedAt: string | null;
+  /** The server's clock when it made this view: `deadlineAt` is measured against it, not the device's. */
+  serverNow: string;
   result?: AssessmentResult;
 }
 
@@ -138,6 +151,10 @@ export interface MockHistoryEntry {
 /** The part of `GET /api/dashboard` that the exam lobby reads. */
 export interface DashboardMocks {
   mockHistory: MockHistoryEntry[];
+  /** The learner's mock exam that is in progress (not submitted, deadline not passed), if any. */
+  openMock: OpenAssessment | null;
+  /** What a mock exam started now would be. `questions` is 0 while nothing is published. */
+  mockSpec: { questions: number; minutes: number; partial: boolean };
 }
 
 /**
@@ -150,11 +167,13 @@ export type ReviewCard =
 
 /**
  * `GET /api/review/due`. `total` counts every card due today; `cards` holds at most the first 30 of them,
- * oldest first. It does not say when the next card falls due.
+ * oldest first. `nextDueOn` is the first calendar date after today (`YYYY-MM-DD`, in the learner's time
+ * zone) on which a card falls due, whether or not any is due today; null when no card is waiting.
  */
 export interface ReviewDueResponse {
   total: number;
   cards: ReviewCard[];
+  nextDueOn: string | null;
 }
 
 /** `GET /api/review/flashcard/:cardId` */
@@ -164,16 +183,18 @@ export interface FlashcardDefinition {
 
 /**
  * `POST /api/review/:cardId` with `{ answer }` for a question card or `{ knewIt }` for a flashcard. `box`
- * (1 to 5) is the card's new Leitner box and `dueOn` the calendar date (`YYYY-MM-DD`, in the learner's
- * time zone) of its next review. A question card adds `feedback`, a flashcard its `definition`. 404 means
- * the card is gone, 409 that it is not due (any more).
+ * (1 to 5) is the card's new Leitner box, `previousBox` the one it was in, and `dueOn` the calendar date
+ * (`YYYY-MM-DD`, in the learner's time zone) of its next review. A question card adds `feedback`, a
+ * flashcard its `definition`. 404 means the card is gone, 409 that it is not due (any more).
  */
 export interface ReviewResponse {
   box: number;
+  previousBox: number;
   dueOn: string;
   feedback?: Feedback;
   definition?: string;
   xp: number;
+  newBadges: string[];
 }
 
 /** One lab of `GET /api/labs`. `bestScore` is 0 to 100 with up to two decimals, or null before any attempt. */

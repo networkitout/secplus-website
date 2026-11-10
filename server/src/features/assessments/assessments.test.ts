@@ -77,6 +77,21 @@ test('start returns 201 with 10 PublicQuestions and no answer data in the JSON',
   expect(again.body.questions).toEqual(got.body.questions); // same option order on reload
 });
 
+test('GET carries serverNow from the injected clock, for an open and for a finalized assessment', async () => {
+  const { agent, setNow } = await setup();
+  const quiz = await start(agent, { kind: 'objective', scope: '1.1' });
+  expect((await agent.get(`/api/assessments/${quiz.body.id}`)).body.serverNow).toBe(t0.toISOString());
+
+  const exam = await start(agent, { kind: 'domain', scope: '1' });
+  setNow(minutes(10));
+  const open = await agent.get(`/api/assessments/${exam.body.id}`);
+  expect(open.body).toMatchObject({ serverNow: minutes(10).toISOString(), deadlineAt: minutes(25).toISOString(), submittedAt: null });
+
+  setNow(minutes(26));
+  const closed = await agent.get(`/api/assessments/${exam.body.id}`);
+  expect(closed.body).toMatchObject({ serverNow: minutes(26).toISOString(), submittedAt: minutes(26).toISOString() });
+});
+
 test('starting again while one is open returns the same id', async () => {
   const { agent } = await setup();
   const a = await start(agent, { kind: 'objective', scope: '1.1' });
@@ -127,14 +142,19 @@ test('flagged may be toggled on an answered question; a PUT needs an answer or f
   expect((await agent.put(`/api/assessments/${body.id}/answers`).send({ questionId: qid })).status).toBe(400);
 });
 
-test('submit with 8/10 correct: scorePct 80, passed true, 100 XP; 7/10: passed false, no XP', async () => {
+test('submit with 8/10 correct: scorePct 80, passed true, 100 XP bonus; 7/10: passed false, no bonus', async () => {
   const { agent, content, db, user } = await setup();
+  const earned = async () => Number((await db.query('SELECT COALESCE(SUM(amount), 0) AS s FROM xp_events WHERE user_id = ?', [user.id]))[0].s);
   const a = await start(agent, { kind: 'objective', scope: '1.1' });
   const ids = idsOf((await agent.get(`/api/assessments/${a.body.id}`)).body);
   await answer(agent, content, a.body.id, ids, 8, 2);
+  const answersXp = await earned();
+  expect(answersXp).toBeGreaterThan(0);
   const res = await agent.post(`/api/assessments/${a.body.id}/submit`);
   expect(res.status).toBe(200);
-  expect(res.body.result).toMatchObject({ scorePct: 80, passed: true, xp: 100 });
+  // The result's xp is everything this quiz earned: the XP of its answers plus the pass bonus.
+  expect(res.body.result).toMatchObject({ scorePct: 80, passed: true, xp: answersXp + 100 });
+  expect(await earned()).toBe(answersXp + 100);
   expect(res.body.result.scaledScore).toBeUndefined();
   expect(res.body.result.byObjective).toEqual({ '1.1': { correct: 8, total: 10 } });
   expect(res.body.result.byDomain).toEqual({ '1': { correct: 8, total: 10 } });
@@ -147,12 +167,34 @@ test('submit with 8/10 correct: scorePct 80, passed true, 100 XP; 7/10: passed f
   expect(got.body.result.scorePct).toBe(80);
   expect(Object.keys(got.body.feedback)).toHaveLength(10); // everything is revealed after submit
 
+  const before = await earned();
   const b = await start(agent, { kind: 'objective', scope: '1.1' });
   expect(b.status).toBe(201);
   const ids2 = idsOf((await agent.get(`/api/assessments/${b.body.id}`)).body);
   await answer(agent, content, b.body.id, ids2, 7, 3);
   const res2 = await agent.post(`/api/assessments/${b.body.id}/submit`);
-  expect(res2.body.result).toMatchObject({ scorePct: 70, passed: false, xp: 0, newBadges: [] });
+  // A failed quiz earns no bonus, but still reports the XP of its correct answers.
+  const secondXp = (await earned()) - before;
+  expect(secondXp).toBeGreaterThan(0);
+  expect(res2.body.result).toMatchObject({ scorePct: 70, passed: false, xp: secondXp, newBadges: [] });
+  expect((await agent.get(`/api/assessments/${b.body.id}`)).body.result.xp).toBe(secondXp);
+  expect(await db.query("SELECT 1 FROM xp_events WHERE user_id = ? AND reason = 'quiz-pass'", [user.id])).toHaveLength(1);
+});
+
+test('badges earned by an answer during a quiz are reported in its result, once', async () => {
+  const { agent, content, db, user } = await setup();
+  // 99 correct answers already: the first correct answer of the quiz earns "hundred-correct".
+  for (let i = 0; i < 99; i++) {
+    await db.exec("INSERT INTO attempts (user_id, question_id, correct, context, created_at) VALUES (?, 'q-1.2-001', 1, 'lesson', ?)", [user.id, t0]);
+  }
+  const a = await start(agent, { kind: 'objective', scope: '1.1' });
+  const ids = idsOf((await agent.get(`/api/assessments/${a.body.id}`)).body);
+  await answer(agent, content, a.body.id, ids, 1);
+  expect(await db.query("SELECT 1 FROM badges WHERE user_id = ? AND badge_id = 'hundred-correct'", [user.id])).toHaveLength(1);
+  const res = await agent.post(`/api/assessments/${a.body.id}/submit`);
+  expect(res.body.result.passed).toBe(false);
+  expect(res.body.result.newBadges).toEqual(['hundred-correct']);
+  expect((await agent.post(`/api/assessments/${a.body.id}/submit`)).body).toEqual(res.body);
 });
 
 test('unanswered questions count as wrong', async () => {
@@ -161,7 +203,9 @@ test('unanswered questions count as wrong', async () => {
   const ids = idsOf((await agent.get(`/api/assessments/${a.body.id}`)).body);
   await answer(agent, content, a.body.id, ids, 7);
   const res = await agent.post(`/api/assessments/${a.body.id}/submit`);
-  expect(res.body.result).toMatchObject({ scorePct: 70, passed: false, xp: 0 });
+  // No pass bonus; what the seven correct answers earned (10 XP times the difficulty, first time correct) is reported.
+  const answersXp = ids.slice(0, 7).reduce((sum, id) => sum + 10 * content.questions.get(id)!.difficulty, 0);
+  expect(res.body.result).toMatchObject({ scorePct: 70, passed: false, xp: answersXp, newBadges: [] });
   const full = await agent.get(`/api/assessments/${a.body.id}`);
   const missed = ids[9]!;
   expect(full.body.feedback[missed]).toMatchObject({ correct: false, fraction: 0 });

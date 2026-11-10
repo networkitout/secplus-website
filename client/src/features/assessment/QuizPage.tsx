@@ -15,8 +15,7 @@ export function QuizPage() {
 }
 
 function Quiz({ id }: { id: string }) {
-  const { query, reload, finishedHere } = useAssessment(id);
-  const view = query.data;
+  const { query, view, reload, finishedHere } = useAssessment(id);
   if (!view) return <LoadState query={query} noun="quiz" />;
   if (view.kind !== 'objective') return <Navigate to={`/exam/${view.id}`} replace />;
   if (view.result) return <QuizResults view={view} result={view.result} fresh={finishedHere} />;
