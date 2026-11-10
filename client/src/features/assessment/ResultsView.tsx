@@ -141,7 +141,8 @@ export function ResultsView({
   children?: ReactNode;
 }) {
   const [missedOnly, setMissedOnly] = useState(false);
-  const [celebrating, setCelebrating] = useState(fresh && result.passed);
+  const [dismissed, setDismissed] = useState(false);
+  const celebrating = fresh && result.passed && !dismissed;
   const heading = useRef<HTMLHeadingElement>(null);
   const celebrationBox = useRef<HTMLDivElement>(null);
   const reviewId = useId();
@@ -179,7 +180,7 @@ export function ResultsView({
   function dismissCelebration() {
     // Its Dismiss button goes with it; do not let focus fall back to the top of the page.
     if (celebrationBox.current?.contains(document.activeElement)) heading.current?.focus();
-    setCelebrating(false);
+    setDismissed(true);
   }
 
   return (
@@ -191,7 +192,7 @@ export function ResultsView({
       {celebrating && (
         <div ref={celebrationBox}>
           <Celebration
-            kind="quiz-pass"
+            kind={kind === 'objective' ? 'quiz-pass' : 'exam-pass'}
             title={passTitle}
             detail={result.xp > 0 ? `+${result.xp} XP` : undefined}
             onDone={dismissCelebration}

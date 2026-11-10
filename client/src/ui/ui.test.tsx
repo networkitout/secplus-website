@@ -1,6 +1,7 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api/client';
@@ -10,6 +11,7 @@ import { AuthContext } from '../features/auth/AuthProvider';
 import { createQueryClient } from '../queryClient';
 import { AppShell } from './AppShell';
 import { Celebration } from './Celebration';
+import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBoundary } from './ErrorBoundary';
 import { MasteryBar } from './MasteryBar';
 import { ProgressRing } from './ProgressRing';
@@ -196,6 +198,97 @@ describe('ui', () => {
     expect(localStorage.getItem('theme')).toBe('dark');
   });
 
+  describe('ConfirmDialog', () => {
+    function Host({ onConfirm = () => {}, busy = false }: { onConfirm?: () => void; busy?: boolean }) {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Delete account</button>
+          <button>Something else</button>
+          {open && (
+            <ConfirmDialog title="Delete it?" confirmLabel="Delete" cancelLabel="Keep it" busy={busy} onConfirm={onConfirm} onCancel={() => setOpen(false)}>
+              <p>This cannot be undone.</p>
+            </ConfirmDialog>
+          )}
+        </>
+      );
+    }
+    const opener = () => screen.getByRole('button', { name: 'Delete account' });
+    const dialog = () => screen.getByRole('dialog', { name: 'Delete it?' });
+
+    it('is a labelled modal dialog: focus moves in, stays in, and returns to the opener on Escape', async () => {
+      render(<Host />);
+      await userEvent.click(opener());
+      expect(dialog()).toHaveAttribute('aria-modal', 'true');
+      expect(dialog()).toHaveAccessibleDescription('This cannot be undone.');
+      const keep = screen.getByRole('button', { name: 'Keep it' });
+      const confirm = screen.getByRole('button', { name: 'Delete' });
+      // Focus starts on the choice that changes nothing.
+      expect(keep).toHaveFocus();
+
+      await userEvent.tab();
+      expect(confirm).toHaveFocus();
+      await userEvent.tab();
+      expect(keep).toHaveFocus();
+      await userEvent.tab({ shift: true });
+      expect(confirm).toHaveFocus();
+
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(opener()).toHaveFocus();
+    });
+
+    it('Escape and Tab still work after a click on the dialog text has taken focus off the buttons', async () => {
+      render(<Host />);
+      await userEvent.click(opener());
+      await userEvent.click(screen.getByText('This cannot be undone.'));
+      expect(screen.getByRole('button', { name: 'Keep it' })).not.toHaveFocus();
+      await userEvent.tab({ shift: true });
+      expect(screen.getByRole('button', { name: 'Delete' })).toHaveFocus();
+
+      await userEvent.click(screen.getByText('This cannot be undone.'));
+      await userEvent.tab();
+      expect(screen.getByRole('button', { name: 'Keep it' })).toHaveFocus();
+
+      await userEvent.click(screen.getByText('This cannot be undone.'));
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(opener()).toHaveFocus();
+    });
+
+    it('the cancel button and a click outside the dialog cancel; the confirm button confirms', async () => {
+      const onConfirm = vi.fn();
+      render(<Host onConfirm={onConfirm} />);
+      await userEvent.click(opener());
+      await userEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      await userEvent.click(opener());
+      fireEvent.mouseDown(dialog().parentElement!);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      // A press inside the dialog is not a press outside it.
+      await userEvent.click(opener());
+      fireEvent.mouseDown(dialog());
+      expect(dialog()).toBeInTheDocument();
+      expect(onConfirm).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      expect(onConfirm).toHaveBeenCalledTimes(1);
+    });
+
+    it('while busy the confirm button says so and does not confirm again', async () => {
+      const onConfirm = vi.fn();
+      render(<Host onConfirm={onConfirm} busy />);
+      await userEvent.click(opener());
+      const confirm = screen.getByRole('button', { name: 'Delete' });
+      expect(confirm).toHaveAttribute('aria-busy', 'true');
+      // Not disabled: a disabled button would drop keyboard focus.
+      expect(confirm).toBeEnabled();
+      await userEvent.click(confirm);
+      expect(onConfirm).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Celebration', () => {
     beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
     afterEach(() => vi.useRealTimers());
@@ -217,6 +310,14 @@ describe('ui', () => {
       expect(banner).toHaveTextContent('Security controls');
       expect(banner).toHaveTextContent('+50 XP');
       expect(banner).not.toHaveTextContent('Streak');
+    });
+
+    it('labels a passed exam as "Exam passed"', () => {
+      render(<Celebration kind="exam-pass" title="Domain 1 exam" detail="+300 XP" onDone={vi.fn()} />);
+      const banner = screen.getByRole('status');
+      expect(banner).toHaveTextContent('Exam passed');
+      expect(banner).toHaveTextContent('Domain 1 exam');
+      expect(banner).not.toHaveTextContent('Quiz passed');
     });
 
     it('calls onDone by itself after a few seconds', () => {

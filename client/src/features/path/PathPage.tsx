@@ -1,10 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api, isUnavailable } from '../../api/client';
 import type { AssessmentStarted, PathDomain, PathObjective, PathResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
+import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { ProgressRing } from '../../ui/ProgressRing';
 
 function LockIcon() {
@@ -77,6 +78,8 @@ function ObjectiveNode({ objective, locked }: { objective: PathObjective; locked
 function DomainCard({ domain }: { domain: PathDomain }) {
   const headingId = useId();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
   const locked = !domain.unlocked;
@@ -99,6 +102,8 @@ function DomainCard({ domain }: { domain: PathDomain }) {
     setError('');
     try {
       const { id } = await api.post<AssessmentStarted>('assessments', { kind: 'domain', scope: String(domain.id) });
+      // The domain now has an exam in progress: the path says "Resume" on the next visit.
+      void queryClient.invalidateQueries({ queryKey: ['path'] });
       // Not if the learner has gone to another page meanwhile.
       if (mounted.current) navigate(`/exam/${id}`);
     } catch (err) {
@@ -140,19 +145,45 @@ function DomainCard({ domain }: { domain: PathDomain }) {
           {!locked && domain.hasContent && (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-3">
-                <Button variant="secondary" aria-busy={starting} onClick={() => void startExam()}>
-                  Domain exam<span className="sr-only">{`, Domain ${domain.id}`}</span>
-                </Button>
+                {domain.openExam ? (
+                  <Button variant="secondary" onClick={() => navigate(`/exam/${domain.openExam!.id}`)}>
+                    Resume domain exam<span className="sr-only">{`, Domain ${domain.id}`}</span>
+                  </Button>
+                ) : (
+                  // Starting an exam starts its clock, so the learner is asked first. Nothing happens while
+                  // one is being created.
+                  <Button variant="secondary" aria-busy={starting} onClick={() => !inFlight.current && setConfirming(true)}>
+                    Domain exam<span className="sr-only">{`, Domain ${domain.id}`}</span>
+                  </Button>
+                )}
                 <p role="status" className="text-sm text-muted">
                   {starting ? 'Starting the exam…' : ''}
                 </p>
               </div>
+              {domain.openExam && <p className="text-sm text-muted">You have an exam in progress. Its clock is running.</p>}
               {error && (
                 <p role="alert" className="text-sm text-bad">
                   {error}
                 </p>
               )}
             </div>
+          )}
+          {confirming && (
+            <ConfirmDialog
+              title={`Start the Domain ${domain.id} exam?`}
+              confirmLabel="Start exam"
+              onCancel={() => setConfirming(false)}
+              onConfirm={() => {
+                setConfirming(false);
+                void startExam();
+              }}
+            >
+              <p>Up to 25 questions from this domain, with 25 minutes to answer them. You need 75% to pass.</p>
+              <p className="text-sm text-muted">
+                There is no feedback until the end: the answers and explanations are shown after you submit. The clock starts
+                when you start the exam and keeps running if you leave the page.
+              </p>
+            </ConfirmDialog>
           )}
         </section>
       </Card>
