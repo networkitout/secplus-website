@@ -34,8 +34,9 @@ export function assessmentsRouter(deps: AppDeps): Router {
 
   router.get('/:id', async (req, res) => {
     const user = req.user!;
-    const row = await settleIfExpired(db, content, user, await loadOwned(db, user.id, idParam(req.params.id)), now());
-    res.json(viewOf(content, row));
+    const at = now();
+    const row = await settleIfExpired(db, content, user, await loadOwned(db, user.id, idParam(req.params.id)), at);
+    res.json(viewOf(content, row, at));
   });
 
   router.put('/:id/answers', validate(answerBody), async (req, res) => {

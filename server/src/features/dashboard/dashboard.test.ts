@@ -110,6 +110,7 @@ test('dashboard for a brand-new learner returns zeros, empty arrays, readiness.r
     reviewsDue: 0,
     weakest: [],
     mockHistory: [],
+    openMock: null,
     studyPlan: null,
   });
   expect(res.body.domains).toEqual([
@@ -119,6 +120,84 @@ test('dashboard for a brand-new learner returns zeros, empty arrays, readiness.r
   expect(res.body.readiness.ready).toBe(false);
   expect(res.body.readiness.missing[0]).toBe('Content for all five domains is not available yet');
   expect(res.body.badges).toEqual(BADGES.map((b) => ({ ...b, earnedAt: null })));
+});
+
+const minutes = (n: number) => new Date(t0.getTime() + n * 60_000);
+
+test('path: openExam reports the learner\'s own open domain exam, and never an expired or another learner\'s one', async () => {
+  const s = await setup();
+  const other = await loginAs(s.app, await createUser(s.db));
+  const openExams = async (agent = s.agent) => (await agent.get('/api/path')).body.domains.map((d: any) => d.openExam);
+  expect(await openExams()).toEqual([null, null]);
+
+  const a = await s.agent.post('/api/assessments').send({ kind: 'domain', scope: '1' });
+  expect(a.status).toBe(201);
+  // A quiz or a mock exam in progress is not a domain exam.
+  await s.agent.post('/api/assessments').send({ kind: 'objective', scope: '1.1' });
+  await s.agent.post('/api/assessments').send({ kind: 'mock' });
+  expect(await openExams()).toEqual([{ id: a.body.id, deadlineAt: minutes(25).toISOString() }, null]);
+  expect(await openExams(other)).toEqual([null, null]);
+
+  s.setNow(minutes(25)); // exactly at the deadline it is still open
+  expect((await openExams())[0]).toEqual({ id: a.body.id, deadlineAt: minutes(25).toISOString() });
+  // Past the deadline it is closed and scored, as on any other access, and no longer offered.
+  s.setNow(minutes(26));
+  expect(await openExams()).toEqual([null, null]);
+  const [row] = await s.db.query('SELECT submitted_at, passed FROM assessments WHERE id = ?', [a.body.id]);
+  expect(row.submitted_at).toEqual(minutes(26));
+  expect(row.passed).toBe(0);
+});
+
+test('path: a submitted domain exam is not open', async () => {
+  const s = await setup();
+  await passAssessment(s, { kind: 'domain', scope: '1' });
+  const [d1, d2] = (await s.agent.get('/api/path')).body.domains;
+  expect(d1).toMatchObject({ examPassed: true, openExam: null });
+  expect(d2).toMatchObject({ unlocked: true, openExam: null });
+});
+
+test('dashboard: openMock reports the learner\'s own open mock exam, and never an expired or another learner\'s one', async () => {
+  const s = await setup();
+  const other = await loginAs(s.app, await createUser(s.db));
+  const dash = async (agent = s.agent) => (await agent.get('/api/dashboard')).body;
+  expect((await dash()).openMock).toBeNull();
+
+  await s.agent.post('/api/assessments').send({ kind: 'domain', scope: '1' }); // not a mock
+  expect((await dash()).openMock).toBeNull();
+  const a = await s.agent.post('/api/assessments').send({ kind: 'mock' });
+  expect(a.status).toBe(201);
+  expect((await dash()).openMock).toEqual({ id: a.body.id, deadlineAt: minutes(4).toISOString() });
+  expect((await dash(other)).openMock).toBeNull();
+
+  // Past its deadline the mock is closed and scored, and shows up in the history instead.
+  s.setNow(minutes(5));
+  const after = await dash();
+  expect(after.openMock).toBeNull();
+  expect(after.mockHistory).toEqual([{ id: a.body.id, submittedAt: minutes(5).toISOString(), scaledScore: 100, passed: false, partial: true }]);
+  expect((await dash(other)).mockHistory).toEqual([]);
+});
+
+test('dashboard: a submitted mock is not open', async () => {
+  const s = await setup();
+  await passAssessment(s, { kind: 'mock' });
+  const body = (await s.agent.get('/api/dashboard')).body;
+  expect(body.openMock).toBeNull();
+  expect(body.mockHistory).toHaveLength(1);
+});
+
+test('dashboard: mockSpec states what a mock exam started now would be', async () => {
+  const s = await setup();
+  // The fixture publishes domain 1 only, whose mock share is 4 questions: a partial exam of 4 minutes.
+  expect((await s.agent.get('/api/dashboard')).body.mockSpec).toEqual({ questions: 4, minutes: 4, partial: true });
+  const started = await s.agent.post('/api/assessments').send({ kind: 'mock' });
+  const view = (await s.agent.get(`/api/assessments/${started.body.id}`)).body;
+  expect(view.questions).toHaveLength(4);
+  expect(view.deadlineAt).toBe(minutes(4).toISOString());
+
+  s.content.manifest.domains.splice(1); // every remaining domain has content: a full exam
+  expect((await s.agent.get('/api/dashboard')).body.mockSpec).toEqual({ questions: 4, minutes: 4, partial: false });
+  for (const d of s.content.manifest.domains) for (const o of d.objectives) o.published = false;
+  expect((await s.agent.get('/api/dashboard')).body.mockSpec).toEqual({ questions: 0, minutes: 0, partial: true });
 });
 
 test('dashboard mastery, weakest, level, badges and study plan reflect activity', async () => {
