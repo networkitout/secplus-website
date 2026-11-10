@@ -1,4 +1,4 @@
-import { useId, type ComponentType, type Ref } from 'react';
+import { useEffect, useId, useRef, useState, type ComponentType, type Ref } from 'react';
 import type { DiagramName } from '../../../../shared/diagrams';
 import type { LessonView, LessonViewBlock } from '../../../../shared/types';
 import type { Rewards } from '../../api/types';
@@ -25,6 +25,48 @@ const PROSE = [
   '[&_img]:h-auto [&_img]:max-w-full [&_hr]:border-border',
 ].join(' ');
 
+const scrollsSideways = (el: Element) => el.scrollWidth > el.clientWidth;
+
+/**
+ * Lesson text. A block that is wider than the screen (a wide table) scrolls sideways, and so does a long
+ * line of code; whatever scrolls is made a focusable, named region so that it can be scrolled by keyboard.
+ */
+function Prose({ html }: { html: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => {
+      setScrolls(scrollsSideways(el));
+      // The code blocks are inside the inserted HTML, so their attributes are set here.
+      for (const pre of el.querySelectorAll('pre')) {
+        if (scrollsSideways(pre)) {
+          pre.tabIndex = 0;
+          pre.setAttribute('role', 'region');
+          pre.setAttribute('aria-label', 'Code: scroll sideways to see all of it');
+        } else {
+          for (const name of ['tabindex', 'role', 'aria-label']) pre.removeAttribute(name);
+        }
+      }
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [html]);
+
+  const region = scrolls ? { tabIndex: 0, role: 'region', 'aria-label': 'Wide content: scroll sideways to see all of it' } : {};
+  return (
+    <div>
+      {/* The one place the client inserts HTML: the server's lesson parser has already sanitised it. */}
+      <div ref={box} className={PROSE} {...region} dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
+}
+
 /** The component for a diagram name, if this build of the client has one. */
 function diagramFor(name: string): ComponentType | undefined {
   return Object.hasOwn(DIAGRAMS, name) ? DIAGRAMS[name as DiagramName] : undefined;
@@ -41,12 +83,7 @@ function Block({
 }) {
   switch (block.kind) {
     case 'html':
-      // The one place the client inserts HTML: the server's lesson parser has already sanitised it.
-      return (
-        <div>
-          <div className={PROSE} dangerouslySetInnerHTML={{ __html: block.html }} />
-        </div>
-      );
+      return <Prose html={block.html} />;
     case 'diagram': {
       const Diagram = diagramFor(block.name);
       return Diagram ? (

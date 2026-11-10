@@ -30,6 +30,25 @@ function expectTokenColours(root: HTMLElement) {
   }
 }
 
+/** On the 320-unit canvas a label under 10 units is under about 10 px on a 360 px screen. */
+function expectLegibleText(root: HTMLElement) {
+  const labels = [...root.querySelectorAll('text')];
+  expect(labels.length).toBeGreaterThan(0);
+  for (const label of labels) {
+    expect(Number(label.getAttribute('font-size')), `font size of "${label.textContent}"`).toBeGreaterThanOrEqual(10);
+  }
+}
+
+/** The outline colour of the box that holds the given words: the accent colour marks the current step's boxes. */
+function outlineOf(root: HTMLElement, words: string): string | null {
+  const label = [...root.querySelectorAll('text')].find((t) => t.textContent === words);
+  expect(label, `box "${words}"`).toBeDefined();
+  return label!.previousElementSibling!.getAttribute('stroke');
+}
+
+/** Whether the group that fades a part in and out is showing it. */
+const shown = (el: Element) => (el.closest('g[style]') as SVGGElement | null)?.style.opacity !== '0';
+
 describe('diagrams', () => {
   it('registers exactly the names in DIAGRAM_NAMES', () => {
     expect(Object.keys(DIAGRAMS).sort()).toEqual([...DIAGRAM_NAMES].sort());
@@ -56,6 +75,7 @@ describe('diagrams', () => {
         expect(text.length).toBeGreaterThan(title.length + 60);
         expect(image().querySelector('svg[viewBox]')).not.toBeNull();
         expectTokenColours(image());
+        expectLegibleText(image());
         seen.push({ title, text });
         if (n < total) await userEvent.click(button('Next'));
       }
@@ -79,6 +99,9 @@ describe('diagrams', () => {
   );
 });
 
+const Matrix = DIAGRAMS['control-types-matrix'];
+const ZeroTrust = DIAGRAMS['zero-trust-planes'];
+
 /** Renders a registered diagram and walks it from the first step to the last. */
 async function walk(name: (typeof DIAGRAM_NAMES)[number]) {
   const Diagram = DIAGRAMS[name];
@@ -101,6 +124,97 @@ describe('diagram content', () => {
     for (const step of steps.slice(1)) {
       expect(step.text).toMatch(/Technical: .+ Managerial: .+ Operational: .+ Physical: .+/);
     }
+    // The overview uses the lesson's wording for what a type is.
+    expect(steps[0]!.text).toContain('what the control does about an incident');
+  });
+
+  it('control-types-matrix: the preventive managerial example is an approval, not a document that "requires" something', async () => {
+    render(<Matrix />);
+    await userEvent.click(button('Next'));
+    expect(image()).toHaveAttribute('aria-label', 'Preventive controls');
+    // A policy that requires something is a directive control in lesson 1.1, so it cannot be the example here.
+    expect(within(image()).getByText('Manager approves access before it is granted')).toBeInTheDocument();
+    expect(live().textContent).toContain('Managerial: a manager must approve each request for access before it is granted.');
+    expect(image().textContent + live().textContent!).not.toMatch(/requires|policy/i);
+  });
+
+  it('control-types-matrix: no cell relies on a guard, and the compensating examples stand in for a control that cannot be used', async () => {
+    const steps = await walk('control-types-matrix');
+    const all = steps.map((s) => s.text).join(' ');
+    expect(all).not.toMatch(/guard/i);
+    expect(steps[5]!.text).toContain('a firm with one bookkeeper cannot separate duties, so the owner checks the bank statement against the invoices every week');
+    expect(steps[6]!.text).toContain('a sign that says "All visitors must sign in at reception"');
+  });
+
+  it('zero-trust-planes: threat scope reduction is shown in the control plane, at the policy engine', async () => {
+    render(<ZeroTrust />);
+    for (let n = 0; n < 5; n++) await userEvent.click(button('Next'));
+    expect(image()).toHaveAttribute('aria-label', 'Control plane: threat scope reduction');
+    expect(live().textContent).toContain('CompTIA lists it under the control plane');
+
+    const label = within(image()).getByText('least access per session');
+    expect(shown(label)).toBe(true);
+    expect(label.closest('[data-plane]')).toHaveAttribute('data-plane', 'control');
+    // The policy engine is the highlighted part; nothing in the data plane is.
+    expect(outlineOf(image(), 'Policyengine')).toBe('var(--accent)');
+    for (const box of ['Subject/system', 'Enforcementpoint (PEP)', 'Resource']) expect(outlineOf(image(), box)).toBe('var(--muted)');
+    const dataPlane = image().querySelector('[data-plane="data"]')!;
+    expect(dataPlane.textContent).not.toMatch(/least access|per session/);
+    expect([...dataPlane.querySelectorAll('[stroke="var(--accent)"]')].filter(shown)).toHaveLength(0);
+
+    // Before that step the label is not shown.
+    await userEvent.click(button('Back'));
+    expect(shown(within(image()).getByText('least access per session'))).toBe(false);
+  });
+
+  it('zero-trust-planes: uses the objective\'s terms and names every control-plane idea in the control plane', async () => {
+    const steps = await walk('zero-trust-planes');
+    expect(steps.map((s) => s.title)).toEqual([
+      'Never trust, always verify',
+      'Data plane: subject/system, enforcement point, resource',
+      'Control plane: the policy engine decides',
+      'Control plane: the policy administrator acts',
+      'Control plane: adaptive identity',
+      'Control plane: threat scope reduction',
+      'Data plane: implicit trust zone',
+    ]);
+    expect(steps[2]!.text).toContain('policy-driven access control');
+    expect(steps.map((s) => s.text).join(' ')).not.toMatch(/policy decision point|to shut/);
+  });
+
+  it('aaa-flow: names the stages with the nouns the exam uses', async () => {
+    const steps = await walk('aaa-flow');
+    expect(steps.slice(1, 5).map((s) => s.title)).toEqual([
+      'Identification: claim an identity', 'Authentication: prove the claim', 'Authorization: decide what is allowed', 'Accounting: record what happened',
+    ]);
+    for (const stage of ['1 Identification', '2 Authentication', '3 Authorization', '4 Accounting']) {
+      expect(within(image()).getByText(stage)).toBeInTheDocument();
+    }
+    expect(steps.map((s) => s.text).join(' ')).not.toMatch(/TACACS/);
+  });
+
+  it('symmetric-vs-asymmetric: the sender is Priya and the recipient is Marcus, as in the lesson', async () => {
+    const steps = await walk('symmetric-vs-asymmetric');
+    const all = steps.map((s) => s.text).join(' ');
+    expect(all).not.toMatch(/Alice|Bob/);
+    expect(steps[3]!.text).toContain("Priya encrypts it with Marcus's public key. Only Marcus's private key can decrypt it");
+    expect(within(image()).getByText('Priya')).toBeInTheDocument();
+    expect(within(image()).getByText('Marcus')).toBeInTheDocument();
+  });
+
+  it('hashing-salting: names all four key-stretching functions and shows the salt stored with the hash', async () => {
+    const steps = await walk('hashing-salting');
+    expect(steps[4]!.text).toContain('Functions such as bcrypt, PBKDF2, scrypt and Argon2 do this');
+    expect(within(image()).getByText('each guess is slow (bcrypt, PBKDF2, scrypt, Argon2)')).toBeInTheDocument();
+    expect(within(image()).getByText('stored salt + hash')).toBeInTheDocument();
+    expect(within(image()).getByText('k9Qz : 6308…82e3')).toBeInTheDocument();
+  });
+
+  it('pki-trust-chain: the request is signed with the new private key, and a root certificate is self-signed too', async () => {
+    const steps = await walk('pki-trust-chain');
+    expect(steps[0]!.text).toContain('it is the root of trust');
+    expect(steps[1]!.text).toContain('The request is signed with the new private key, which shows that the applicant holds it.');
+    expect(steps[5]!.text).toContain("A root CA's certificate is itself self-signed; it is trusted only because it is preinstalled in the trust store.");
   });
 
   it('change-management-flow: the change is tested before it is approved', async () => {
@@ -117,7 +231,7 @@ describe('diagram content', () => {
     expect(screen.getByRole('group')).toHaveAccessibleName(/TLS 1\.2/);
     expect(steps.map((s) => s.title)).toEqual([
       'Client Hello (TLS 1.2)', 'Server Hello and cipher choice (TLS 1.2)', 'Certificate (TLS 1.2)',
-      'Key exchange (TLS 1.2)', 'Session keys (TLS 1.2)', 'Encrypted data (TLS 1.2)',
+      'Key exchange (TLS 1.2)', 'Session keys, Finished (TLS 1.2)', 'Encrypted data (TLS 1.2)',
     ]);
     const all = steps.map((s) => s.text).join(' ');
     expect(all).toContain('TLS 1.3 sends the key share in the hello messages, before the certificate, and finishes in one round trip.');

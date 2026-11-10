@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api, isUnavailable } from '../../api/client';
 import type { AssessmentStarted, PathDomain, PathObjective, PathResponse } from '../../api/types';
@@ -81,16 +81,29 @@ function DomainCard({ domain }: { domain: PathDomain }) {
   const [error, setError] = useState('');
   const locked = !domain.unlocked;
 
+  const inFlight = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   async function startExam() {
-    // The button is not disabled meanwhile: a disabled button would drop keyboard focus.
-    if (starting) return;
+    // A second press while the exam is being created must not ask for another. The button is not disabled
+    // meanwhile: a disabled button would drop keyboard focus.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setStarting(true);
     setError('');
     try {
       const { id } = await api.post<AssessmentStarted>('assessments', { kind: 'domain', scope: String(domain.id) });
-      navigate(`/exam/${id}`);
+      // Not if the learner has gone to another page meanwhile.
+      if (mounted.current) navigate(`/exam/${id}`);
     } catch (err) {
       setError(isUnavailable(err) ? "Can't reach the server. Try again in a moment." : "Couldn't start the exam. Try again.");
+      inFlight.current = false;
       setStarting(false);
     }
   }
@@ -126,9 +139,14 @@ function DomainCard({ domain }: { domain: PathDomain }) {
           {/* The server has no exam for a domain without published content, so none is offered. */}
           {!locked && domain.hasContent && (
             <div className="space-y-2">
-              <Button variant="secondary" onClick={() => void startExam()}>
-                Domain exam<span className="sr-only">{`, Domain ${domain.id}`}</span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button variant="secondary" aria-busy={starting} onClick={() => void startExam()}>
+                  Domain exam<span className="sr-only">{`, Domain ${domain.id}`}</span>
+                </Button>
+                <p role="status" className="text-sm text-muted">
+                  {starting ? 'Starting the exam…' : ''}
+                </p>
+              </div>
               {error && (
                 <p role="alert" className="text-sm text-bad">
                   {error}
@@ -144,6 +162,14 @@ function DomainCard({ domain }: { domain: PathDomain }) {
 
 export function PathPage() {
   const path = useQuery({ queryKey: ['path'], queryFn: () => api.get<PathResponse>('path') });
+  // The query forgets a failure as soon as it fetches again; remember the retry, so that "Try again" stays
+  // where it is (and keeps keyboard focus) until the answer arrives.
+  const [retrying, setRetrying] = useState(false);
+  const retry = () => {
+    if (retrying) return;
+    setRetrying(true);
+    void path.refetch().finally(() => setRetrying(false));
+  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -157,10 +183,17 @@ export function PathPage() {
             <DomainCard key={d.id} domain={d} />
           ))}
         </ol>
-      ) : path.isError ? (
-        <div role="alert" className="space-y-3">
-          <p>Couldn't load your study path.</p>
-          <Button onClick={() => void path.refetch()}>Try again</Button>
+      ) : path.isError || retrying ? (
+        <div className="space-y-3">
+          {path.isError && <p role="alert">Couldn't load your study path.</p>}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button aria-busy={retrying} onClick={retry}>
+              Try again
+            </Button>
+            <p role="status" className="text-sm text-muted">
+              {retrying ? 'Loading your study path…' : ''}
+            </p>
+          </div>
         </div>
       ) : (
         <p role="status" className="text-muted">

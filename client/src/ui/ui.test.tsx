@@ -210,6 +210,15 @@ describe('ui', () => {
       expect(onDone).toHaveBeenCalledTimes(1);
     });
 
+    it('labels a finished lesson as "Lesson complete"', () => {
+      render(<Celebration kind="lesson" title="Security controls" detail="+50 XP" onDone={vi.fn()} />);
+      const banner = screen.getByRole('status');
+      expect(banner).toHaveTextContent('Lesson complete');
+      expect(banner).toHaveTextContent('Security controls');
+      expect(banner).toHaveTextContent('+50 XP');
+      expect(banner).not.toHaveTextContent('Streak');
+    });
+
     it('calls onDone by itself after a few seconds', () => {
       const onDone = vi.fn();
       render(<Celebration kind="badge" title="Badge" onDone={onDone} />);

@@ -204,4 +204,56 @@ describe('path', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load your study path.");
     expect(screen.getByRole('heading', { level: 1, name: 'Study path' })).toBeInTheDocument();
   });
+
+  it('two presses on "Domain exam" while it is being created post once, and say that it is starting', async () => {
+    let release!: () => void;
+    handlers['POST /api/assessments'] = () => new Promise<Response>((resolve) => (release = () => resolve(json(201, { id: 7 }))));
+    renderPath();
+    const open = await domainCard(1);
+    const start = within(open).getByRole('button', { name: /^Domain exam/ });
+
+    await userEvent.dblClick(start);
+    start.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(calls('POST /api/assessments')).toHaveLength(1);
+    expect(start).toHaveAttribute('aria-busy', 'true');
+    expect(start).toBeEnabled();
+    expect(within(open).getByText('Starting the exam…')).toHaveAttribute('role', 'status');
+
+    release();
+    expect(await screen.findByText('exam screen 7')).toBeInTheDocument();
+    expect(calls('POST /api/assessments')).toHaveLength(1);
+  });
+
+  it('does not open the exam when the learner has gone elsewhere before it was created', async () => {
+    let release!: () => void;
+    handlers['POST /api/assessments'] = () => new Promise<Response>((resolve) => (release = () => resolve(json(201, { id: 7 }))));
+    renderPath();
+    const open = await domainCard(1);
+    await userEvent.click(within(open).getByRole('button', { name: /^Domain exam/ }));
+    await userEvent.click(within(open).getByRole('link', { name: '1.2 Objective 1.2 title' }));
+    expect(await screen.findByText('lesson screen 1.2')).toBeInTheDocument();
+
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByText('lesson screen 1.2')).toBeInTheDocument();
+    expect(screen.queryByText(/exam screen/)).not.toBeInTheDocument();
+  });
+
+  it('says that it is loading while "Try again" fetches the path once more', async () => {
+    handlers['GET /api/path'] = () => json(500, { error: 'Internal error' });
+    renderPath();
+    await screen.findByRole('alert');
+
+    let release!: () => void;
+    handlers['GET /api/path'] = () => new Promise<Response>((resolve) => (release = () => resolve(json(200, path()))));
+    const again = screen.getByRole('button', { name: 'Try again' });
+    await userEvent.click(again);
+    expect(again).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading your study path…')).toHaveAttribute('role', 'status');
+
+    release();
+    expect(await domainCard(1)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });

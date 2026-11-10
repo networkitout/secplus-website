@@ -1,9 +1,10 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef } from 'react';
 
-export type CelebrationKind = 'quiz-pass' | 'level-up' | 'badge' | 'streak';
+export type CelebrationKind = 'lesson' | 'quiz-pass' | 'level-up' | 'badge' | 'streak';
 
 const KIND_LABEL: Record<CelebrationKind, string> = {
+  lesson: 'Lesson complete',
   'quiz-pass': 'Quiz passed',
   'level-up': 'Level up',
   badge: 'Badge earned',
