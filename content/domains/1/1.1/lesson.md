@@ -26,23 +26,23 @@ To find the category, ask: **who or what makes this control work?**
 | Category | Implemented by | Examples |
 | --- | --- | --- |
 | **Technical** | Hardware, software or firmware | Firewall rules, disk encryption, antivirus, file permissions, multifactor authentication (MFA: a login that needs two or more kinds of proof) |
-| **Managerial** | Management's oversight of risk | Risk assessments, security policies, security reviews of suppliers, security planning |
+| **Managerial** | Management's oversight of risk | Risk assessments (structured reviews of what could go wrong and how much harm it would do), security policies, security reviews of suppliers, security planning |
 | **Operational** | People carrying out day-to-day tasks | Security awareness training, exercises in spotting suspicious email |
-| **Physical** | Tangible barriers and devices that protect buildings and equipment | Fences, door locks, bollards, lighting, cable locks |
+| **Physical** | Tangible barriers and devices that protect buildings and equipment | Fences, door locks, bollards (short, sturdy posts that stop vehicles), lighting, cable locks |
 
-Two older names still appear in study material. Technical controls are sometimes called *logical* controls, and managerial controls are sometimes called *administrative* controls.
+Two older names still appear in study material. Technical controls are sometimes called *logical* controls. Older material also uses a three-category scheme of technical, *administrative* and physical controls. Administrative there covered both what SY0-701 calls managerial (policies, risk assessments) and what it calls operational (training, procedures that staff carry out).
 
 The pair that learners mix up most is managerial and operational. Managerial controls decide and document: which risks exist, what the rules are, who is responsible. Operational controls are people doing the work. The policy that says every new employee must be trained is managerial. The trainer running the session is operational.
 
-Some controls sit on a border. A security guard is a person carrying out a duty (operational) whose job is to protect a building (physical), and sources place guards in either category. A fair question describes what matters in the scenario or offers only one of the two.
+Some controls sit on a border. A security guard is a control carried out by people, which makes it operational. CompTIA also lists the security guard among physical security measures (objective 1.2). Classify a guard by what the scenario stresses: a person carrying out a duty, or the physical protection of a site.
 
 > **Exam tip:** Use one quick test per category. A system enforces it: technical. Management decided or documented it: managerial. People have to carry it out: operational. It is a tangible barrier or device protecting a place: physical.
 
 :::check q-1.1-002
 
-## Control types that act before or during an incident
+## Control types that stop, discourage or notice
 
-To find the control type, ask: **what does this control do about an incident?** Three of the six types act before an incident or while it is happening.
+To find the control type, ask: **what does this control do about an incident?** Three of the six types stop, discourage or notice an incident.
 
 - **Preventive**: stops the unwanted action from succeeding. A firewall rule drops the traffic. A door lock keeps the door shut. Disk encryption stops a thief from reading the data on a stolen laptop.
 - **Deterrent**: discourages someone from trying. It works on the person's decision and does not block anything. Examples are a "Trespassers will be prosecuted" sign and a login message warning that misuse will be reported to the police.
@@ -104,6 +104,8 @@ Classify in two passes:
 | A "Trespassers will be prosecuted" sign on the fence | Physical | Deterrent |
 | A motion sensor that sounds an alarm | Physical | Detective |
 
+The help-desk row needs care. The written procedure that tells staff to call back is directive. Staff carrying out the check is operational and preventive.
+
 Answer options on the exam often change only one of the two labels, for example "technical, detective" next to "technical, preventive". Decide each label separately and then find the option that has both.
 
 :::check q-1.1-008
@@ -147,7 +149,9 @@ Sometimes the control that a policy, standard or regulation requires cannot be p
 | --- | --- | --- |
 | Security patches on every machine | A lab instrument runs on an old operating system that the vendor will not update | Put the machine on an isolated network segment and monitor its traffic |
 | MFA for every administrator login | A legacy server cannot support MFA | Allow administrator logins only through a gateway server that does require MFA, and log each session |
-| Separation of duties (splitting a sensitive task so that no one person can complete it alone) | A two-person finance team is too small to split payment entry from approval | The owner checks the bank statement against invoices every week |
+| Separation of duties (splitting a sensitive task so that no one person can complete it alone) | A small firm has a single bookkeeper, who both enters and approves payments | The owner checks the bank statement against invoices every week |
+
+Study material also describes a compensating control as a temporary measure that covers for an existing control when it is unavailable or not sufficient. A generator that keeps systems running during a power outage is the usual example.
 
 A compensating control is not any of these:
 
@@ -155,7 +159,7 @@ A compensating control is not any of these:
 - A decision to do nothing and accept the risk.
 - A fix. The weakness is still there; the old operating system is still unpatched.
 
-The alternative does not have to be in the same category as the control it replaces. In the finance example, an operational review stands in for a rule that would normally be built into the payment system.
+The alternative does not have to be in the same category as the control it replaces. In the finance example, a check carried out by a person stands in for a rule that would normally be built into the payment system.
 
 > **Exam tip:** "Compensating" describes why a control is there. When a scenario says that the normal control cannot be used and something else is used in its place, choose compensating, whatever the substitute happens to be.
 

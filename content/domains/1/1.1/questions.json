@@ -367,7 +367,7 @@
     "objective": "1.1",
     "difficulty": 2,
     "type": "single",
-    "prompt": "A lab instrument at Solvane Pharmaceuticals is run by a PC whose operating system no longer receives security patches. The instrument's vendor does not support any newer operating system. Because the PC cannot be patched as company policy requires, the security team moves it to an isolated network segment that only one management workstation can reach. Which control type describes the isolated segment?",
+    "prompt": "Castlebrook Council's policy requires every PC to lock its screen after five minutes without activity. The PCs in its traffic control room show live road maps that the operators must be able to see at all times, so the screen lock cannot be used there. Instead, the council fits a badge-controlled door to the control room and admits only the operators who are on shift. Which control type describes the badge-controlled door in this scenario?",
     "options": [
       {
         "id": "a",
@@ -388,10 +388,10 @@
     ],
     "correct": "c",
     "why": {
-      "a": "A corrective control repairs damage after an incident. No incident has happened, and the missing patches are still missing.",
-      "b": "A directive control instructs people what to do. The isolated segment restricts network traffic; it is not an instruction.",
-      "c": "Correct. The required control, patching, cannot be applied, so a different control is used in its place to reduce the same risk. That is a compensating control.",
-      "d": "A detective control notices and reports an incident. Isolation limits access; it does not report anything."
+      "a": "A corrective control repairs damage after an incident. No incident has happened, and the screens still do not lock.",
+      "b": "A directive control instructs people what to do. The door restricts who can enter the room; it is not an instruction.",
+      "c": "Correct. The required control, the screen lock, cannot be used, so a different control is used in its place to reduce the same risk. That is a compensating control.",
+      "d": "A detective control notices and reports an incident. The door limits who can reach the PCs; the scenario does not say that it reports anything."
     },
     "explanation": "When a required control cannot be implemented and a different control is used in its place to reduce the same risk, that substitute is a compensating control."
   },
@@ -433,31 +433,31 @@
     "objective": "1.1",
     "difficulty": 3,
     "type": "single",
-    "prompt": "Lumen Foods has a policy that every administrator login must use multifactor authentication (MFA). One legacy inventory server cannot support MFA and is due to be replaced in nine months. Which option is the best compensating control until then?",
+    "prompt": "Lumen Foods has a policy that all backup media must be encrypted. Its tape drive is too old to encrypt and will not be replaced for nine months. Which option is the best compensating control until then?",
     "options": [
       {
         "id": "a",
-        "text": "Add a reminder to the acceptable use policy that administrators must choose long passwords for that server."
+        "text": "Email the IT team a reminder that backup tapes hold sensitive data and must be handled with great care."
       },
       {
         "id": "b",
-        "text": "Allow administrator logins to that server only through a gateway server that requires MFA, and log sessions."
+        "text": "Keep the tapes in a locked safe and move them off site only in sealed cases with a signed handover."
       },
       {
         "id": "c",
-        "text": "Record the missing MFA in the risk register and review the entry on the day the server is finally replaced."
+        "text": "Record the unencrypted tapes in the risk register, the company's list of known risks, and review it later."
       },
       {
         "id": "d",
-        "text": "Back up the server every hour instead of every night so that it can be restored quickly after an incident."
+        "text": "Run the backup twice each night so that there are always two copies of every tape in case one is lost."
       }
     ],
     "correct": "b",
     "why": {
-      "a": "A reminder about passwords gives nothing like the protection of MFA against a stolen password, so it does not reduce the same risk to a similar level.",
-      "b": "Correct. Administrators still have to pass MFA before they can reach the server, so the alternative reduces the same risk, stolen administrator credentials, to a similar level.",
-      "c": "This documents and accepts the risk. It is not a control, because nothing reduces the chance of a stolen password being used.",
-      "d": "Backups help recovery after an incident. They do nothing about the risk that MFA addresses, which is unauthorized administrator logins."
+      "a": "A reminder does little to stop someone who gets hold of a tape from reading it, so it does not reduce the same risk to a similar level.",
+      "b": "Correct. Encryption protects the data if a tape falls into the wrong hands. Strict physical custody reduces that same risk by keeping the tapes out of the wrong hands.",
+      "c": "This documents and accepts the risk. It is not a control, because nothing makes it harder for an unauthorized person to read a tape.",
+      "d": "A second copy helps if a tape is lost or damaged. It does nothing about unauthorized reading, and it doubles the number of unencrypted tapes."
     },
     "explanation": "A compensating control must reduce the same risk as the control it replaces, to a similar level. Accepting the risk, or adding a control aimed at a different risk, does not compensate."
   },
@@ -466,31 +466,31 @@
     "objective": "1.1",
     "difficulty": 3,
     "type": "single",
-    "prompt": "Castlebrook Council puts up two signs at its vehicle depot. Sign 1 reads: \"All visitors must report to reception and wear a visitor badge.\" Sign 2 reads: \"Trespassers will be prosecuted.\" Which control type is each sign?",
+    "prompt": "Brightwell Dental Group adds two messages to the sign-in screen of its patient records system. Message 1 reads: \"Lock your screen whenever you leave your desk.\" Message 2 reads: \"Staff who view patient records without a clinical reason will face disciplinary action.\" Which control type is each message?",
     "options": [
       {
         "id": "a",
-        "text": "Both signs are deterrent."
+        "text": "Both messages are deterrent."
       },
       {
         "id": "b",
-        "text": "Sign 1 is deterrent; Sign 2 is directive."
+        "text": "Message 1 is deterrent; Message 2 is directive."
       },
       {
         "id": "c",
-        "text": "Sign 1 is directive; Sign 2 is deterrent."
+        "text": "Message 1 is directive; Message 2 is deterrent."
       },
       {
         "id": "d",
-        "text": "Both signs are directive."
+        "text": "Both messages are directive."
       }
     ],
     "correct": "c",
     "why": {
-      "a": "Sign 2 is a deterrent, but Sign 1 threatens no consequences. It gives an instruction, which makes it directive.",
-      "b": "This is reversed. Sign 1 gives an instruction (directive) and Sign 2 warns of consequences (deterrent).",
-      "c": "Correct. Sign 1 tells people what they must do (directive). Sign 2 warns of consequences to discourage entry (deterrent).",
-      "d": "Sign 1 is directive, but Sign 2 gives no instruction. It warns of consequences, which makes it a deterrent."
+      "a": "Message 2 is a deterrent, but Message 1 threatens no consequences. It gives an instruction, which makes it directive.",
+      "b": "This is reversed. Message 1 gives an instruction (directive) and Message 2 warns of consequences (deterrent).",
+      "c": "Correct. Message 1 tells staff what they must do (directive). Message 2 warns of consequences to discourage misuse (deterrent).",
+      "d": "Message 1 is directive, but Message 2 gives no instruction. It warns of consequences, which makes it a deterrent."
     },
     "explanation": "Read the wording of a sign or message. \"Do this\" or \"do not do this\" is directive. \"If you do this, there will be consequences\" is deterrent."
   },
@@ -600,15 +600,15 @@
       },
       {
         "id": "b",
-        "text": "Signs stating that staff areas are monitored and thieves will be reported to the police"
+        "text": "Signs stating that thieves will be reported to the police"
       },
       {
         "id": "c",
-        "text": "A procedure that tells staff how to report a lost key card"
+        "text": "A written procedure that tells staff how to report a lost key card"
       },
       {
         "id": "d",
-        "text": "A sign-in message on back-office PCs warning that misuse leads to dismissal"
+        "text": "A sign-in message warning that misuse leads to dismissal"
       },
       {
         "id": "e",
@@ -668,7 +668,7 @@
     "why": {
       "a": "Correct. A compensating control exists because the required control cannot be put in place, for a technical or business reason.",
       "b": "The weakness remains. The compensating control only reduces the risk until the required control can be put in place, if it ever can.",
-      "c": "The category can differ. A review carried out by a manager can compensate for a rule that a system is unable to enforce.",
+      "c": "The category can differ. A check carried out by a person can compensate for a rule that a system is unable to enforce.",
       "d": "Correct. An alternative that addresses a different risk, or gives much weaker protection, does not compensate for the missing control.",
       "e": "That describes layering controls for defense in depth. A compensating control stands in for a control that is missing."
     },
@@ -823,7 +823,7 @@
     "objective": "1.1",
     "difficulty": 3,
     "type": "categorize",
-    "prompt": "These controls come in look-alike pairs. Sort each one into the control type that matches what it does.",
+    "prompt": "Several of these controls look alike. Sort each one into the control type that matches what it does.",
     "items": [
       {
         "id": "k1",
@@ -831,7 +831,7 @@
       },
       {
         "id": "k2",
-        "text": "A notice that reads \"All visitors must sign in at reception\""
+        "text": "A notice that reads \"Staff must wear their badge at all times\""
       },
       {
         "id": "k3",
@@ -969,5 +969,38 @@
       "o3"
     ],
     "explanation": "Control types line up with the timeline of an attack: a deterrent discourages the attempt, a preventive control blocks it, a detective control reveals what got through, and a corrective control repairs the damage."
+  },
+  {
+    "id": "q-1.1-025",
+    "objective": "1.1",
+    "difficulty": 2,
+    "type": "single",
+    "prompt": "Harbourline Logistics requires an electronic badge reader on every door or cabinet that protects network equipment. The network cabinet at a rented depot stands in a shared corridor, and the landlord will not allow a reader to be wired in. Because the required control cannot be used, the company instead fits the cabinet with a keyed lock and gives the only key to the depot manager. Which control type best describes why the keyed lock was introduced?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Preventive"
+      },
+      {
+        "id": "b",
+        "text": "Deterrent"
+      },
+      {
+        "id": "c",
+        "text": "Corrective"
+      },
+      {
+        "id": "d",
+        "text": "Compensating"
+      }
+    ],
+    "correct": "d",
+    "why": {
+      "a": "The lock does work preventively: it stops people from opening the cabinet. But the question asks about its role, and it was introduced to stand in for a required control that cannot be used.",
+      "b": "A deterrent discourages an attempt without blocking it. The lock blocks access, and nothing in the scenario is about discouraging anyone.",
+      "c": "A corrective control repairs damage after an incident. No incident has happened here.",
+      "d": "Correct. The required badge reader cannot be installed, so a different control is used in its place to reduce the same risk. That role is what makes a control compensating."
+    },
+    "explanation": "\"Compensating\" describes why a control is there. When a scenario says that the required control cannot be used and another control is used instead, choose compensating, even if the substitute works by preventing or detecting."
   }
 ]
