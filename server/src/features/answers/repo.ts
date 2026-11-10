@@ -17,27 +17,27 @@ export class DuplicateAttemptError extends Error {
 
 export type AnswerContext = 'lesson' | 'quiz' | 'review' | 'exam' | 'lab';
 
+type AnswerInput = {
+  user: { id: number; timeZone: string };
+  question: Question;
+  answer: Answer;
+  context: AnswerContext;
+  assessmentId?: number;
+  now: Date;
+};
+
 /**
  * Grades an answer, stores the attempt, awards XP and schedules a review card for a miss (not for labs
- * or review), then evaluates badges. Throws AnswerShapeError for a mismatched answer type and
+ * or review), in one transaction. Throws AnswerShapeError for a mismatched answer type and
  * DuplicateAttemptError when `assessmentId` already holds an attempt for the question.
+ *
+ * Badges are not evaluated: a caller that records several answers at once (an exam, a lab) evaluates
+ * them once, after the last one.
  */
-export async function recordAnswer(
-  db: Db,
-  _content: Content,
-  a: {
-    user: { id: number; timeZone: string };
-    question: Question;
-    answer: Answer;
-    context: AnswerContext;
-    assessmentId?: number;
-    now: Date;
-  },
-): Promise<{ feedback: Feedback; xp: number; newBadges: string[] }> {
+export async function recordAttempt(db: Db, a: AnswerInput): Promise<{ feedback: Feedback; xp: number }> {
   const { user, question, answer, context, now } = a;
   const feedback = feedbackFor(question, answer);
-  const tz = safeTimeZone(user.timeZone);
-  const today = localDate(now, tz);
+  const today = localDate(now, safeTimeZone(user.timeZone));
 
   const xp = await db.tx(async (tx) => {
     try {
@@ -64,7 +64,16 @@ export async function recordAnswer(
     });
     return repeat ? XP.repeatCorrect : 0;
   });
+  return { feedback, xp };
+}
 
-  const newBadges = await evaluateBadges(db, user.id, tz, now);
-  return { feedback, xp, newBadges };
+/** Records one answer (see `recordAttempt`), then evaluates badges. */
+export async function recordAnswer(
+  db: Db,
+  _content: Content,
+  a: AnswerInput,
+): Promise<{ feedback: Feedback; xp: number; newBadges: string[] }> {
+  const recorded = await recordAttempt(db, a);
+  const newBadges = await evaluateBadges(db, a.user.id, safeTimeZone(a.user.timeZone), a.now);
+  return { ...recorded, newBadges };
 }

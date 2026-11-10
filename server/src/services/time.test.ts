@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { addDays, localDate, safeTimeZone, streak, weekStartUtc } from './time.js';
 
 test('safeTimeZone', () => {
@@ -35,4 +35,27 @@ test('streak', () => {
   expect(streak(['2026-11-07', '2026-11-08'], '2026-11-10')).toBe(0);
   expect(streak(['2026-11-10', '2026-11-10', '2026-11-09', '2026-11-07'], '2026-11-10')).toBe(2);
   expect(streak(['2026-10-31', '2026-11-01', '2026-11-02'], '2026-11-02')).toBe(3);
+});
+
+test('localDate builds one formatter per time zone, however often and in whatever case the zone is named', () => {
+  const built = vi.spyOn(Intl, 'DateTimeFormat');
+  try {
+    const at = new Date('2026-11-11T03:30:00Z');
+    for (let i = 0; i < 100; i++) expect(localDate(new Date(at.getTime() + i * 3_600_000), 'Asia/Kolkata')).toMatch(/^2026-11-1[1-5]$/);
+    expect(built).toHaveBeenCalledTimes(1);
+    // Intl takes zone names in any case; the variants share the one formatter, so the cache holds at most one per zone.
+    expect(localDate(at, 'ASIA/KOLKATA')).toBe('2026-11-11');
+    expect(localDate(at, 'asia/kolkata')).toBe('2026-11-11');
+    expect(safeTimeZone('Asia/Kolkata')).toBe('Asia/Kolkata');
+    expect(built).toHaveBeenCalledTimes(1);
+  } finally {
+    built.mockRestore();
+  }
+});
+
+test('an unknown zone is never cached and dates fall back to UTC', () => {
+  const at = new Date('2026-11-11T03:30:00Z');
+  expect(localDate(at, 'Mars/Olympus')).toBe('2026-11-11');
+  expect(localDate(at, 'Mars/Olympus')).toBe(localDate(at, 'UTC'));
+  expect(safeTimeZone('Mars/Olympus')).toBe('UTC');
 });

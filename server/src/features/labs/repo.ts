@@ -5,7 +5,7 @@ import { AnswerShapeError, grade } from '../../services/scoring.js';
 import { safeTimeZone } from '../../services/time.js';
 import { XP } from '../../services/xp.js';
 import { unlockedDomains } from '../access.js';
-import { recordAnswer } from '../answers/repo.js';
+import { recordAttempt } from '../answers/repo.js';
 import { awardXp, evaluateBadges } from '../xp/repo.js';
 
 export const LAB_PASS_PCT = 80;
@@ -48,7 +48,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  */
 export async function submitLab(
   db: Db,
-  content: Content,
+  _content: Content,
   a: {
     user: { id: number; timeZone: string };
     lab: Lab;
@@ -66,15 +66,13 @@ export async function submitLab(
 
   return db.tx(async (tx) => {
     const steps: Record<string, Feedback> = {};
-    const badges = new Set<string>();
     let xp = 0;
     let fractions = 0;
     for (const step of lab.steps) {
-      const r = await recordAnswer(tx, content, { user, question: step, answer: given(step), context: 'lab', now });
+      const r = await recordAttempt(tx, { user, question: step, answer: given(step), context: 'lab', now });
       steps[step.id] = r.feedback;
       fractions += r.feedback.fraction;
       xp += r.xp;
-      r.newBadges.forEach((b) => badges.add(b));
     }
     const scorePct = round2((fractions / lab.steps.length) * 100);
     const passed = labPassed(scorePct);
@@ -88,7 +86,8 @@ export async function submitLab(
     if (passed && (await awardXp(tx, { userId: user.id, amount: XP.labPass, reason: 'lab-pass', ref: lab.id, now }))) {
       xp += XP.labPass;
     }
-    (await evaluateBadges(tx, user.id, safeTimeZone(user.timeZone), now)).forEach((b) => badges.add(b));
-    return { scorePct, passed, steps, xp, newBadges: [...badges] };
+    // Once, after every step and the result are recorded.
+    const newBadges = await evaluateBadges(tx, user.id, safeTimeZone(user.timeZone), now);
+    return { scorePct, passed, steps, xp, newBadges };
   });
 }

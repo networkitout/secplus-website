@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import type { Db } from '../../db/db.js';
 import { createUser, testApp } from '../../test/helpers.js';
 import { awardXp, evaluateBadges, totals } from './repo.js';
@@ -88,4 +88,24 @@ test('evaluateBadges: lesson, assessments, labs and correct answers', async () =
 
   await assessment(db, userId, 'objective', '1.2', true);
   expect(await evaluateBadges(db, userId, 'UTC', now)).toEqual(['first-quiz-pass']);
+});
+
+test('evaluateBadges reads the XP events for the streak only while a streak badge is still to be earned', async () => {
+  const { db, userId } = await setup();
+  for (let d = 9; d <= 11; d++) await event(db, userId, `2026-11-${String(d).padStart(2, '0')}T01:00:00Z`, `d${d}`);
+  const streakReads = async () => {
+    const spy = vi.spyOn(db, 'query');
+    try {
+      const earned = await evaluateBadges(db, userId, 'UTC', now);
+      return { earned, reads: spy.mock.calls.filter(([sql]) => /FROM xp_events/.test(String(sql))).length };
+    } finally {
+      spy.mockRestore();
+    }
+  };
+  expect(await streakReads()).toEqual({ earned: ['streak-3'], reads: 1 });
+  expect(await streakReads()).toEqual({ earned: [], reads: 1 }); // streak-7 and streak-30 are still open
+  for (const id of ['streak-7', 'streak-30']) {
+    await db.exec('INSERT INTO badges (user_id, badge_id, earned_at) VALUES (?, ?, ?)', [userId, id, now]);
+  }
+  expect(await streakReads()).toEqual({ earned: [], reads: 0 });
 });
