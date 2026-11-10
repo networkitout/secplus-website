@@ -1,1 +1,86 @@
-[]
+[
+  {
+    "id": "f-1.1-001",
+    "objective": "1.1",
+    "term": "Security control",
+    "definition": "A measure put in place to reduce risk to systems, data, people or buildings."
+  },
+  {
+    "id": "f-1.1-002",
+    "objective": "1.1",
+    "term": "Control category",
+    "definition": "How a control is implemented: technical, managerial, operational or physical."
+  },
+  {
+    "id": "f-1.1-003",
+    "objective": "1.1",
+    "term": "Control type",
+    "definition": "What a control does about an incident: preventive, deterrent, detective, corrective, compensating or directive."
+  },
+  {
+    "id": "f-1.1-004",
+    "objective": "1.1",
+    "term": "Technical control",
+    "definition": "A control implemented by hardware, software or firmware, such as a firewall rule, encryption or antivirus."
+  },
+  {
+    "id": "f-1.1-005",
+    "objective": "1.1",
+    "term": "Managerial control",
+    "definition": "A control based on management's oversight of risk, such as a risk assessment, a security policy or a supplier review."
+  },
+  {
+    "id": "f-1.1-006",
+    "objective": "1.1",
+    "term": "Operational control",
+    "definition": "A control carried out by people as part of day-to-day work, such as security awareness training."
+  },
+  {
+    "id": "f-1.1-007",
+    "objective": "1.1",
+    "term": "Physical control",
+    "definition": "A tangible barrier or device that protects buildings and equipment, such as a lock, fence or bollard."
+  },
+  {
+    "id": "f-1.1-008",
+    "objective": "1.1",
+    "term": "Preventive control",
+    "definition": "A control that stops an unwanted action from succeeding, such as a firewall rule or a door lock."
+  },
+  {
+    "id": "f-1.1-009",
+    "objective": "1.1",
+    "term": "Deterrent control",
+    "definition": "A control that discourages an attempt by warning of consequences, without blocking it, such as a \"Trespassers will be prosecuted\" sign."
+  },
+  {
+    "id": "f-1.1-010",
+    "objective": "1.1",
+    "term": "Detective control",
+    "definition": "A control that identifies and reports an incident during or after it, without stopping it, such as an IDS alert or a log review."
+  },
+  {
+    "id": "f-1.1-011",
+    "objective": "1.1",
+    "term": "Corrective control",
+    "definition": "A control that repairs damage and restores normal operation after an incident, such as restoring files from backup."
+  },
+  {
+    "id": "f-1.1-012",
+    "objective": "1.1",
+    "term": "Compensating control",
+    "definition": "An approved alternative used when a required control cannot be implemented. It reduces the same risk to a similar level."
+  },
+  {
+    "id": "f-1.1-013",
+    "objective": "1.1",
+    "term": "Directive control",
+    "definition": "A control that tells people what they must or must not do, such as a policy, procedure or instruction sign."
+  },
+  {
+    "id": "f-1.1-014",
+    "objective": "1.1",
+    "term": "IDS vs. IPS (control type)",
+    "definition": "An intrusion detection system only alerts, so it is detective. An intrusion prevention system blocks the traffic, so it is preventive."
+  }
+]
