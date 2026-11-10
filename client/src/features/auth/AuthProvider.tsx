@@ -15,6 +15,11 @@ export interface AuthValue {
   logout(): Promise<void>;
   /** Re-reads the current user from `auth/me` (null when signed out). */
   refresh(): Promise<User | null>;
+  /**
+   * True from a deliberate sign-out until someone signs in. The sign-in page is then shown without the
+   * page that was open: the next person to sign in on this device does not land where the last one was.
+   */
+  signedOut?: boolean;
 }
 
 export const AuthContext = createContext<AuthValue | null>(null);
@@ -29,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [fatal, setFatal] = useState<unknown>(undefined);
+  const [signedOut, setSignedOut] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -48,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       account.current = id;
       setUser(next);
+      if (next) setSignedOut(false);
     },
     [queryClient],
   );
@@ -99,10 +106,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     // If this fails the server session is still alive, so the user stays signed in and the caller reports it.
     await api.post('auth/logout');
+    // In the same update as the user: the redirect to the sign-in page reads both.
+    setSignedOut(true);
     signedIn(null);
   }, [signedIn]);
 
-  const value = useMemo(() => ({ user, loading, login, logout, refresh }), [user, loading, login, logout, refresh]);
+  const value = useMemo(
+    () => ({ user, loading, login, logout, refresh, signedOut }),
+    [user, loading, login, logout, refresh, signedOut],
+  );
   if (fatal) throw fatal;
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -118,10 +130,11 @@ function Loading() {
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, signedOut } = useAuth();
   const loc = useLocation();
   if (loading) return <Loading />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+  // A session that ended by itself comes back to this page after the sign-in; a deliberate sign-out does not.
+  if (!user) return <Navigate to={signedOut ? '/login' : `/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   return <>{children}</>;
 }
 

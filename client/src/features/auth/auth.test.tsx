@@ -1,9 +1,9 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 import { saveQueue } from '../../api/saveQueue';
 import type { DashboardResponse, User } from '../../api/types';
 import { createQueryClient } from '../../queryClient';
@@ -39,12 +39,24 @@ beforeEach(() => {
   });
   vi.stubGlobal('fetch', fetchMock);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  window.history.pushState({}, '', '/');
+});
+
+/** The address the app is at: its path and query. */
+let where = '';
+function Where() {
+  const location = useLocation();
+  where = location.pathname + location.search;
+  return null;
+}
 
 function renderAt(path: string, client: QueryClient = createQueryClient()) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
+        <Where />
         <AuthProvider>
           <AppRoutes />
         </AuthProvider>
@@ -184,6 +196,46 @@ describe('sign out', () => {
     renderAt('/dashboard');
     await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('goes to the plain sign-in page: the next person to sign in here does not land on the page that was open', async () => {
+    handlers['POST /api/auth/logout'] = () => json(200, { ok: true });
+    renderAt('/dashboard');
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await screen.findByRole('heading', { name: 'Sign in' });
+    expect(where).toBe('/login');
+
+    handlers['GET /api/auth/me'] = () => json(200, { user: { ...learner, id: 3, login: 'kim', name: 'Kim' } });
+    handlers['POST /api/auth/login'] = () => json(200, { user: { ...learner, id: 3, login: 'kim', name: 'Kim' } });
+    await signIn('kim');
+    expect(await screen.findByRole('heading', { name: 'Study path' })).toBeInTheDocument();
+    expect(where).toBe('/');
+    expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument();
+
+    // The page that was open is forgotten for that sign-out only: a session that ends by itself later is not one.
+    handlers['GET /api/path'] = () => json(401, { error: 'Not signed in' });
+    await userEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
+    await screen.findByRole('heading', { name: 'Dashboard' });
+    window.history.pushState({}, '', '/dashboard');
+    await act(() => api.get('path').catch(() => {}));
+    await screen.findByRole('heading', { name: 'Sign in' });
+    expect(where).toBe('/login?next=%2Fdashboard');
+  });
+
+  it('a session that ended by itself still comes back to the page that was open', async () => {
+    renderAt('/dashboard');
+    await screen.findByRole('heading', { name: 'Dashboard' });
+    // The app runs in the browser's own address bar; the test's router does not write to it.
+    window.history.pushState({}, '', '/dashboard');
+    handlers['GET /api/path'] = () => json(401, { error: 'Not signed in' });
+    await act(() => api.get('path').catch(() => {}));
+    await screen.findByRole('heading', { name: 'Sign in' });
+    expect(where).toBe('/login?next=%2Fdashboard');
+
+    handlers['POST /api/auth/login'] = () => json(200, { user: learner });
+    await signIn('sam');
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(where).toBe('/dashboard');
   });
 
   it('keeps the user signed in and says so when the request fails', async () => {
