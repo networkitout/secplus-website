@@ -1,25 +1,31 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api/client';
+import { createSaveQueue } from '../api/saveQueue';
 import type { User } from '../api/types';
 import { AuthContext } from '../features/auth/AuthProvider';
 import { createQueryClient } from '../queryClient';
 import { AppShell } from './AppShell';
 import { Celebration } from './Celebration';
+import { ErrorBoundary } from './ErrorBoundary';
 import { MasteryBar } from './MasteryBar';
 import { ProgressRing } from './ProgressRing';
+import { SaveIndicator } from './SaveIndicator';
 import { ThemeToggle } from './ThemeToggle';
 
 const user = (role: User['role']): User => ({
   id: 1, login: 'sam', name: 'Sam', role, timeZone: 'UTC', examDate: null, hideFromLeaderboard: false,
 });
 
-function renderShell(role: User['role']) {
+const FOOTER = 'Not affiliated with or endorsed by CompTIA. Security+ is a trademark of CompTIA, Inc.';
+
+function renderShell(role: User['role'], logout: () => Promise<void> = vi.fn()) {
   vi.stubGlobal('fetch', vi.fn(async () =>
     new Response(JSON.stringify({ xp: 120, level: 3, nextLevelXp: 200, streak: 4 }), { status: 200 })));
-  const auth = { user: user(role), loading: false, login: vi.fn(), logout: vi.fn(), refresh: vi.fn() };
+  const auth = { user: user(role), loading: false, login: vi.fn(), logout, refresh: vi.fn() };
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <AuthContext.Provider value={auth}>
@@ -54,7 +60,7 @@ describe('ui', () => {
     const learner = renderShell('learner');
     expect(await screen.findByText(/Level 3/)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
-    expect(screen.getByText('Not affiliated with or endorsed by CompTIA. Security+ is a trademark of CompTIA, Inc.')).toBeInTheDocument();
+    expect(screen.getByText(FOOTER)).toBeInTheDocument();
     for (const name of ['Path', 'Review', 'Labs', 'Exam', 'Dashboard', 'Leaderboard']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
@@ -63,6 +69,96 @@ describe('ui', () => {
     renderShell('admin');
     expect(await screen.findByRole('link', { name: 'Admin' })).toBeInTheDocument();
     expect(screen.getByText(/Not affiliated with or endorsed by CompTIA/)).toBeInTheDocument();
+  });
+
+  it('AppShell names the header stats in text', async () => {
+    renderShell('learner');
+    const stats = (await screen.findByText(/Level 3/)).closest('p');
+    expect(stats).toHaveTextContent('Your progress: 120 XP · Level 3 · 4-day streak');
+    expect(stats).not.toHaveAttribute('aria-label');
+  });
+
+  it('AppShell reports a failed sign-out instead of leaving a rejected promise', async () => {
+    const logout = vi.fn().mockRejectedValue(new ApiError(0, "Can't reach the server"));
+    renderShell('learner', logout);
+    await screen.findByText(/Level 3/);
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't sign out. Try again.");
+  });
+
+  describe('SaveIndicator', () => {
+    it('says "Not saved yet" while a save is being retried and clears once it is saved', async () => {
+      let finish!: () => void;
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError(0, 'offline'))
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)));
+      const queue = createSaveQueue(undefined, { delaysMs: [5] });
+      render(<SaveIndicator queue={queue} />);
+      expect(screen.getByRole('status')).toBeEmptyDOMElement();
+
+      act(() => queue.enqueue('a', run));
+      expect(screen.getByRole('status')).toHaveTextContent('Saving…');
+      expect(await screen.findByText('Not saved yet. Retrying…')).toBeInTheDocument();
+
+      await waitFor(() => expect(run).toHaveBeenCalledTimes(2));
+      finish();
+      await waitFor(() => expect(screen.getByRole('status')).toBeEmptyDOMElement());
+    });
+
+    it('tells the learner when a save was dropped, until dismissed', async () => {
+      const queue = createSaveQueue();
+      render(<SaveIndicator queue={queue} />);
+      act(() => queue.enqueue('a', () => Promise.reject(new ApiError(400, 'Bad input'))));
+      expect(await screen.findByRole('status')).toHaveTextContent("Couldn't save your last answer.");
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+      expect(screen.getByRole('status')).toBeEmptyDOMElement();
+      expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
+      expect(queue.state()).toBe('idle');
+    });
+  });
+
+  describe('ErrorBoundary', () => {
+    // React reports errors caught by a boundary to the console by default; the tests expect them.
+    const quiet = { onCaughtError: () => {} };
+
+    it('shows "Can\'t reach the server" with the footer, and Retry mounts the screen again', async () => {
+      let offline = true;
+      const onRetry = vi.fn(() => { offline = false; });
+      function Screen() {
+        if (offline) throw new ApiError(0, "Can't reach the server");
+        return <p>back online</p>;
+      }
+      render(<ErrorBoundary onRetry={onRetry}><Screen /></ErrorBoundary>, quiet);
+      expect(screen.getByRole('alert')).toHaveTextContent("Can't reach the server");
+      expect(screen.getByRole('heading', { name: "Can't reach the server" })).toBeInTheDocument();
+      expect(screen.getByText(FOOTER)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('back online')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('treats a 503 like a network failure and stays on the error screen while the server is down', async () => {
+      function Screen(): never {
+        throw new ApiError(503, 'Service unavailable');
+      }
+      render(<ErrorBoundary><Screen /></ErrorBoundary>, quiet);
+      await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      expect(screen.getByRole('heading', { name: "Can't reach the server" })).toBeInTheDocument();
+    });
+
+    it('shows a general message for any other error', () => {
+      function Screen(): never {
+        throw new Error('boom');
+      }
+      render(<ErrorBoundary><Screen /></ErrorBoundary>, quiet);
+      expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
+      expect(screen.getByText(FOOTER)).toBeInTheDocument();
+    });
   });
 
   it('ThemeToggle sets data-theme on <html> and persists it', async () => {
@@ -85,6 +181,7 @@ describe('ui', () => {
       render(<Celebration kind="level-up" title="Level 4" detail="Keep going" onDone={onDone} />);
       expect(screen.getByRole('status')).toHaveTextContent('Level 4');
       expect(screen.getByRole('status')).toHaveTextContent('Keep going');
+      expect(screen.getByRole('status').getAttribute('style')).toContain('opacity'); // entrance animation
       await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
       expect(onDone).toHaveBeenCalledTimes(1);
     });
@@ -94,6 +191,17 @@ describe('ui', () => {
       render(<Celebration kind="badge" title="Badge" onDone={onDone} />);
       act(() => { vi.advanceTimersByTime(7000); });
       expect(onDone).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not restart its timer when onDone changes identity, and calls the latest one', () => {
+      const first = vi.fn();
+      const latest = vi.fn();
+      const { rerender } = render(<Celebration kind="badge" title="Badge" onDone={first} />);
+      act(() => { vi.advanceTimersByTime(4000); });
+      rerender(<Celebration kind="badge" title="Badge" onDone={latest} />);
+      act(() => { vi.advanceTimersByTime(2000); });
+      expect(latest).toHaveBeenCalledTimes(1);
+      expect(first).not.toHaveBeenCalled();
     });
   });
 });

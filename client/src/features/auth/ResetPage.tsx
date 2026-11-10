@@ -4,7 +4,8 @@ import { api, ApiError } from '../../api/client';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Field } from '../../ui/Field';
-import { INVALID_LINK, MIN_PASSWORD, passwordProblem, useLinkCheck } from './linkCheck';
+import { AuthLayout } from './AuthLayout';
+import { INVALID_LINK, LINK_CHECK_FAILED, MIN_PASSWORD, passwordProblem, useLinkCheck } from './linkCheck';
 
 export function ResetPage() {
   const { token } = useParams();
@@ -36,12 +37,16 @@ export function ResetPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-4">
-      <h1 className="text-2xl font-semibold">Reset your password</h1>
+    <AuthLayout title="Reset your password">
       {link.pending ? (
         <p role="status" className="text-muted">Checking your link…</p>
       ) : link.invalid || expired ? (
         <p role="alert" className="text-bad">{INVALID_LINK}</p>
+      ) : link.failed ? (
+        <>
+          <p role="alert" className="text-bad">{LINK_CHECK_FAILED}</p>
+          <Button variant="secondary" onClick={link.retry}>Retry</Button>
+        </>
       ) : (
         <Card>
           <form onSubmit={onSubmit} noValidate className="space-y-4">
@@ -52,6 +57,6 @@ export function ResetPage() {
           </form>
         </Card>
       )}
-    </div>
+    </AuthLayout>
   );
 }

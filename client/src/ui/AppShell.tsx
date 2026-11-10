@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router';
 import { api } from '../api/client';
 import type { DashboardSummary } from '../api/types';
 import { useAuth } from '../features/auth/AuthProvider';
+import { Footer } from './Footer';
 import { SaveIndicator } from './SaveIndicator';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -17,12 +18,22 @@ const NAV = [
 ];
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-md px-3 py-1.5 text-sm ${isActive ? 'bg-accent text-on-accent font-semibold' : 'text-text hover:bg-surface'}`;
+  `rounded-md px-3 py-1.5 text-sm ${isActive ? 'bg-accent text-on-accent font-semibold' : 'text-text hover:bg-border'}`;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const stats = useQuery({ queryKey: ['dashboard'], queryFn: () => api.get<DashboardSummary>('dashboard') });
   const items = user?.role === 'admin' ? [...NAV, { to: '/admin', label: 'Admin' }] : NAV;
+  const [signOutError, setSignOutError] = useState('');
+
+  async function signOut() {
+    setSignOutError('');
+    try {
+      await logout();
+    } catch {
+      setSignOutError("Couldn't sign out. Try again.");
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text">
@@ -44,7 +55,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="ml-auto flex flex-wrap items-center gap-3">
             {stats.data && (
-              <p className="font-mono text-sm" aria-label="Progress">
+              <p className="font-mono text-sm">
+                <span className="sr-only">Your progress: </span>
                 <span>{stats.data.xp} XP</span> · <span>Level {stats.data.level}</span> ·{' '}
                 <span>{stats.data.streak}-day streak</span>
               </p>
@@ -58,12 +70,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </NavLink>
                 <button
                   type="button"
-                  onClick={() => void logout()}
+                  onClick={() => void signOut()}
                   className="rounded-md border border-border px-3 py-1.5 text-sm hover:border-accent"
                 >
                   Sign out
                 </button>
               </>
+            )}
+            {signOutError && (
+              <p role="alert" className="basis-full text-right text-sm text-bad">
+                {signOutError}
+              </p>
             )}
           </div>
         </div>
@@ -71,9 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
         {children}
       </main>
-      <footer className="border-t border-border px-4 py-4 text-center text-xs text-muted">
-        Not affiliated with or endorsed by CompTIA. Security+ is a trademark of CompTIA, Inc.
-      </footer>
+      <Footer />
     </div>
   );
 }

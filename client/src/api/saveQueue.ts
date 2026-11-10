@@ -1,15 +1,20 @@
-export type SaveState = 'idle' | 'saving' | 'unsaved';
+export type SaveState = 'idle' | 'saving' | 'unsaved' | 'failed';
+
+type Run = () => Promise<unknown>;
 
 export interface SaveItem {
   key: string;
-  run: () => Promise<unknown>;
+  run: Run;
 }
 
 export interface SaveQueue {
-  enqueue(key: string, run: () => Promise<unknown>): void;
+  enqueue(key: string, run: Run): void;
   state(): SaveState;
   subscribe(fn: (s: SaveState) => void): () => void;
+  /** Resolves once nothing is left to send (every item has been saved or dropped). */
   flush(): Promise<void>;
+  /** Leaves the `failed` state, once the learner has been told that a save was dropped. */
+  dismiss(): void;
 }
 
 export interface SaveQueueOptions {
@@ -23,24 +28,35 @@ const retryable = (err: unknown) =>
   typeof err === 'object' && err !== null && 'status' in err && ((err as { status: unknown }).status === 0 || (err as { status: unknown }).status === 503);
 
 /**
- * Saves one item at a time, in order. A newer save for a key replaces an unsent older one.
- * Network failures (status 0 / 503) are retried until they succeed; other errors drop the item.
+ * Saves one item at a time, in the order the keys were enqueued.
+ *
+ * - Per key there is at most one payload that has not been handed to `send` yet, and it is the newest one.
+ * - Network failures (status 0 / 503) are retried until they succeed. The failed key keeps its place at the
+ *   front, so no other key is sent before it, and a retry always sends the newest payload for that key:
+ *   a payload that failed and was superseded is never sent again.
+ * - Any other error drops the item, reports it through `onError` and puts the queue in `failed` until a later
+ *   save succeeds or `dismiss()` is called. `saving` / `unsaved` take priority while there is work left.
  */
 export function createSaveQueue(
   send: (item: SaveItem) => Promise<unknown> = (item) => item.run(),
   opts: SaveQueueOptions = {},
 ): SaveQueue {
   const delays = opts.delaysMs && opts.delaysMs.length ? opts.delaysMs : [1000, 3000, 10000];
-  const pending = new Map<string, () => Promise<unknown>>();
-  let current: { key: string; run: () => Promise<unknown>; failures: number; sending: boolean } | null = null;
-  let running = false;
+  // Payloads not handed to `send` yet, in send order. A newer payload for a key replaces the older one in place.
+  const waiting = new Map<string, Run>();
+  // The save at the front: in flight, or (after a retryable failure) waiting for its retry timer.
+  let head: { key: string; run: Run; failures: number; inFlight: boolean } | null = null;
+  let dropped = false;
+  let pumping = false;
   let last: SaveState = 'idle';
   const listeners = new Set<(s: SaveState) => void>();
   let waiters: Array<() => void> = [];
 
+  const busy = () => head !== null || waiting.size > 0;
+
   const compute = (): SaveState => {
-    if (!current && pending.size === 0) return 'idle';
-    return current && current.failures > 0 ? 'unsaved' : 'saving';
+    if (!busy()) return dropped ? 'failed' : 'idle';
+    return head && head.failures > 0 ? 'unsaved' : 'saving';
   };
 
   const notify = () => {
@@ -49,7 +65,7 @@ export function createSaveQueue(
       last = s;
       for (const fn of [...listeners]) fn(s);
     }
-    if (s === 'idle') {
+    if (!busy()) {
       const w = waiters;
       waiters = [];
       for (const resolve of w) resolve();
@@ -59,45 +75,54 @@ export function createSaveQueue(
   const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
   async function pump() {
-    if (running) return;
-    running = true;
+    if (pumping) return;
+    pumping = true;
     try {
       for (;;) {
-        if (!current) {
-          const first = pending.entries().next();
+        if (!head) {
+          const first = waiting.entries().next();
           if (first.done) break;
           const [key, run] = first.value;
-          pending.delete(key);
-          current = { key, run, failures: 0, sending: false };
+          waiting.delete(key);
+          head = { key, run, failures: 0, inFlight: false };
         }
-        const item = current;
-        item.sending = true;
+        const item = head;
+        item.inFlight = true;
         try {
           await send({ key: item.key, run: item.run });
-          current = null;
+          head = null;
+          dropped = false;
         } catch (err) {
-          item.sending = false;
+          item.inFlight = false;
           if (retryable(err)) {
             item.failures += 1;
+            // A payload enqueued for this key during the failed attempt supersedes the one that failed.
+            const newer = waiting.get(item.key);
+            if (newer) {
+              waiting.delete(item.key);
+              item.run = newer;
+            }
             notify();
             await sleep(delays[Math.min(item.failures - 1, delays.length - 1)]);
             continue;
           }
-          current = null;
+          head = null;
+          dropped = true;
           opts.onError?.(item.key, err);
         }
         notify();
       }
     } finally {
-      running = false;
+      pumping = false;
       notify();
     }
   }
 
   return {
     enqueue(key, run) {
-      if (current && current.key === key && !current.sending) current.run = run; // unsent (waiting to retry)
-      else pending.set(key, run);
+      // While the front item waits for its retry timer it has not been sent, so a newer payload replaces it there.
+      if (head && head.key === key && !head.inFlight) head.run = run;
+      else waiting.set(key, run);
       notify();
       void pump();
     },
@@ -107,16 +132,21 @@ export function createSaveQueue(
       return () => listeners.delete(fn);
     },
     flush() {
-      if (compute() === 'idle') return Promise.resolve();
+      if (!busy()) return Promise.resolve();
       return new Promise<void>((resolve) => waiters.push(resolve));
+    },
+    dismiss() {
+      dropped = false;
+      notify();
     },
   };
 }
 
-/** Warns before the page unloads while there is unsaved work. Returns a function that removes the guard. */
+/** Warns before the page unloads while a save is still on its way. Returns a function that removes the guard. */
 export function guardUnload(queue: SaveQueue): () => void {
   const handler = (e: BeforeUnloadEvent) => {
-    if (queue.state() === 'idle') return;
+    const state = queue.state();
+    if (state === 'idle' || state === 'failed') return;
     e.preventDefault();
     e.returnValue = '';
   };

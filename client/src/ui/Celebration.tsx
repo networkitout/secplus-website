@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export type CelebrationKind = 'quiz-pass' | 'level-up' | 'badge' | 'streak';
 
@@ -25,10 +25,15 @@ export function Celebration({
 }) {
   const reduced = useReducedMotion();
 
+  // The timer starts once; a parent re-render that passes a new `onDone` must not restart it.
+  const latestOnDone = useRef(onDone);
   useEffect(() => {
-    const t = setTimeout(onDone, AUTO_DISMISS_MS);
-    return () => clearTimeout(t);
+    latestOnDone.current = onDone;
   }, [onDone]);
+  useEffect(() => {
+    const t = setTimeout(() => latestOnDone.current(), AUTO_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, []);
 
   const body = (
     <>

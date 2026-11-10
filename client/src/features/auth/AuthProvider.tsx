@@ -9,6 +9,7 @@ export interface AuthValue {
   /** True until the first `auth/me` answer arrives. */
   loading: boolean;
   login(login: string, password: string): Promise<User>;
+  /** Rejects, leaving the user signed in, when the server could not end the session. */
   logout(): Promise<void>;
   /** Re-reads the current user from `auth/me` (null when signed out). */
   refresh(): Promise<User | null>;
@@ -71,12 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    try {
-      await api.post('auth/logout');
-    } finally {
-      setUser(null);
-      queryClient.clear();
-    }
+    // If this fails the server session is still alive, so the user stays signed in and the caller reports it.
+    await api.post('auth/logout');
+    setUser(null);
+    queryClient.clear();
   }, [queryClient]);
 
   const value = useMemo(() => ({ user, loading, login, logout, refresh }), [user, loading, login, logout, refresh]);
@@ -102,6 +101,5 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
 export function RequireAdmin({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  if (user?.role !== 'admin') return <Navigate to="/" replace />;
-  return <>{children}</>;
+  return <RequireAuth>{user?.role === 'admin' ? children : <Navigate to="/" replace />}</RequireAuth>;
 }

@@ -4,11 +4,24 @@ import { ApiError } from '../../api/client';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Field } from '../../ui/Field';
+import { AuthLayout } from './AuthLayout';
 import { useAuth } from './AuthProvider';
 
-/** Only same-site paths are accepted as a post-login target. */
+/**
+ * Only same-site targets are accepted after login. The value is resolved the way the browser would resolve it
+ * (so tabs, backslashes and dot segments cannot hide another host) and reduced to path + query + hash.
+ */
 export function safeNext(raw: string | null): string {
-  return raw && raw.startsWith('/') && !raw.startsWith('//') && !raw.startsWith('/\\') ? raw : '/';
+  if (!raw) return '/';
+  let url: URL;
+  try {
+    url = new URL(raw, window.location.origin);
+  } catch {
+    return '/';
+  }
+  if (url.origin !== window.location.origin) return '/';
+  const target = url.pathname + url.search + url.hash;
+  return target.startsWith('//') ? '/' : target; // "/.//host" normalises to "//host", which would leave the site
 }
 
 export function LoginPage() {
@@ -39,8 +52,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-4">
-      <h1 className="text-2xl font-semibold">SecPlus Trainer</h1>
+    <AuthLayout title="SecPlus Trainer">
       <Card>
         <form onSubmit={onSubmit} className="space-y-4">
           <h2 className="text-lg font-semibold">Sign in</h2>
@@ -62,6 +74,6 @@ export function LoginPage() {
         </form>
       </Card>
       <p className="text-sm text-muted">No account? Ask the site owner for an invite link.</p>
-    </div>
+    </AuthLayout>
   );
 }

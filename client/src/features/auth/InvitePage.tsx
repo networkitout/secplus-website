@@ -4,8 +4,9 @@ import { api, ApiError } from '../../api/client';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Field } from '../../ui/Field';
+import { AuthLayout } from './AuthLayout';
 import { useAuth } from './AuthProvider';
-import { INVALID_LINK, MIN_PASSWORD, passwordProblem, useLinkCheck } from './linkCheck';
+import { INVALID_LINK, LINK_CHECK_FAILED, MIN_PASSWORD, passwordProblem, useLinkCheck } from './linkCheck';
 
 export function InvitePage() {
   const { token } = useParams();
@@ -46,12 +47,16 @@ export function InvitePage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-4">
-      <h1 className="text-2xl font-semibold">Create your account</h1>
+    <AuthLayout title="Create your account">
       {link.pending ? (
         <p role="status" className="text-muted">Checking your link…</p>
       ) : link.invalid || expired ? (
         <p role="alert" className="text-bad">{INVALID_LINK}</p>
+      ) : link.failed ? (
+        <>
+          <p role="alert" className="text-bad">{LINK_CHECK_FAILED}</p>
+          <Button variant="secondary" onClick={link.retry}>Retry</Button>
+        </>
       ) : (
         <Card>
           <form onSubmit={onSubmit} noValidate className="space-y-4">
@@ -63,6 +68,6 @@ export function InvitePage() {
           </form>
         </Card>
       )}
-    </div>
+    </AuthLayout>
   );
 }

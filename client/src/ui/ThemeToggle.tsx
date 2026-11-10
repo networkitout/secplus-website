@@ -16,7 +16,7 @@ export function ThemeToggle() {
         saveTheme(next);
         setTheme(next);
       }}
-      className="rounded-md border border-border px-3 py-1.5 text-sm text-text hover:bg-surface"
+      className="rounded-md border border-border px-3 py-1.5 text-sm text-text hover:border-accent"
     >
       Switch to {next} theme
     </button>
