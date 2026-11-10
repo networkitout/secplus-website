@@ -389,14 +389,14 @@
       { "id": "a", "text": "Policy enforcement point" },
       { "id": "b", "text": "Policy administrator" },
       { "id": "c", "text": "Policy engine" },
-      { "id": "d", "text": "Subject" }
+      { "id": "d", "text": "Subject/system" }
     ],
     "correct": "b",
     "why": {
       "a": "The gateway is the policy enforcement point. It receives the instruction and cuts the session; it does not issue the instruction.",
       "b": "The policy administrator carries out the policy engine's decision by telling the policy enforcement point to open or close a session.",
       "c": "The policy engine makes the decision, as the scenario says. Passing the command to the enforcement point is the policy administrator's job.",
-      "d": "The subject is the user or service asking for access, here on the infected laptop. It does not control the gateway."
+      "d": "The subject/system is the user or service asking for access and the device it uses, here the infected laptop. It does not control the gateway."
     },
     "explanation": "The policy engine decides, the policy administrator tells the policy enforcement point what to do, and the policy enforcement point enforces it in the data plane."
   },
