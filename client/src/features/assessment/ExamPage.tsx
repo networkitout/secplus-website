@@ -6,6 +6,7 @@ import { api } from '../../api/client';
 import type { AssessmentResult, AssessmentView, SubmitResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { usePressGuard } from '../../ui/pressGuard';
+import { usePageTitle } from '../../ui/routeChange';
 import { SaveIndicator } from '../../ui/SaveIndicator';
 import { QuestionView } from '../questions/QuestionView';
 import { answerState } from './answerState';
@@ -60,6 +61,7 @@ function Exam({ id }: { id: string }) {
 }
 
 function ExamResults({ view, result, fresh }: { view: AssessmentView; result: AssessmentResult; fresh: boolean }) {
+  usePageTitle(`${examName(view)} results`);
   return (
     <ResultsView
       title={`${examName(view)} results`}
@@ -104,6 +106,7 @@ function ExamRunner({
   const { questions } = view;
   const total = questions.length;
   const queryClient = useQueryClient();
+  usePageTitle(examName(view));
   // One set of saves per exam, shared by every visit to this page (see examSaves).
   const [saves] = useState(() => examSaves(queryClient, view.id));
   const { queue } = saves;

@@ -108,6 +108,7 @@ describe('practice', () => {
     const first = renderPractice();
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Practice: objective 1.2' })).toBeInTheDocument();
+    expect(document.title).toBe('Practice: objective 1.2 · Security+ Trainer');
     expect(await screen.findByRole('heading', { name: 'Question 1 of 2' })).toBeInTheDocument();
     expect(screen.getByText(q1.prompt)).toBeInTheDocument();
     expect(button('Check')).toBeDisabled();

@@ -4,6 +4,7 @@ import { api, ApiError } from '../../api/client';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Field } from '../../ui/Field';
+import { usePageTitle } from '../../ui/routeChange';
 import { AuthLayout } from './AuthLayout';
 import { INVALID_LINK, LINK_CHECK_FAILED, MIN_PASSWORD, passwordProblem, useLinkCheck } from './linkCheck';
 
@@ -16,6 +17,7 @@ export function ResetPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [expired, setExpired] = useState(false);
+  usePageTitle('Reset your password');
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

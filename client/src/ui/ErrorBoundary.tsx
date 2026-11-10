@@ -2,6 +2,7 @@ import { Component, type ReactNode } from 'react';
 import { ApiError, isUnavailable } from '../api/client';
 import { Button } from './Button';
 import { Footer } from './Footer';
+import { usePageTitle } from './routeChange';
 
 interface Props {
   children: ReactNode;
@@ -24,22 +25,29 @@ export class ErrorBoundary extends Component<Props, { error: unknown; attempt: n
   render() {
     const { error, attempt } = this.state;
     if (error === undefined) return <div key={attempt} className="contents">{this.props.children}</div>;
-    const offline = isUnavailable(error);
-    return (
-      <div className="flex min-h-screen flex-col">
-        <div role="alert" className="mx-auto w-full max-w-md flex-1 space-y-4 p-8 text-center">
-          <h1 className="text-xl font-semibold">{offline ? "Can't reach the server" : 'Something went wrong'}</h1>
-          <p className="text-muted">
-            {offline
-              ? 'Check your connection and try again. Your answers are kept until the server is back.'
-              : error instanceof ApiError
-                ? error.message
-                : 'An unexpected error occurred.'}
-          </p>
-          <Button onClick={this.retry}>Retry</Button>
-        </div>
-        <Footer />
-      </div>
-    );
+    return <ErrorScreen error={error} onRetry={this.retry} />;
   }
+}
+
+/** What takes the place of the whole app. It is outside the app shell, so it titles the document itself. */
+function ErrorScreen({ error, onRetry }: { error: unknown; onRetry(): void }) {
+  const offline = isUnavailable(error);
+  const title = offline ? "Can't reach the server" : 'Something went wrong';
+  usePageTitle(title);
+  return (
+    <div className="flex min-h-screen flex-col">
+      <div role="alert" className="mx-auto w-full max-w-md flex-1 space-y-4 p-8 text-center">
+        <h1 className="text-xl font-semibold">{title}</h1>
+        <p className="text-muted">
+          {offline
+            ? 'Check your connection and try again. Your answers are kept until the server is back.'
+            : error instanceof ApiError
+              ? error.message
+              : 'An unexpected error occurred.'}
+        </p>
+        <Button onClick={onRetry}>Retry</Button>
+      </div>
+      <Footer />
+    </div>
+  );
 }

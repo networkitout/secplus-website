@@ -352,6 +352,8 @@ export function RewardsBanner() {
     <div
       ref={box}
       tabIndex={-1}
+      // Focus in here is looked after here (see `done`): a change of page does not move it (see `useRouteChange`).
+      data-keeps-focus
       onFocus={(e) => {
         if (e.relatedTarget instanceof HTMLElement && !e.currentTarget.contains(e.relatedTarget)) cameFrom.current = e.relatedTarget;
         else if (e.relatedTarget === null) cameFrom.current = null;

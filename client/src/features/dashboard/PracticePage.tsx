@@ -6,6 +6,7 @@ import { api, ApiError, isUnavailable } from '../../api/client';
 import type { AnswerResponse, PracticeResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { usePressGuard } from '../../ui/pressGuard';
+import { usePageTitle } from '../../ui/routeChange';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { useRewards } from '../rewards/RewardsProvider';
 import { Stat } from './Stat';
@@ -265,6 +266,7 @@ function PracticeLoader({ objective }: { objective: string }) {
 
 export function PracticePage() {
   const { objective = '' } = useParams();
+  usePageTitle(`Practice: objective ${objective}`);
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-2xl font-semibold">{`Practice: objective ${objective}`}</h1>

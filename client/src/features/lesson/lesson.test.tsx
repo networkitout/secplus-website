@@ -208,6 +208,8 @@ describe('lesson', () => {
     renderLesson();
     await sectionHeading('The CIA triad');
     expect(screen.getByText('Section 2 of 3')).toBeInTheDocument();
+    // The browser tab names the lesson, once it is known.
+    expect(document.title).toBe('Lesson 1.1: Security controls · Security+ Trainer');
     expect(progress()).toHaveAttribute('aria-valuenow', '1');
     expect(screen.queryByRole('heading', { name: 'Control categories' })).not.toBeInTheDocument();
     // A section without checks never blocks.

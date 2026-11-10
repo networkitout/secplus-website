@@ -4,6 +4,7 @@ import { ApiError } from '../../api/client';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Field } from '../../ui/Field';
+import { usePageTitle } from '../../ui/routeChange';
 import { AuthLayout } from './AuthLayout';
 import { useAuth } from './AuthProvider';
 
@@ -35,6 +36,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  usePageTitle('Sign in');
 
   if (user) return <Navigate to={safeNext(params.get('next'))} replace />;
 

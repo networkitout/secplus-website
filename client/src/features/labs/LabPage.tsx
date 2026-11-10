@@ -7,6 +7,7 @@ import type { LabSubmitResponse, LabView } from '../../api/types';
 import { wholePercent } from '../../lib/percent';
 import { Button } from '../../ui/Button';
 import { usePressGuard } from '../../ui/pressGuard';
+import { usePageTitle } from '../../ui/routeChange';
 import { Mark } from '../questions/FeedbackPanel';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { ScreenCelebration, useRewards } from '../rewards/RewardsProvider';
@@ -107,6 +108,7 @@ function LabRunner({ lab }: { lab: LabView }) {
   const queryClient = useQueryClient();
   const { report } = useRewards();
   const { steps } = lab;
+  usePageTitle(`Lab: ${lab.title}`);
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   // What was sent, with what the server made of it.
   const [outcome, setOutcome] = useState<{ sent: Record<string, Answer>; result: LabSubmitResponse } | null>(null);

@@ -6,6 +6,7 @@ import { api, ApiError, isTransient, isUnavailable } from '../../api/client';
 import type { AssessmentStarted, LessonProgressResponse, LessonResponse, Rewards } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { usePressGuard } from '../../ui/pressGuard';
+import { usePageTitle } from '../../ui/routeChange';
 import { ScreenCelebration, useRewards } from '../rewards/RewardsProvider';
 import type { CheckResult } from './InlineCheck';
 import { SectionView } from './SectionView';
@@ -90,6 +91,7 @@ function LessonPlayer({
   const queryClient = useQueryClient();
   const { report } = useRewards();
   const lessonUrl = `lessons/${encodeURIComponent(lesson.objective)}`;
+  usePageTitle(`Lesson ${lesson.objective}: ${lesson.title}`);
 
   const [done, setDone] = useState(() => new Set(progress.sectionsDone));
   const [completed, setCompleted] = useState(progress.completedAt !== null);

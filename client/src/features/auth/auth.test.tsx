@@ -98,6 +98,20 @@ describe('login form', () => {
     expect(postBody('POST /api/auth/login')).toEqual({ login: 'sam', password: 'correct horse battery' });
   });
 
+  it('a signed-out visitor to a page is asked to sign in, and is then on that page: titled, announced, with focus on its main region', async () => {
+    handlers['POST /api/auth/login'] = () => json(200, { user: learner });
+    renderAt('/dashboard');
+    await screen.findByRole('heading', { name: 'Sign in' });
+    expect(document.title).toBe('Sign in · Security+ Trainer');
+
+    await signIn('sam');
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(document.title).toBe('Dashboard · Security+ Trainer');
+    // The button that was pressed went with the sign-in page.
+    expect(screen.getByRole('main')).toHaveFocus();
+    await waitFor(() => expect(document.getElementById('route-announcer')).toHaveTextContent(/^Dashboard$/));
+  });
+
   it('on 401 shows "Invalid login or password"', async () => {
     handlers['POST /api/auth/login'] = () => json(401, { error: 'Invalid login or password' });
     renderAt('/login');

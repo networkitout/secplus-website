@@ -6,6 +6,7 @@ import type { DashboardSummary } from '../api/types';
 import { useAuth } from '../features/auth/AuthProvider';
 import { RewardsBanner } from '../features/rewards/RewardsProvider';
 import { Footer } from './Footer';
+import { useRouteChange } from './routeChange';
 import { SaveIndicator } from './SaveIndicator';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -26,6 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stats = useQuery({ queryKey: ['dashboard'], queryFn: () => api.get<DashboardSummary>('dashboard') });
   const items = user?.role === 'admin' ? [...NAV, { to: '/admin', label: 'Admin' }] : NAV;
   const [signOutError, setSignOutError] = useState('');
+  const announcement = useRouteChange();
 
   async function signOut() {
     setSignOutError('');
@@ -94,6 +96,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
+      {/* Says the name of a page that was navigated to. It is here before it has anything to say: a region
+          that arrives together with its text is not announced by every screen reader. */}
+      <p id="route-announcer" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
     </div>
   );
 }

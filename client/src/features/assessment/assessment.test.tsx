@@ -282,6 +282,7 @@ describe('quiz', () => {
 
     await heading('Question 1 of 2');
     expect(screen.getByRole('heading', { level: 1, name: 'Objective 1.1 quiz' })).toBeInTheDocument();
+    expect(document.title).toBe('Objective 1.1 quiz · Security+ Trainer');
     const check = screen.getByRole('button', { name: 'Check' });
     expect(check).toBeDisabled();
     expect(result()).toBeEmptyDOMElement();
@@ -321,6 +322,7 @@ describe('quiz', () => {
     const first = renderAt('/quiz/12');
 
     await heading('Objective 1.1 quiz results', 1);
+    expect(document.title).toBe('Objective 1.1 quiz results · Security+ Trainer');
     expect(screen.getByText('Passed')).toBeInTheDocument();
     expect(screen.getByText('8 of 10 correct')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Score: 80%' })).toBeInTheDocument();
@@ -947,6 +949,7 @@ describe('exam', () => {
     handlers[SUBMIT] = () => json(200, { result: finished(open, 1).result });
     renderAt('/exam/30');
     await heading('Question 3 of 5');
+    expect(document.title).toBe('Domain 1 exam · Security+ Trainer');
     const submit = screen.getByRole('button', { name: 'Submit exam' });
 
     await userEvent.click(submit);
@@ -980,6 +983,7 @@ describe('exam', () => {
     await userEvent.click(within(dialog()).getByRole('button', { name: 'Submit now' }));
 
     expect(await heading('Domain 1 exam results', 1)).toHaveFocus();
+    expect(document.title).toBe('Domain 1 exam results · Security+ Trainer');
     expect(calls(SUBMIT)).toHaveLength(1);
     expect(screen.getByText('Not yet')).toBeInTheDocument();
     // Nothing was earned, and that is reported as it is. The exam history has changed all the same: the

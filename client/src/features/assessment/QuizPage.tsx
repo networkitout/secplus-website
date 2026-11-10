@@ -5,6 +5,7 @@ import { api, ApiError, isUnavailable } from '../../api/client';
 import type { AnswerSaveResponse, AssessmentResult, AssessmentStarted, AssessmentView, SubmitResponse } from '../../api/types';
 import { Button } from '../../ui/Button';
 import { usePressGuard } from '../../ui/pressGuard';
+import { usePageTitle } from '../../ui/routeChange';
 import { initialAnswer, isComplete, QuestionView } from '../questions/QuestionView';
 import { LoadState, pathLink } from './LoadState';
 import { ResultsView } from './ResultsView';
@@ -39,6 +40,7 @@ function QuizRunner({ view, reload }: { view: AssessmentView; reload(): Promise<
   const { questions } = view;
   const total = questions.length;
   const answersUrl = `assessments/${view.id}/answers`;
+  usePageTitle(`Objective ${view.scope} quiz`);
 
   const [marked, setMarked] = useState(() => markedIn(view));
   // Resumes at the first question without an answer; when all have one, at the last, ready for the results.
@@ -213,6 +215,7 @@ function QuizResults({ view, result, fresh }: { view: AssessmentView; result: As
   const starting = useRef(false);
   // The results take the place of the last question: a press that arrives with them does not start a new quiz.
   const guard = usePressGuard();
+  usePageTitle(`Objective ${view.scope} quiz results`);
 
   async function retake() {
     // The button is not disabled meanwhile: a disabled button would drop keyboard focus.

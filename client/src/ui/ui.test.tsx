@@ -250,6 +250,20 @@ describe('ui', () => {
       expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
       expect(screen.getByText(FOOTER)).toBeInTheDocument();
     });
+
+    it('titles the document after what went wrong', () => {
+      function Offline(): never {
+        throw new ApiError(0, "Can't reach the server");
+      }
+      function Broken(): never {
+        throw new Error('boom');
+      }
+      const offline = render(<ErrorBoundary><Offline /></ErrorBoundary>, quiet);
+      expect(document.title).toBe("Can't reach the server · Security+ Trainer");
+      offline.unmount();
+      render(<ErrorBoundary><Broken /></ErrorBoundary>, quiet);
+      expect(document.title).toBe('Something went wrong · Security+ Trainer');
+    });
   });
 
   it('ThemeToggle sets data-theme on <html> and persists it', async () => {

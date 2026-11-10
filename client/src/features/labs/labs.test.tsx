@@ -211,6 +211,7 @@ describe('labs', () => {
     renderAt('/labs/lab-1-01');
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Classify the controls' })).toBeInTheDocument();
+    expect(document.title).toBe('Lab: Classify the controls · Security+ Trainer');
     expect(within(screen.getByRole('region', { name: 'Scenario' })).getByText(lab.scenario)).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Scenario', 'Step 1 of 3', 'Step 2 of 3', 'Step 3 of 3']);
     expect(screen.getAllByText(s1.prompt)).toHaveLength(1);
