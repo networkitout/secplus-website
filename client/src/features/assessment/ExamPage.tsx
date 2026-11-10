@@ -401,7 +401,9 @@ function ExamRunner({
       )}
 
       {question ? (
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        // One column that may shrink under its content: an `auto` column grows to the widest menu of a
+        // match question and pushes the page sideways on a narrow screen.
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <section aria-labelledby={headingId} className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 id={headingId} ref={heading} tabIndex={-1} className="font-mono text-sm uppercase tracking-wide text-accent">

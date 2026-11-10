@@ -700,6 +700,17 @@ describe('exam', () => {
     expect(await heading('Question 3 of 5')).toHaveFocus();
   });
 
+  // jsdom lays nothing out, so this can only hold the rule that keeps the layout in the window: below the
+  // two-column width the one column may shrink under its content (a match menu is as wide as its longest
+  // answer, and an `auto` column would grow to it and push the page sideways on a phone).
+  it('exam: the question column cannot be made wider than the screen by what is in it', async () => {
+    handlers['GET /api/assessments/30'] = () => json(200, exam());
+    renderAt('/exam/30');
+    await heading('Question 1 of 5');
+    const columns = nav().parentElement!;
+    expect(columns).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)]', 'lg:grid-cols-[minmax(0,1fr)_18rem]');
+  });
+
   it('exam: flag toggles and shows in the navigator', async () => {
     handlers['GET /api/assessments/30'] = () => json(200, exam());
     handlers[SAVE] = () => json(200, { saved: true });
