@@ -29,6 +29,14 @@ test('non-api paths serve the client index.html', async () => {
   expect(res.status).toBe(200);
   expect(res.text).toContain('<div id="root">');
 });
+test('a missing file under /assets/ is a 404, not the app shell', async () => {
+  const { app } = await testApp({ clientDir: fixtureDirWithIndexHtml });
+  for (const url of ['/assets/index-old123.js', '/assets/missing.css', '/assets/']) {
+    const res = await request(app).get(url);
+    expect(res.status, url).toBe(404);
+    expect(res.text, url).not.toContain('<div id="root">');
+  }
+});
 test('malformed JSON body is a 400 without details', async () => {
   const { app } = await testApp();
   const res = await request(app).post('/api/health').set(CSRF_HEADER, CSRF_VALUE).set('Content-Type', 'application/json').send('{bad');

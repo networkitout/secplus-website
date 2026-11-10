@@ -82,6 +82,10 @@ export function createApp(deps: AppDeps): Express {
   if (deps.clientDir) {
     const clientDir = path.resolve(deps.clientDir);
     app.use(express.static(clientDir));
+    // A build's hashed files live here; one that is gone must not answer with the app shell.
+    app.use('/assets', (_req, res) => {
+      res.status(404).type('text/plain').send('Not found');
+    });
     app.use((req, res, next) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();
       res.sendFile(path.join(clientDir, 'index.html'), (err) => {
