@@ -43,6 +43,13 @@ function brokenCopyOfFixture(name: string): string {
     case 'match: a left id has no pair':
       editQs((qs) => delete firstOf(qs, 'match').correct.l1);
       break;
+    case 'match: two left ids share one right id':
+      editQs((qs) => {
+        const correct = firstOf(qs, 'match').correct;
+        const [a, b] = Object.keys(correct);
+        correct[b] = correct[a];
+      });
+      break;
     case 'categorize: placement names unknown bucket':
       editQs((qs) => (firstOf(qs, 'categorize').correct.t1 = 'nope'));
       break;
@@ -100,6 +107,7 @@ test.each([
   ['single: an option has no why entry', 'why'],
   ['order: correct is not a permutation of item ids', 'correct'],
   ['match: a left id has no pair', 'correct'],
+  ['match: two left ids share one right id', 'correct'],
   ['categorize: placement names unknown bucket', 'correct'],
   ['empty explanation', 'explanation'],
   ['published objective below minQuestions', 'minQuestions'],

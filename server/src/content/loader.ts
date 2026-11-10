@@ -87,6 +87,9 @@ function checkQuestion(q: Question, file: string): void {
       if (!sameSet(Object.keys(q.correct), leftIds)) throw at('correct', 'every left id needs exactly one pair');
       if (!Object.values(q.correct).every((r) => rightIds.includes(r)))
         throw at('correct', 'a pair names an unknown right id');
+      // The match UI pairs one-to-one, so a shared right item could never be answered.
+      if (new Set(Object.values(q.correct)).size !== leftIds.length)
+        throw at('correct', 'each left id must pair with a different right id');
       break;
     }
     case 'categorize': {
