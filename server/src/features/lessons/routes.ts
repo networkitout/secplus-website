@@ -5,7 +5,7 @@ import type { AppDeps } from '../../app.js';
 import { HttpError, requireAuth, validate } from '../../http.js';
 import { toPublicQuestion } from '../../services/scoring.js';
 import { localDate, safeTimeZone } from '../../services/time.js';
-import { evaluateBadges } from '../xp/repo.js';
+import { evaluateBadgesAfterCommit } from '../xp/repo.js';
 import { assertObjectiveOpen } from '../access.js';
 import { getProgress, markSection } from './repo.js';
 
@@ -59,7 +59,8 @@ export function lessonsRouter(deps: AppDeps): Router {
       today: localDate(t, safeTimeZone(user.timeZone)),
       now: t,
     });
-    const newBadges = await evaluateBadges(db, user.id, safeTimeZone(user.timeZone), t);
+    // The progress is saved by now: a failure here must not fail the request (see evaluateBadgesAfterCommit).
+    const newBadges = await evaluateBadgesAfterCommit(db, user.id, safeTimeZone(user.timeZone), t);
     res.json({ sectionsDone: p.sectionsDone, completedAt: p.completedAt?.toISOString() ?? null, xp: p.xp, newBadges });
   });
 

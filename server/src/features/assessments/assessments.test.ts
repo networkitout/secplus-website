@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import type { Answer, Question } from '../../../../shared/types.js';
 import type { Content } from '../../content/loader.js';
 import { createUser, loginAs, testApp } from '../../test/helpers.js';
@@ -195,6 +195,35 @@ test('badges earned by an answer during a quiz are reported in its result, once'
   expect(res.body.result.passed).toBe(false);
   expect(res.body.result.newBadges).toEqual(['hundred-correct']);
   expect((await agent.post(`/api/assessments/${a.body.id}/submit`)).body).toEqual(res.body);
+});
+
+test('a failure while evaluating badges inside a quiz answer rolls the answer back: nothing is half-recorded', async () => {
+  const { agent, content, db, user } = await setup();
+  const a = await start(agent, { kind: 'objective', scope: '1.1' });
+  const qid = idsOf((await agent.get(`/api/assessments/${a.body.id}`)).body)[0]!;
+  // A quiz answer is marked inside one transaction, badges included: fail the badge read on its handle.
+  const tx = db.tx;
+  db.tx = (fn) =>
+    tx((handle) => {
+      const query = handle.query;
+      handle.query = (sql, params) => (/FROM badges/.test(sql) ? Promise.reject(new Error('badges unavailable')) : query(sql, params));
+      return fn(handle);
+    });
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const res = await put(agent, content, a.body.id, qid, true);
+    expect(res.status).toBe(500);
+    expect(logged).toHaveBeenCalledTimes(1);
+  } finally {
+    db.tx = tx;
+    logged.mockRestore();
+  }
+  expect(await db.query('SELECT 1 FROM attempts WHERE user_id = ?', [user.id])).toHaveLength(0);
+  expect(await db.query('SELECT 1 FROM xp_events WHERE user_id = ?', [user.id])).toHaveLength(0);
+  // Nothing was stored, so the same answer can be sent again.
+  const retry = await put(agent, content, a.body.id, qid, true);
+  expect(retry.status).toBe(200);
+  expect(retry.body.feedback.correct).toBe(true);
 });
 
 test('unanswered questions count as wrong', async () => {

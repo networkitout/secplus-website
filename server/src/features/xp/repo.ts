@@ -1,4 +1,5 @@
 import type { Db } from '../../db/db.js';
+import { logError } from '../../log.js';
 import { localDate, safeTimeZone, streak } from '../../services/time.js';
 import { levelForXp } from '../../services/xp.js';
 
@@ -107,4 +108,18 @@ export async function evaluateBadges(db: Db, userId: number, tz: string, now: Da
     if (res.affectedRows === 1) inserted.push(id);
   }
   return inserted;
+}
+
+/**
+ * `evaluateBadges` for a request whose writes are already committed. Failing the request now would have the
+ * client repeat what is recorded, so a failure is logged and reported as no new badges; the next evaluation
+ * awards whatever this one missed. Never inside a transaction: an error there must roll it back.
+ */
+export async function evaluateBadgesAfterCommit(db: Db, userId: number, tz: string, now: Date): Promise<string[]> {
+  try {
+    return await evaluateBadges(db, userId, tz, now);
+  } catch (err) {
+    logError(err, `Badge evaluation failed for user ${userId}`);
+    return [];
+  }
 }

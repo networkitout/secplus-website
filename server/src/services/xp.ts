@@ -9,6 +9,14 @@ export const XP = {
   labPass: 75,
 } as const;
 
+/**
+ * The `xp_events.ref` of a question's repeat-correct XP: one per question and learner-local day, wherever the
+ * question was answered again (practice, a quiz, an exam, a lab or a review).
+ */
+export function repeatRef(questionId: string, day: string): string {
+  return `${questionId}@${day}`;
+}
+
 export function levelForXp(xp: number): number {
   return 1 + Math.floor(Math.sqrt(Math.max(0, xp) / 100));
 }

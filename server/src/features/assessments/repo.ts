@@ -2,12 +2,13 @@ import type { Answer, Feedback, PublicQuestion, Question } from '../../../../sha
 import type { Content } from '../../content/loader.js';
 import type { Db } from '../../db/db.js';
 import { HttpError } from '../../http.js';
+import { logError } from '../../log.js';
 import { PASS, pickMock, pickQuiz, pickSpread, scaledScore, seededRng } from '../../services/assembler.js';
 import { AnswerShapeError, correctAnswerOf, feedbackFor, grade, toPublicQuestion } from '../../services/scoring.js';
 import { localDate, safeTimeZone } from '../../services/time.js';
 import { XP } from '../../services/xp.js';
 import { assertObjectiveOpen, unlockedDomains } from '../access.js';
-import { DuplicateAttemptError, recordAnswer, recordAttempt } from '../answers/repo.js';
+import { DuplicateAttemptError, recordAttempt } from '../answers/repo.js';
 import { awardXp, evaluateBadges } from '../xp/repo.js';
 
 export type Kind = 'objective' | 'domain' | 'mock';
@@ -109,7 +110,7 @@ export async function openAssessments(
     try {
       await finalize(db, content, user, row.id, now);
     } catch (err) {
-      console.error(err);
+      logError(err, `Closing expired assessment ${row.id} of user ${user.id} failed`);
     }
   }
   return open;
@@ -312,13 +313,15 @@ export async function saveAnswer(
     if (answer && locked.kind === 'objective') {
       if (answers[questionId]) throw new HttpError(409, 'This question was already answered');
       try {
-        const rec = await recordAnswer(tx, content, { user, question, answer, context: 'quiz', assessmentId: id, now });
+        const rec = await recordAttempt(tx, { user, question, answer, context: 'quiz', assessmentId: id, now });
+        // In this transaction, so a failure here rolls the answer back with it.
+        const earned = await evaluateBadges(tx, user.id, safeTimeZone(user.timeZone), now);
         feedback = rec.feedback;
         // A quiz is marked answer by answer, so what its answers earn is kept with it for the result.
         breakdown = {
           ...breakdown,
           xp: (breakdown?.xp ?? 0) + rec.xp,
-          newBadges: [...new Set([...(breakdown?.newBadges ?? []), ...rec.newBadges])],
+          newBadges: [...new Set([...(breakdown?.newBadges ?? []), ...earned])],
         };
       } catch (err) {
         if (err instanceof DuplicateAttemptError) throw new HttpError(409, 'This question was already answered');

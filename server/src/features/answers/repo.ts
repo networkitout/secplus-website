@@ -3,9 +3,9 @@ import type { Content } from '../../content/loader.js';
 import type { Db } from '../../db/db.js';
 import { feedbackFor } from '../../services/scoring.js';
 import { localDate, safeTimeZone } from '../../services/time.js';
-import { XP } from '../../services/xp.js';
+import { repeatRef, XP } from '../../services/xp.js';
 import { scheduleMiss } from '../review/repo.js';
-import { awardXp, evaluateBadges } from '../xp/repo.js';
+import { awardXp, evaluateBadgesAfterCommit } from '../xp/repo.js';
 
 /** The (assessment, question) pair already has an attempt; nothing was awarded or scheduled. */
 export class DuplicateAttemptError extends Error {
@@ -59,7 +59,7 @@ export async function recordAttempt(db: Db, a: AnswerInput): Promise<{ feedback:
       userId: user.id,
       amount: XP.repeatCorrect,
       reason: 'repeat-correct',
-      ref: `${question.id}@${today}`,
+      ref: repeatRef(question.id, today),
       now,
     });
     return repeat ? XP.repeatCorrect : 0;
@@ -67,13 +67,17 @@ export async function recordAttempt(db: Db, a: AnswerInput): Promise<{ feedback:
   return { feedback, xp };
 }
 
-/** Records one answer (see `recordAttempt`), then evaluates badges. */
+/**
+ * Records one answer on its own (see `recordAttempt`), then evaluates badges. The answer is committed by
+ * then, so a failing evaluation does not fail the call. Not for use inside a transaction: there, call
+ * `recordAttempt` and `evaluateBadges` on the transaction handle.
+ */
 export async function recordAnswer(
   db: Db,
   _content: Content,
   a: AnswerInput,
 ): Promise<{ feedback: Feedback; xp: number; newBadges: string[] }> {
   const recorded = await recordAttempt(db, a);
-  const newBadges = await evaluateBadges(db, a.user.id, safeTimeZone(a.user.timeZone), a.now);
+  const newBadges = await evaluateBadgesAfterCommit(db, a.user.id, safeTimeZone(a.user.timeZone), a.now);
   return { ...recorded, newBadges };
 }
