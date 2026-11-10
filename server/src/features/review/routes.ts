@@ -121,7 +121,14 @@ export function reviewRouter(deps: AppDeps): Router {
       xp = xpAmount;
     }
     // After the writes, as for any other answer: a review can complete a streak or the hundredth correct attempt.
-    const newBadges = await evaluateBadges(db, user.id, safeTimeZone(user.timeZone), t);
+    // The review is already recorded, so a failure here must not fail the request: a retry would get a 409.
+    // The next evaluation awards whatever this one missed.
+    let newBadges: string[] = [];
+    try {
+      newBadges = await evaluateBadges(db, user.id, safeTimeZone(user.timeZone), t);
+    } catch (err) {
+      console.error(err);
+    }
     res.json({
       box,
       previousBox: card.box,

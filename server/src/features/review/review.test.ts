@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import type { Db } from '../../db/db.js';
 import { createUser, loginAs, testApp } from '../../test/helpers.js';
 import { addFlashcards, dueCount, scheduleMiss } from './repo.js';
@@ -257,6 +257,31 @@ test('a review that completes a 3-day streak returns streak-3 once; a second rev
   const second = await agent.post(`/api/review/${enc('q:q-1.1-001')}`).send(RIGHT);
   expect(second.body).toMatchObject({ xp: 2, newBadges: [] });
   expect(await db.query('SELECT 1 FROM badges WHERE user_id = ?', [user.id])).toHaveLength(1);
+});
+
+test('a failure while evaluating badges does not report the recorded review as failed', async () => {
+  const { db, user, agent } = await setup();
+  await card(db, user.id, 'f:f-1.1-001', 1, TODAY);
+
+  // Badge evaluation reads the badges table first; the card move and the XP award do not touch it.
+  const query = db.query.bind(db);
+  const failing = vi.spyOn(db, 'query').mockImplementation(((sql: string, params?: unknown[]) =>
+    /\bbadges\b/.test(sql) ? Promise.reject(new Error('badges unavailable')) : query(sql, params)) as typeof db.query);
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const res = await agent.post(`/api/review/${enc('f:f-1.1-001')}`).send({ knewIt: true });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ box: 2, previousBox: 1, xp: 2, newBadges: [] });
+    expect(logged).toHaveBeenCalledTimes(1);
+  } finally {
+    failing.mockRestore();
+    logged.mockRestore();
+  }
+  const [moved] = await db.query<{ box: number }>('SELECT box FROM review_cards WHERE user_id = ? AND card_id = ?', [
+    user.id,
+    'f:f-1.1-001',
+  ]);
+  expect(moved!.box).toBe(2);
 });
 
 test('the hundredth correct attempt, made in a review, returns hundred-correct; a rejected review evaluates nothing', async () => {
