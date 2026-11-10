@@ -21,7 +21,12 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   handlers = {
     'GET /api/auth/me': () => json(401, { error: 'Not signed in' }),
-    'GET /api/dashboard': () => json(200, { xp: 0, level: 1, nextLevelXp: 100, streak: 0 }),
+    'GET /api/dashboard': () =>
+      json(200, {
+        xp: 0, level: 1, nextLevelXp: 100, streak: 0, reviewsDue: 0, domains: [], weakest: [], mockHistory: [],
+        readiness: { ready: false, missing: [] }, studyPlan: null, badges: [],
+      }),
+    'GET /api/admin/users': () => json(200, { users: [] }),
   };
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${url}`;

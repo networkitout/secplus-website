@@ -1,12 +1,14 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api/client';
 import { createSaveQueue } from '../api/saveQueue';
 import type { User } from '../api/types';
 import { AuthContext } from '../features/auth/AuthProvider';
+import { RewardsProvider, useRewards } from '../features/rewards/RewardsProvider';
 import { createQueryClient } from '../queryClient';
 import { AppShell } from './AppShell';
 import { Celebration } from './Celebration';
@@ -22,14 +24,22 @@ const user = (role: User['role']): User => ({
 
 const FOOTER = 'Not affiliated with or endorsed by CompTIA. Security+ is a trademark of CompTIA, Inc.';
 
-function renderShell(role: User['role'], logout: () => Promise<void> = vi.fn()) {
-  vi.stubGlobal('fetch', vi.fn(async () =>
-    new Response(JSON.stringify({ xp: 120, level: 3, nextLevelXp: 200, streak: 4 }), { status: 200 })));
+const STATS = { xp: 120, level: 3, nextLevelXp: 200, streak: 4 };
+
+function renderShell(
+  role: User['role'],
+  logout: () => Promise<void> = vi.fn(),
+  page: ReactNode = <p>page body</p>,
+  stats: () => typeof STATS = () => STATS,
+) {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(stats()), { status: 200 })));
   const auth = { user: user(role), loading: false, login: vi.fn(), logout, refresh: vi.fn() };
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <AuthContext.Provider value={auth}>
-        <MemoryRouter><AppShell><p>page body</p></AppShell></MemoryRouter>
+        <RewardsProvider>
+          <MemoryRouter><AppShell>{page}</AppShell></MemoryRouter>
+        </RewardsProvider>
       </AuthContext.Provider>
     </QueryClientProvider>,
   );
@@ -76,6 +86,26 @@ describe('ui', () => {
     const stats = (await screen.findByText(/Level 3/)).closest('p');
     expect(stats).toHaveTextContent('Your progress: 120 XP · Level 3 · 4-day streak');
     expect(stats).not.toHaveAttribute('aria-label');
+  });
+
+  it('AppShell shows the new totals after a page reports XP, and the level-up above the page', async () => {
+    let stats = { ...STATS, xp: 390, level: 2, nextLevelXp: 400 };
+    function Page() {
+      const { report } = useRewards();
+      return <button type="button" onClick={() => report({ xp: 20 })}>Earn</button>;
+    }
+    renderShell('learner', vi.fn(), <Page />, () => stats);
+    expect((await screen.findByText(/Level 2/)).closest('p')).toHaveTextContent('390 XP · Level 2 · 4-day streak');
+    expect(screen.queryByText('Level up')).not.toBeInTheDocument();
+
+    stats = { ...stats, xp: 410, level: 3, nextLevelXp: 900 };
+    await userEvent.click(screen.getByRole('button', { name: 'Earn' }));
+    await waitFor(() => expect(screen.getByText('4-day streak').closest('p')).toHaveTextContent('410 XP · Level 3 · 4-day streak'));
+    const celebration = (await screen.findByText('Level up')).closest('[role="status"]');
+    expect(celebration).toHaveTextContent('Level 3');
+    // Between the header and the page, so that it is read before the page content.
+    expect(celebration!.compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(celebration!.compareDocumentPosition(screen.getByRole('banner')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
 
   it('AppShell reports a failed sign-out instead of leaving a rejected promise', async () => {

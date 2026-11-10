@@ -212,3 +212,102 @@ export interface LabSubmitResponse {
   xp: number;
   newBadges: string[];
 }
+
+/** One badge in the `badges` of `GET /api/dashboard`: every badge there is, earned or not. */
+export interface DashboardBadge {
+  id: string;
+  title: string;
+  /** How the badge is earned, as a sentence. */
+  description: string;
+  /** ISO timestamp, or null while the badge is not earned. */
+  earnedAt: string | null;
+}
+
+/**
+ * `GET /api/dashboard` in full. Mastery values are whole numbers from 0 to 100. `weakest` holds at most five
+ * objectives the learner has attempted, weakest first. `studyPlan` is null without an exam date; its
+ * `daysLeft` is negative once the date has passed.
+ */
+export interface DashboardResponse extends DashboardSummary, DashboardMocks {
+  reviewsDue: number;
+  domains: Array<{ id: number; title: string; mastery: number }>;
+  weakest: Array<{ objective: string; title: string; mastery: number }>;
+  readiness: { ready: boolean; missing: string[] };
+  studyPlan: { daysLeft: number; objectivesPerDay: number; message: string } | null;
+  badges: DashboardBadge[];
+}
+
+/**
+ * `GET /api/practice/:objective`: at most ten answer-free questions, those last answered wrong first, then
+ * those never answered; empty when every question was last answered right. 404 for an unknown or
+ * unpublished objective, 403 while its domain is locked.
+ */
+export interface PracticeResponse {
+  questions: PublicQuestion[];
+}
+
+export type LeaderboardPeriod = 'week' | 'all';
+
+/** One row of `GET /api/leaderboard`. `xp` is the XP of the period; `level` always comes from all-time XP. */
+export interface LeaderboardRow {
+  rank: number;
+  userId: number;
+  name: string;
+  level: number;
+  xp: number;
+  streak: number;
+  isMe: boolean;
+}
+
+/**
+ * `GET /api/leaderboard?period=week|all`: the best 50 learners with XP in the period. `me` is the viewer's
+ * own rank and XP, also beyond the rows; it is null when the viewer is hidden or has no XP in the period.
+ */
+export interface LeaderboardResponse {
+  period: LeaderboardPeriod;
+  rows: LeaderboardRow[];
+  me: { rank: number; xp: number } | null;
+}
+
+/** Body of `PUT /api/settings`: only the fields to change. `examDate` is `YYYY-MM-DD`, or null to clear it. */
+export interface SettingsUpdate {
+  name?: string;
+  timeZone?: string;
+  examDate?: string | null;
+  hideFromLeaderboard?: boolean;
+}
+
+/** `PUT /api/settings` answers with the updated user; 400 `{ error }` names the first invalid field. */
+export interface SettingsResponse {
+  user: User;
+}
+
+/** One account of `GET /api/admin/users` (admins included), oldest account first. */
+export interface AdminUser {
+  id: number;
+  login: string;
+  name: string;
+  role: Role;
+  active: boolean;
+  /** ISO timestamp, or null when the account has never been used. */
+  lastActiveAt: string | null;
+  /** Ids of the domains whose exam is passed, ascending. */
+  domainsPassed: number[];
+  /** Scaled score (100 to 900) of the latest finished mock exam, or null. */
+  latestMockScore: number | null;
+}
+
+/** `GET /api/admin/users` */
+export interface AdminUsersResponse {
+  users: AdminUser[];
+}
+
+/**
+ * `POST /api/admin/invites` with `{ purpose: 'invite' }` or `{ purpose: 'reset', userId }`. `url` is a path
+ * (`/invite/<token>` or `/reset/<token>`) and `expiresAt` an ISO timestamp. The token is not stored in
+ * readable form, so the link cannot be shown again. 404 when the reset is for an unknown or inactive user.
+ */
+export interface AdminLink {
+  url: string;
+  expiresAt: string;
+}

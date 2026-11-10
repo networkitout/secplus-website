@@ -1,4 +1,5 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router';
+import { AdminPage } from './features/admin/AdminPage';
 import { ExamLobbyPage } from './features/assessment/ExamLobbyPage';
 import { ExamPage } from './features/assessment/ExamPage';
 import { QuizPage } from './features/assessment/QuizPage';
@@ -6,23 +7,17 @@ import { InvitePage } from './features/auth/InvitePage';
 import { LoginPage } from './features/auth/LoginPage';
 import { RequireAdmin, RequireAuth } from './features/auth/AuthProvider';
 import { ResetPage } from './features/auth/ResetPage';
+import { DashboardPage } from './features/dashboard/DashboardPage';
+import { PracticePage } from './features/dashboard/PracticePage';
 import { LabPage } from './features/labs/LabPage';
 import { LabsPage } from './features/labs/LabsPage';
+import { LeaderboardPage } from './features/leaderboard/LeaderboardPage';
 import { LessonPage } from './features/lesson/LessonPage';
 import { PathPage } from './features/path/PathPage';
 import { ReviewPage } from './features/review/ReviewPage';
+import { RewardsProvider } from './features/rewards/RewardsProvider';
+import { SettingsPage } from './features/settings/SettingsPage';
 import { AppShell } from './ui/AppShell';
-
-// Placeholder until the feature's task replaces it.
-function Placeholder({ title }: { title: string }) {
-  return <h1 className="text-2xl font-semibold">{title}</h1>;
-}
-
-const screens: Array<{ path: string; title: string }> = [
-  { path: 'dashboard', title: 'Dashboard' },
-  { path: 'leaderboard', title: 'Leaderboard' },
-  { path: 'settings', title: 'Settings' },
-];
 
 export function AppRoutes() {
   return (
@@ -33,9 +28,11 @@ export function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <AppShell>
-              <Outlet />
-            </AppShell>
+            <RewardsProvider>
+              <AppShell>
+                <Outlet />
+              </AppShell>
+            </RewardsProvider>
           </RequireAuth>
         }
       >
@@ -47,14 +44,15 @@ export function AppRoutes() {
         <Route path="review" element={<ReviewPage />} />
         <Route path="labs" element={<LabsPage />} />
         <Route path="labs/:id" element={<LabPage />} />
-        {screens.map((s) => (
-          <Route key={s.path} path={s.path} element={<Placeholder title={s.title} />} />
-        ))}
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="practice/:objective" element={<PracticePage />} />
+        <Route path="leaderboard" element={<LeaderboardPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route
           path="admin"
           element={
             <RequireAdmin>
-              <Placeholder title="Admin" />
+              <AdminPage />
             </RequireAdmin>
           }
         />

@@ -4,6 +4,7 @@ import { NavLink } from 'react-router';
 import { api } from '../api/client';
 import type { DashboardSummary } from '../api/types';
 import { useAuth } from '../features/auth/AuthProvider';
+import { RewardsBanner } from '../features/rewards/RewardsProvider';
 import { Footer } from './Footer';
 import { SaveIndicator } from './SaveIndicator';
 import { ThemeToggle } from './ThemeToggle';
@@ -85,6 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      <RewardsBanner />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
         {children}
       </main>
