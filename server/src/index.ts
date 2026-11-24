@@ -1,3 +1,4 @@
+import type { Server } from 'node:http';
 import path from 'node:path';
 import { createApp } from './app.js';
 import { describeContentError, loadContent, type Content } from './content/loader.js';
@@ -35,19 +36,24 @@ try {
 
 const db = connect(env.databaseUrl);
 
-try {
-  const applied = await migrate(db);
-  if (applied.length) console.log(`Applied migrations: ${applied.join(', ')}`);
-} catch (err) {
-  if (err instanceof MigrationFilesError) fail(`${err.message}. Start the server from the repository root.`);
-  if (isDbUnavailable(err)) fail(`Database unavailable at startup: ${errorLine(err)}`);
-  fail(`Database migration failed: ${errorLine(err)}`);
-}
+// No top-level await anywhere in this module: Hostinger starts the app through LiteSpeed's lsnode.js,
+// which loads this file with require(), and Node refuses to require() an ES module that awaits at the
+// top level (ERR_REQUIRE_ASYNC_MODULE). The database steps therefore run in an async function.
+async function prepareDatabase(): Promise<void> {
+  try {
+    const applied = await migrate(db);
+    if (applied.length) console.log(`Applied migrations: ${applied.join(', ')}`);
+  } catch (err) {
+    if (err instanceof MigrationFilesError) fail(`${err.message}. Start the server from the repository root.`);
+    if (isDbUnavailable(err)) fail(`Database unavailable at startup: ${errorLine(err)}`);
+    fail(`Database migration failed: ${errorLine(err)}`);
+  }
 
-try {
-  await ensureAdmin(db, env, new Date());
-} catch (err) {
-  fail(`Admin bootstrap failed: ${errorLine(err)}`);
+  try {
+    await ensureAdmin(db, env, new Date());
+  } catch (err) {
+    fail(`Admin bootstrap failed: ${errorLine(err)}`);
+  }
 }
 
 const app = createApp({
@@ -59,10 +65,15 @@ const app = createApp({
   trustProxy: env.trustProxy,
 });
 
-// Express hands a failed listen (a port already in use, say) to this callback instead of throwing.
-const server = app.listen(env.port, (err?: Error) => {
-  if (err) fail(`Cannot listen on port ${env.port}: ${errorLine(err)}`);
-  console.log(`Listening on port ${env.port}`);
+let server: Server | undefined;
+
+void prepareDatabase().then(() => {
+  if (stopping) return;
+  // Express hands a failed listen (a port already in use, say) to this callback instead of throwing.
+  server = app.listen(env.port, (err?: Error) => {
+    if (err) fail(`Cannot listen on port ${env.port}: ${errorLine(err)}`);
+    console.log(`Listening on port ${env.port}`);
+  });
 });
 
 const SHUTDOWN_GRACE_MS = 10_000;
@@ -75,11 +86,16 @@ function shutdown(signal: NodeJS.Signals): void {
   console.log(`${signal} received: shutting down`);
   // A request that never ends must not keep the process alive for ever.
   setTimeout(() => fail(`Shutdown did not finish within ${SHUTDOWN_GRACE_MS / 1000} seconds; exiting`), SHUTDOWN_GRACE_MS).unref();
-  server.close(() => {
+  const closeDb = () =>
     db.close()
       .catch((err) => console.error(`Closing the database pool failed: ${errorLine(err)}`))
       .finally(() => process.exit(0));
-  });
+  // A signal can arrive while the database is still being prepared, before anything listens.
+  if (!server) {
+    void closeDb();
+    return;
+  }
+  server.close(() => void closeDb());
   server.closeIdleConnections();
 }
 

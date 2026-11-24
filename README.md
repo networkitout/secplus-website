@@ -558,6 +558,11 @@ What the deployment depends on:
   one) relative to the working directory. Started from anywhere else it stops at once and names the first
   thing it could not read, for example
   `content/manifest.json: file: cannot read file: ENOENT: no such file or directory, open 'content/manifest.json'`.
+- **No top-level `await` in the server's import graph.** Hostinger starts the app through LiteSpeed's
+  `lsnode.js`, which loads `dist/server/server/src/index.js` with `require()`. Node cannot `require()` an
+  ES module that awaits at the top level and stops with `ERR_REQUIRE_ASYNC_MODULE`, so the start-up steps
+  run inside an async function instead. Check with
+  `node -e "require('./dist/server/server/src/index.js')"` after `npm run build`.
 - **What happens at start.** The server checks its configuration, then loads and validates the content,
   then connects to the database, applies the migrations and creates the first admin if there is none. The
   database user needs the right to create and alter tables. If a step fails, the process prints one line
