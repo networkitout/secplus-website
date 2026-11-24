@@ -1,0 +1,26 @@
+[
+  {
+    "id": "f-1.1-001",
+    "objective": "1.1",
+    "term": "Term 1.1",
+    "definition": "Definition 1.1"
+  },
+  {
+    "id": "f-1.1-002",
+    "objective": "1.1",
+    "term": "Term 1.2",
+    "definition": "Definition 1.2"
+  },
+  {
+    "id": "f-1.2-001",
+    "objective": "1.2",
+    "term": "Term 2.1",
+    "definition": "Definition 2.1"
+  },
+  {
+    "id": "f-1.2-002",
+    "objective": "1.2",
+    "term": "Term 2.2",
+    "definition": "Definition 2.2"
+  }
+]
